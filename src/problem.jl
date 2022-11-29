@@ -1,24 +1,33 @@
 using LinearSolve
 export NLLSProblem, addresidual, addvariable
- 
-struct NLLSProblem{T}
+
+mutable struct NLLSMutables
+    linearsolve::LinearProblem
+    callback # Function called at the end of every iteration
+end
+NLLSMutables() = NLLSMutables(LinearProblem(0, 0), (args...) -> false)
+struct NLLSProblem{T<:AbstractFloat}
     # User provided
-    residuals::IdDict
+    residuals::IdDict{Any, Any}
     variables::Vector{Any}
     
     # Internal
     newvariables::Vector{T} # Updated copy of variables, for testing a step
     gradient::Vector{T} # Storage for the gradient
-    hessian::Vector{T} # Storage for the Hessian
+    hessian::Matrix{T} # Storage for the Hessian
     unfixed::BitArray{1} # Bit vector to store which variables are not fixed (same length as variables)
     condition::Vector{T}
     blockoffsets::Vector{UInt}
-    linearsolve::LinearSolve
-    callback # Function called at the end of every iteration
+    mutables::NLLSMutables 
 
     # Debug outputs
     trajectory::Vector{Vector{T}}
-    periteration
+    periteration::Vector{T}
+
+    # Constructor
+    function NLLSProblem{T}()
+        return new(IdDict(), Vector{Any}(), Vector{T}(), Matrix{T}())
+    end
 end
 
 function addresidual!(problem::NLLSProblem, residual)

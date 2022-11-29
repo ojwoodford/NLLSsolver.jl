@@ -1,8 +1,5 @@
 import ForwardDiff, NLLSsolver.valuedispatch
-export AbstractResidual, cost, costgradhess!
-
-# Abstract types Residuals
-abstract type AbstractResidual end
+export cost, costgradhess!
 
 function cost(residuals, vars::Vector)
     # Compute the total cost of all residuals

@@ -1,7 +1,6 @@
 export rodrigues, project, epipolarerror, proj2orthonormal
 export Rotation3DR, Rotation3DL, Point3D, Pose3D, EffPose3D, UnitPose3D
 using StaticArrays, LinearAlgebra
-import nllssolver.AbstractVariable, nllssolver.SR
 
 function rodrigues(x::T, y::T, z::T) where T<:Number
     if x == 0 && y == 0 && z == 0
@@ -46,7 +45,7 @@ function epipolarerror(RX, T, x, W=Nothing)
     return dot(xe, normalize(RXp))
 end
 
-abstract type AbstractPoint3D <: AbstractVariable end
+abstract type AbstractPoint3D end
 struct Point3D{T<:Real} <: AbstractPoint3D
     v::SVector{3, T}
 end
@@ -120,7 +119,7 @@ end
 transform(pose::EffPose3D, point::Point3D) = Point3D(pose.rot.m * (point.v - pose.camcenter.v))
 
 
-struct UnitPose3D{T<:Real} <: AbstractVariable
+struct UnitPose3D{T<:Real}
     rot::Rotation3DL{T}
     trans::Rotation3DL{T}
 end

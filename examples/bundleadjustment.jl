@@ -1,4 +1,5 @@
-using VisualGeometryDatasets, NLLSsolver
+using VisualGeometryDatasets, NLLSsolver, StaticArrays
+import NLLSsolver.robustkernel
 export optimizeBALproblem
 export getvars, computeresidual, robustkernel, nvars, transform, makeBALproblem
 
@@ -81,3 +82,5 @@ function optimizeBALproblem(name="problem-16-22106")
     # Plot the costs
 
 end
+
+optimizeBALproblem()

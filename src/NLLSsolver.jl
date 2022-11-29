@@ -1,4 +1,8 @@
 module NLLSsolver
+# Abstract types
+export AbstractResidual
+abstract type AbstractResidual end
+
 # Helper functions
 include("utils.jl")
 

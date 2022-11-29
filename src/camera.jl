@@ -27,10 +27,11 @@ function image2ideal(camera, x, W)
     return (x .- cameracenter(camera)) ./ focallength(camera), W .* focallength(camera)' 
 end
 
-
-const SimpleCamera{T} = PositiveScalar{T}
+struct SimpleCamera{T}
+    f::ZeroToInfScalar{T}
+end
 @inline cameracenter(::SimpleCamera) = 0
-@inline focallength(camera::SimpleCamera) = camera.val
+@inline focallength(camera::SimpleCamera) = camera.f.val
 
 
 struct NoDistortionCamera{T}
