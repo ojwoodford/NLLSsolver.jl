@@ -1,77 +1,86 @@
-using VisualGeometryDatasets, NLLSsolver, StaticArrays
-import NLLSsolver.robustkernel
+using VisualGeometryDatasets, StaticArrays, BenchmarkTools
+import NLLSsolver
 export optimizeBALproblem
-export getvars, computeresidual, robustkernel, nvars, transform, makeBALproblem
 
+# Description of BAL image, and function to transform a landmark from world coordinates to pixel coordinates
 struct BALImage{T}
-    pose::EffPose3D{T}
-    camera::BALCamera{T}
+    pose::NLLSsolver.EffPose3D{T}
+    sensor::NLLSsolver.SimpleCamera{T}
+    lens::NLLSsolver.BarrelDistortion{T}
 end
-nvars(::BALImage) = 9
-function update(var::BALImage, updatevec, start=1)
+NLLSsolver.nvars(::BALImage) = 9
+function NLLSsolver.update(var::BALImage, updatevec, start=1)
     return BALImage(update(var.pose, updatevec, start),
-                    update(var.camera, updatevec, start+6))
+                    update(var.sensor, updatevec, start+6),
+                    update(var.lens, updatevec, start+7))
 end
-function transform(im::BALImage, X::Point3D)
-    return ideal2image(im.camera, -project(im.pose * X))
+function BALImage(rx::T, ry::T, rz::T, tx::T, ty::T, tz::T, f::T, k1::T, k2::T) where T<:Real
+    R = NLLSsolver.Rotation3DL(rx, ry, rz)
+    return BALImage{T}(NLLSsolver.EffPose3D(R, NLLSsolver.Point3D(R.m' * -SVector(tx, ty, tz))), 
+                       NLLSsolver.SimpleCamera(f), 
+                       NLLSsolver.BarrelDistortion(k1, k2))
 end
-function makeBALImage(rx::T, ry::T, rz::T, tx::T, ty::T, tz::T, f::T, k1::T, k2::T) where T<:Real
-    R = Rotation3DL(rx, ry, rz)
-    return BALImage{T}(EffPose3D(R, Point3D(R.m' * -SVector(tx, ty, tz))), BALCamera(f, k1, k2))
+BALImage(v) = BALImage(v[1], v[2], v[3], v[4], v[5], v[6], v[7], v[8], v[9])
+function transform(im::BALImage, X::NLLSsolver.Point3D)
+    return NLLSsolver.ideal2image(im.sensor, NLLSsolver.ideal2distorted(im.lens, -NLLSsolver.project(im.pose * X)))
 end
-makeBALImage(v) = makeBALImage(v[1], v[2], v[3], v[4], v[5], v[6], v[7], v[8], v[9])
 
-struct BALResidual{T} <: AbstractResidual
+# Residual that defines the reprojection error of a BAL measurement
+struct BALResidual{T} <: NLLSsolver.AbstractResidual
     measurement::SVector{2, T}
     varind::SVector{2, Int}
 end
 BALResidual(m, v) = BALResidual(SVector{2}(m[1], m[2]), SVector{2, Int}(v[1], v[2]))
-nvars(::BALResidual) = 2 # Residual depends on 2 variables
-reslen(::BALResidual) = 2 # The residual is a vector of length 2
-function eltype(::BALResidual{T}) where T
-    return T
+NLLSsolver.nvars(::BALResidual) = 2 # Residual depends on 2 variables
+function NLLSsolver.getvars(res::BALResidual{T}, vars::Vector) where T
+    return vars[res.varind[1]]::BALImage{T}, vars[res.varind[2]]::NLLSsolver.Point3D{T}
 end
-function getvars(res::BALResidual{T}, vars::Vector) where T
-    return vars[res.varind[1]]::BALImage{T}, vars[res.varind[2]]::Point3D{T}
-end
-function computeresidual(res::BALResidual, im::BALImage, X::Point3D)
+function NLLSsolver.computeresidual(res::BALResidual, im::BALImage, X::NLLSsolver.Point3D)
     return transform(im, X) - res.measurement
 end
-const balrobustifier = HuberKernel(2., 4., 1., 1.)
-function robustkernel(::BALResidual)
+const balrobustifier = NLLSsolver.HuberKernel(2., 4., 1., 1.)
+function NLLSsolver.robustkernel(::BALResidual)
     return balrobustifier
 end
 
+# Function to create a NLLSsolver problem from a BAL dataset
 function makeBALproblem(name)
     # Load the data
     data = loadbaldataset(name)
 
     # Create the problem
-    problem = NLLSProblem{Float64}()
+    problem = NLLSsolver.NLLSProblem{Float64}()
 
     # Add the cameras
     for cam in data.cameras
-        addvariable!(problem, makeBALImage(cam))
+        NLLSsolver.addvariable!(problem, BALImage(cam))
     end
     numcameras = length(data.cameras)
     # Add the landmarks
     for lm in data.landmarks
-        addvariable!(problem, Point3D(lm[1], lm[2], lm[3]))
+        NLLSsolver.addvariable!(problem, NLLSsolver.Point3D(lm[1], lm[2], lm[3]))
     end
 
     # Add the residuals
     for meas in data.measurements
-        addresidual!(problem::NLLSProblem, BALResidual(SVector(meas.x, meas.y), SVector(meas.camera, meas.landmark + numcameras)))
+        NLLSsolver.addresidual!(problem, BALResidual(SVector(meas.x, meas.y), SVector(meas.camera, meas.landmark + numcameras)))
     end
 
     # Return the optimization problem
     return problem
 end
 
+# Function to optimize a BAL problem
 function optimizeBALproblem(name="problem-16-22106")
     # Create the problem
     problem = makeBALproblem(name)
     # Compute the current RMS error
+    res = problem.residuals[BALResidual{Float64}]
+    vars = problem.variables
+    # @code_warntype NLLSsolver.cost(res, vars)
+    # @code_warntype NLLSsolver.cost(problem)
+    # @btime NLLSsolver.cost($problem)
+    @btime NLLSsolver.cost($res, $vars)
 
     # Optimize the cost
 
@@ -83,4 +92,4 @@ function optimizeBALproblem(name="problem-16-22106")
 
 end
 
-optimizeBALproblem()
+val = optimizeBALproblem()

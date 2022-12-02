@@ -8,7 +8,7 @@ struct NoRobust <: Robustifier
 end
 
 function robustify(::NoRobust, cost)
-    return cost, 1
+    return cost, 1, 0
 end
 
 function robustkernel(::AbstractResidual)
@@ -23,7 +23,7 @@ end
 ScaledNoRobust(h) = ScaledNoRobust(h, sqrt(h))
 
 function robustify(kernel::ScaledNoRobust, cost)
-    return cost * kernel.height, kernel.height_sqrt
+    return cost * kernel.height, kernel.height_sqrt, 0
 end
 
 struct HuberKernel{T<:Real} <: Robustifier
@@ -37,10 +37,10 @@ HuberKernel(w, h) = HuberKernel(w, w*w, h, sqrt(h))
 
 function robustify(kernel::HuberKernel, cost)
     if cost < kernel.width_squared
-        return cost * kernel.height, kernel.height_sqrt
+        return cost * kernel.height, kernel.height_sqrt, 0
     end
     sqrtcost = sqrt(cost)
-    return (sqrtcost * (kernel.width * 2) - kernel.width_squared) * kernel.height, kernel.width * kernel.height_sqrt / sqrtcost
+    return (sqrtcost * (kernel.width * 2) - kernel.width_squared) * kernel.height, kernel.width * kernel.height_sqrt / sqrtcost, 0
 end
 
 
@@ -54,7 +54,7 @@ GemanMcclureKernel(w, h) = GemanMcclureKernel(w*w, h/(w*w), sqrt(h)/w)
 
 function robustify(kernel::GemanMcclureKernel, cost)
     w = kernel.width_squared / (cost + kernel.width_squared)
-    return cost * w * kernel.height, w * w * kernel.height_sqrt
+    return cost * w * kernel.height, w * w * kernel.height_sqrt, 0
 end
 
 
@@ -63,7 +63,7 @@ end
 #     cost = x .^ 2
 #     weight = similar(cost)
 #     for ind in eachindex(cost)
-#         cost[ind], weight[ind] = robustify(kernel, cost[ind])
+#         cost[ind], weight[ind], unused = robustify(kernel, cost[ind])
 #     end
 #     plot(x, [cost, weight])
 # end
