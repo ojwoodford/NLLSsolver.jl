@@ -1,4 +1,4 @@
-using FLoops
+using FLoops: @floop, @reduce
 import ForwardDiff, NLLSsolver.valuedispatch
 export cost, costgradhess!, computeresjac
 
@@ -11,7 +11,8 @@ function cost(residuals, vars::Vector{Any})::Float64
     # Compute the total cost of all residuals in a container
     c = 0.
     @floop for res in residuals
-        @reduce c += cost(res, vars)
+        c_ = cost(res, vars)
+        @reduce c += c_
     end
     return c
 end
@@ -100,7 +101,7 @@ end
 
 function costgradhess!(grad, hess, residual::Residual, vars::Vector, blockindex::Vector{Int}) where Residual <: AbstractResidual
     # Get the bitset for the input variables, as an integer
-    blockind = blockindex[residual.varind]
+    blockind = blockindex[varindices(residual)]
     varflags = foldl((x, y) -> (x << 1) + (y != 0), reverse(blockind), init=0)
 
     # If there are no variables, just return the cost

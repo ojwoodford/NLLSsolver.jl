@@ -32,6 +32,7 @@ struct BALResidual{T} <: NLLSsolver.AbstractResidual
 end
 BALResidual(m, v) = BALResidual(SVector{2}(m[1], m[2]), SVector{2, Int}(v[1], v[2]))
 NLLSsolver.nvars(::BALResidual) = 2 # Residual depends on 2 variables
+NLLSsolver.varindices(res::BALResidual) = res.varind
 function NLLSsolver.getvars(res::BALResidual{T}, vars::Vector) where T
     return vars[res.varind[1]]::BALImage{T}, vars[res.varind[2]]::NLLSsolver.Point3D{T}
 end
@@ -44,10 +45,7 @@ function NLLSsolver.robustkernel(::BALResidual)
 end
 
 # Function to create a NLLSsolver problem from a BAL dataset
-function makeBALproblem(name)
-    # Load the data
-    data = loadbaldataset(name)
-
+function makeBALproblem(data)
     # Create the problem
     problem = NLLSsolver.NLLSProblem{Float64}()
 
@@ -70,17 +68,42 @@ function makeBALproblem(name)
     return problem
 end
 
+function filterBALlandmarks(data, landmarks)
+    # Find the residuals associated with the landmarks
+    deleteat!(data.measurements, findall(broadcast(m -> m.landmark ∉ landmarks, data.measurements)))
+    # Delete the unused cameras and landmarks
+    cameras = trues(length(data.cameras))
+    landmarks = trues(length(data.landmarks))
+    for measurement in data.measurements
+        cameras[measurement.camera] = false
+        landmarks[measurement.landmark] = false
+    end
+    deleteat!(data.cameras, findall(cameras))
+    deleteat!(data.landmarks, findall(landmarks))
+    # Remap the indices
+    cameras = cumsum(.!cameras)
+    landmarks = cumsum(.!landmarks)
+    for ind in eachindex(data.measurements)
+        data.measurements[ind] = VisualGeometryDatasets.BALMeasurement(
+                                    data.measurements[ind].x, data.measurements[ind].y,
+                                    cameras[data.measurements[ind].camera], landmarks[data.measurements[ind].landmark])
+    end
+end
+
+
 # Function to optimize a BAL problem
 function optimizeBALproblem(name="problem-16-22106")
     # Create the problem
-    problem = makeBALproblem(name)
+    problem = makeBALproblem(filterBALlandmarks(loadbaldataset(name), 1))
     # Compute the current RMS error
-    res = problem.residuals[BALResidual{Float64}]
+    res = (problem.residuals[BALResidual{Float64}])[1]
     vars = problem.variables
     # @code_warntype NLLSsolver.cost(res, vars)
     # @code_warntype NLLSsolver.cost(problem)
     # @btime NLLSsolver.cost($problem)
-    @btime NLLSsolver.cost($res, $vars)
+    # @btime NLLSsolver.cost($res, $vars)
+
+    push!(problem.schurvartypes, NLLSsolver.Point3D{Float64})
 
     # Optimize the cost
 
@@ -89,7 +112,7 @@ function optimizeBALproblem(name="problem-16-22106")
     # Print out the timings
 
     # Plot the costs
-
+    return problem
 end
 
 val = optimizeBALproblem()
