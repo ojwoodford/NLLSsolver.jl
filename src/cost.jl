@@ -1,13 +1,15 @@
 using FLoops: @floop, @reduce
-import ForwardDiff, NLLSsolver.valuedispatch
+import ForwardDiff, NLLSsolver.valuedispatch, NLLSsolver.NLLSProblem, NLLSsolver.AbstractResidual
 export cost, costgradhess!, computeresjac
 
-function cost(problem::NLLSProblem)::Float64
+cost(problem::NLLSProblem) = cost(problem.residuals, problem.variables)
+
+function cost(residuals::IdDict, vars::Vector)::Float64
     # Compute the cost of all residuals in the problem
-    return sum(x -> cost(x.second::Vector{x.first}, problem.variables), problem.residuals; init=0.)
+    return sum(x -> cost(x.second::Vector{x.first}, vars), residuals; init=0.)
 end
 
-function cost(residuals, vars::Vector{Any})::Float64
+function cost(residuals::Vector, vars::Vector)::Float64
     # Compute the total cost of all residuals in a container
     c = 0.
     @floop for res in residuals
@@ -17,7 +19,7 @@ function cost(residuals, vars::Vector{Any})::Float64
     return c
 end
 
-function cost(residual::Residual, vars::Vector{Any})::Float64 where Residual <: AbstractResidual
+function cost(residual::Residual, vars::Vector)::Float64 where Residual <: AbstractResidual
     # Get the variables required to compute the residual
     v = getvars(residual, vars)
 
@@ -38,7 +40,7 @@ end
 
 # Generate the updated variables
 @inline function updatevars(vars, varflags, advar)
-    return ntuple(i -> ((varflags >> (i - 1)) & 1) != 0 ? update(vars[i], advar, countvars(vars[1:i-1], Val(varflags))) : vars[i], length(vars))
+    return ntuple(i -> ((varflags >> (i - 1)) & 1) != 0 ? update(vars[i], advar, countvars(vars[1:i-1], Val(varflags))+1) : vars[i], length(vars))
 end
 
 # Compute the offsets of the variables
@@ -48,7 +50,7 @@ end
 
 function updateblocks!(grad, hess, res, jac, w1, w2, blockoffsets)
     # Triggs' second order correction
-    if w2
+    if w2 > 0
         
     end
     # IRLS weighting of the residual and Jacobian
@@ -58,8 +60,8 @@ function updateblocks!(grad, hess, res, jac, w1, w2, blockoffsets)
     end
 
     # Update the blocks in the problem
-    grad[blockoffsets] += jac' * res
-    hess[blockoffsets, blockoffsets] += jac' * jac
+    @inbounds grad[blockoffsets] += jac' * res
+    @inbounds hess[blockoffsets, blockoffsets] += jac' * jac
     return nothing
 end
 
@@ -99,9 +101,9 @@ function gradhesshelper!(grad, hess, residual::Residual, vars::Vector, blockind,
     return c
 end
 
-function costgradhess!(grad, hess, residual::Residual, vars::Vector, blockindex::Vector{Int}) where Residual <: AbstractResidual
+function costgradhess!(grad, hess, residual::Residual, vars::Vector, blockoffsets::Vector{UInt})::Float64 where Residual <: AbstractResidual
     # Get the bitset for the input variables, as an integer
-    blockind = blockindex[varindices(residual)]
+    blockind = blockoffsets[varindices(residual)]
     varflags = foldl((x, y) -> (x << 1) + (y != 0), reverse(blockind), init=0)
 
     # If there are no variables, just return the cost
@@ -114,11 +116,24 @@ function costgradhess!(grad, hess, residual::Residual, vars::Vector, blockindex:
     return valuedispatch(Val(1), Val((2^nvars(residual))-1), v -> gradhesshelper!(grad, hess, residual, vars, blockind, v), varflags)
 end
 
-function costgradhess!(grad, hess, residuals, vars::Vector, blockindex::Vector{Int})
+function costgradhess!(grad, hess, residuals::Vector, vars::Vector, blockoffsets::Vector{UInt})::Float64
     # Go over all resdiduals, updating the gradient & hessian, and aggregating the cost 
     c = 0.
+    # @floop 
     for res in residuals
-        c += costgradhess!(grad, hess, res, vars, blockindex)
+        c_ = costgradhess!(grad, hess, res, vars, blockoffsets)
+        # @reduce
+        c += c_
     end
     return c
+end
+
+function costgradhess!(grad, hess, residuals::IdDict, vars::Vector, blockoffsets::Vector{UInt})::Float64
+    # Go over all resdiduals in the problem
+    # return sum(x -> costgradhess!(grad, hess, x.second::Vector{x.first}, vars, blockoffsets), residuals; init=0.)
+    c = 0.
+    for (key, res) in residuals
+        c += costgradhess!(grad, hess, res, vars, blockoffsets)
+    end
+    return c 
 end

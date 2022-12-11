@@ -47,7 +47,7 @@ end
 # Function to create a NLLSsolver problem from a BAL dataset
 function makeBALproblem(data)
     # Create the problem
-    problem = NLLSsolver.NLLSProblem{Float64}()
+    problem = NLLSsolver.NLLSProblem{Union{BALImage{Float64}, NLLSsolver.Point3D{Float64}}}()
 
     # Add the cameras
     for cam in data.cameras
@@ -88,26 +88,23 @@ function filterBALlandmarks(data, landmarks)
                                     data.measurements[ind].x, data.measurements[ind].y,
                                     cameras[data.measurements[ind].camera], landmarks[data.measurements[ind].landmark])
     end
+    return data
 end
 
 
 # Function to optimize a BAL problem
 function optimizeBALproblem(name="problem-16-22106")
     # Create the problem
-    problem = makeBALproblem(filterBALlandmarks(loadbaldataset(name), 1))
-    # Compute the current RMS error
-    res = (problem.residuals[BALResidual{Float64}])[1]
-    vars = problem.variables
-    # @code_warntype NLLSsolver.cost(res, vars)
-    # @code_warntype NLLSsolver.cost(problem)
-    # @btime NLLSsolver.cost($problem)
-    # @btime NLLSsolver.cost($res, $vars)
-
-    push!(problem.schurvartypes, NLLSsolver.Point3D{Float64})
-
+    data = filterBALlandmarks(loadbaldataset(name), 1)
+    show(data)
+    problem = makeBALproblem(data)
+    NLLSsolver.fixvars!(problem, range(1, length(problem.variables)-1))
+    # Compute the mean cost per measurement
+    println("   Mean cost per measurement: ", NLLSsolver.cost(problem)/length(data.measurements))
     # Optimize the cost
-
-    # Compute the new RMS error
+    result = NLLSsolver.optimize!(problem)
+    # Compute the new mean cost per measurement
+    println("   Mean cost per measurement: ", minimum(result.costs)/length(data.measurements))
 
     # Print out the timings
 
@@ -115,4 +112,4 @@ function optimizeBALproblem(name="problem-16-22106")
     return problem
 end
 
-val = optimizeBALproblem()
+val = optimizeBALproblem();
