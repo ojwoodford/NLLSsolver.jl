@@ -59,11 +59,12 @@ function optimize!(problem::NLLSProblem{VarTypes}, options::NLLSOptions=NLLSOpti
         push!(result.costs, cost)
         # Store the best result
         dcost = bestcost - cost
-        if cost < bestcost
+        if dcost > 0
             bestcost = cost
             bestvariables = data.variables
             fails = 0
         else
+            dcost = cost
             fails += 1
         end
         if options.storetrajectory
@@ -71,7 +72,7 @@ function optimize!(problem::NLLSProblem{VarTypes}, options::NLLSOptions=NLLSOpti
             push!(result.trajectory, data.step)
         end
         # Check for convergence
-        if options.callback(problem, data, cost) || (dcost > bestcost * options.dcost) || (maximum(abs, data.step) > options.dstep) || (fails > options.maxfails) || iters >= options.maxiters
+        if options.callback(problem, data, cost) || (dcost < bestcost * options.dcost) || (maximum(abs, data.step) < options.dstep) || (fails > options.maxfails) || iter >= options.maxiters
             break
         end
         # Update the variables
@@ -98,7 +99,7 @@ end
 # Iterators assume that the linear problem has been constructed
 function gaussnewton_iteration!(data::NLLSInternal, problem::NLLSProblem)
     # Compute the step
-    data.step = solve(LinearProblem(data.hessian, data.gradient)).u
+    data.step = -solve(LinearProblem(data.hessian, data.gradient)).u
     # Update the new variables
     data.variables = copy(problem.variables)
     update!(data.variables, data.blockoffsets, data.step)

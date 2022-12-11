@@ -1,3 +1,4 @@
+using StaticArrays
 import NLLSsolver
 
 # Define the Rosenbrock cost function
@@ -7,7 +8,7 @@ struct Rosenbrock <: NLLSsolver.AbstractResidual
 end
 Rosenbrock() = Rosenbrock(1.0, 10.0)
 NLLSsolver.nvars(::Rosenbrock) = 1 # Residual depends on 1 variable
-NLLSsolver.varindices(res::Rosenbrock) = 1 # There's only one variable
+NLLSsolver.varindices(res::Rosenbrock) = SVector(1) # There's only one variable
 function NLLSsolver.getvars(::Rosenbrock, vars::Vector)
     return (vars[1]::NLLSsolver.EuclideanVector{2, Float64},)
 end
@@ -33,4 +34,4 @@ function optimizeRosenbrock()
     return result
 end
 
-result = optimizeRosenbrock();
+result = optimizeRosenbrock()
