@@ -1,5 +1,5 @@
 using VisualGeometryDatasets, StaticArrays, BenchmarkTools
-import NLLSsolver
+import NLLSsolver, GLMakie
 export optimizeBALproblem
 
 # Description of BAL image, and function to transform a landmark from world coordinates to pixel coordinates
@@ -105,11 +105,13 @@ function optimizeBALproblem(name="problem-16-22106")
     result = NLLSsolver.optimize!(problem)
     # Compute the new mean cost per measurement
     println("   Mean cost per measurement: ", minimum(result.costs)/length(data.measurements))
-
     # Print out the timings
 
     # Plot the costs
-    return problem
+    fig = Figure()
+    ax = Axis(fig[1, 1])
+    GLMakie.lines!(ax, result.costs)
+    fig
 end
 
-val = optimizeBALproblem();
+val = optimizeBALproblem()

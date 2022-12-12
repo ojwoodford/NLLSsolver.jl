@@ -45,7 +45,7 @@ function constructtrajectory(start, trajectory)
     return X, Y
 end
 
-function optimizeRosenbrock(start=[-1., 1.], iterators=[NLLSsolver.gaussnewton_iteration!])
+function optimizeRosenbrock(start=[-1., -1.], iterators=[NLLSsolver.gaussnewton_iteration!])
     # Compute costs over a grid 
     residual = Rosenbrock()
     X = range(-1.5, 3., 1000)
@@ -75,7 +75,7 @@ function optimizeRosenbrock(start=[-1., 1.], iterators=[NLLSsolver.gaussnewton_i
         X, Y = constructtrajectory(start, result.trajectory)
 
         # Plot the trajectory
-        lines!(ax, X, Y, linewidth=1.5, color=:red)
+        scatterlines!(ax, X, Y, color=:red)
     end
     fig
 end

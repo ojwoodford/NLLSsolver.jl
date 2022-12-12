@@ -49,19 +49,23 @@ end
 end
 
 function updateblocks!(grad, hess, res, jac, w1, w2, blockoffsets)
-    # Triggs' second order correction
-    if w2 > 0
-        
-    end
-    # IRLS weighting of the residual and Jacobian
+    # Compute the unrobust gradient and Hessian
+    g = jac' * res
+    H = jac' * jac
+    # Check for robust case
     if w1 != 1
-        res = res * w1
-        jac = jac * w1
+        # IRLS reweighting of Hessian
+        H *= w1
+        if w2 != 0
+            # Second order correction
+            H += (2 * w2) * g * g'
+        end
+        # IRLS reweighting of gradient
+        g *= w1
     end
-
     # Update the blocks in the problem
-    @inbounds grad[blockoffsets] += jac' * res
-    @inbounds hess[blockoffsets, blockoffsets] += jac' * jac
+    @inbounds grad[blockoffsets] += g
+    @inbounds hess[blockoffsets, blockoffsets] += H
     return nothing
 end
 
@@ -92,7 +96,7 @@ function gradhesshelper!(grad, hess, residual::Residual, vars::Vector, blockind,
     c, w1, w2 = robustify(robustkernel(residual), res' * res)
 
     # If this residual has a weight...
-    if w1 > 0    
+    if w1 != 0    
         # Update the blocks in the problem
         updateblocks!(grad, hess, res, jac, w1, w2, computeoffsets(v, varflags, blockind))
     end
