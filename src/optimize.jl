@@ -1,16 +1,18 @@
 using SparseArrays, LinearSolve
 export optimize!, NLLSOptions, NLLSResult
+export gaussnewton_iteration!
 
 struct NLLSOptions
     dcost::Float64
     dstep::Float64
     maxfails::Int
     maxiters::Int
+    iterator
     callback
     storetrajectory::Bool
-    function NLLSOptions(maxiters=100, dcost=0.001, dstep=1.e-6, maxfails=3, callback=(args...)->false, storetrajectory=false)
-        new(dcost, dstep, maxfails, maxiters, callback, storetrajectory)
-    end
+end
+function NLLSOptions(; maxiters=100, dcost=0.001, dstep=1.e-6, maxfails=3, iterator=gaussnewton_iteration!, callback=(args...)->false, storetrajectory=false)
+    NLLSOptions(dcost, dstep, maxfails, maxiters, iterator, callback, storetrajectory)
 end
 
 mutable struct NLLSInternal{VarTypes}
@@ -55,7 +57,7 @@ function optimize!(problem::NLLSProblem{VarTypes}, options::NLLSOptions=NLLSOpti
     while true
         iter += 1
         # Call the per iteration solver
-        cost = gaussnewton_iteration!(data, problem)
+        cost = options.iterator(data, problem)
         push!(result.costs, cost)
         # Store the best result
         dcost = bestcost - cost
