@@ -102,7 +102,7 @@ function optimizeBALproblem(name="problem-16-22106")
     # Compute the mean cost per measurement
     println("   Mean cost per measurement: ", NLLSsolver.cost(problem)/length(data.measurements))
     # Optimize the cost
-    result = NLLSsolver.optimize!(problem)
+    result = NLLSsolver.optimize!(problem, NLLSsolver.NLLSOptions(iterator="Dogleg"))
     # Compute the new mean cost per measurement
     println("   Mean cost per measurement: ", minimum(result.costs)/length(data.measurements))
     # Print out the timings

@@ -1,6 +1,5 @@
 using SparseArrays, LinearSolve
 export optimize!, NLLSOptions, NLLSResult
-export gaussnewton_iteration!
 
 struct NLLSOptions
     dcost::Float64
@@ -8,11 +7,12 @@ struct NLLSOptions
     maxfails::Int
     maxiters::Int
     iterator
+    linearsolver
     callback
     storetrajectory::Bool
 end
-function NLLSOptions(; maxiters=100, dcost=0.001, dstep=1.e-6, maxfails=3, iterator=gaussnewton_iteration!, callback=(args...)->false, storetrajectory=false)
-    NLLSOptions(dcost, dstep, maxfails, maxiters, iterator, callback, storetrajectory)
+function NLLSOptions(; maxiters=100, dcost=0.001, dstep=1.e-6, maxfails=3, iterator="newton", callback=(args...)->false, storetrajectory=false, linearsolver=nothing)
+    NLLSOptions(dcost, dstep, maxfails, maxiters, iterator, linearsolver, callback, storetrajectory)
 end
 
 mutable struct NLLSInternal{VarTypes}
@@ -21,6 +21,8 @@ mutable struct NLLSInternal{VarTypes}
     hessian::Union{Matrix{Float64}, SparseMatrixCSC{Float64, Int}}
     step::Vector{Float64}
     blockoffsets::Vector{UInt}
+    bestcost::Float64
+    lambda::Float64
 
     function NLLSInternal{VarTypes}(problem::NLLSProblem) where VarTypes
         # Compute the block offsets
@@ -34,7 +36,7 @@ mutable struct NLLSInternal{VarTypes}
         end
         start -= 1
         # Initialize everything
-        return new(Vector{VarTypes}(undef, length(offsets)), zeros(Float64, start), zeros(Float64, start, start), Vector{Float64}(undef, start), offsets)
+        return new(Vector{VarTypes}(undef, length(offsets)), zeros(Float64, start), zeros(Float64, start, start), Vector{Float64}(undef, start), offsets, 0., 0.)
     end
 end
 
@@ -43,26 +45,43 @@ struct NLLSResult
     trajectory::Vector{Vector{Float64}}
 end
 
-function optimize!(problem::NLLSProblem{VarTypes}, options::NLLSOptions=NLLSOptions()) where VarTypes
+function optimize!(problem::NLLSProblem{VarTypes}, options::NLLSOptions=NLLSOptions())::NLLSResult where VarTypes
     # Set up all the internal data structures
     data = NLLSInternal{VarTypes}(problem)
     bestvariables = problem.variables
     # Initialize the linear problem
-    bestcost = costgradhess!(data.gradient, data.hessian, problem.residuals, problem.variables, data.blockoffsets)
+    data.bestcost = costgradhess!(data.gradient, data.hessian, problem.residuals, problem.variables, data.blockoffsets)
     # Initialize the results
-    result = NLLSResult([bestcost], Vector{Vector{Float64}}())
+    result = NLLSResult([data.bestcost], Vector{Vector{Float64}}())
     fails = 0
+    # Initialize the iterator
+    firstletter = lowercase(options.iterator[1])
+    if firstletter == 'g' || firstletter == 'n'
+        # Gauss-Newton or Newton
+        iterator = newton_iteration!
+    elseif firstletter == 'l' || firstletter == 'm'
+        # Levenberg-Marquardt
+        data.lambda = 1.
+        iterator = newton_iteration!
+    elseif firstletter == 'd'
+        # Dogleg
+        data.lambda = 0.
+        iterator = dogleg_iteration!
+    else
+        # Unrecognized option
+        return result
+    end
     # Do the iterations
     iter = 0
     while true
         iter += 1
         # Call the per iteration solver
-        cost = options.iterator(data, problem)
+        cost = iterator(data, problem, options)
         push!(result.costs, cost)
         # Store the best result
-        dcost = bestcost - cost
+        dcost = data.bestcost - cost
         if dcost > 0
-            bestcost = cost
+            data.bestcost = cost
             bestvariables = data.variables
             fails = 0
         else
@@ -74,7 +93,7 @@ function optimize!(problem::NLLSProblem{VarTypes}, options::NLLSOptions=NLLSOpti
             push!(result.trajectory, data.step)
         end
         # Check for convergence
-        if options.callback(problem, data, cost) || (dcost < bestcost * options.dcost) || (maximum(abs, data.step) < options.dstep) || (fails > options.maxfails) || iter >= options.maxiters
+        if options.callback(problem, data, cost) || (dcost < data.bestcost * options.dcost) || (maximum(abs, data.step) < options.dstep) || (fails > options.maxfails) || iter >= options.maxiters
             break
         end
         # Update the variables
@@ -99,12 +118,81 @@ function update!(variables, offsets, step)
 end
 
 # Iterators assume that the linear problem has been constructed
-function gaussnewton_iteration!(data::NLLSInternal, problem::NLLSProblem)
+function newton_iteration!(data::NLLSInternal, problem::NLLSProblem, options::NLLSOptions)::Float64
     # Compute the step
-    data.step = -solve(LinearProblem(data.hessian, data.gradient)).u
+    data.step = -solve(LinearProblem(data.hessian, data.gradient), options.linearsolver).u
     # Update the new variables
     data.variables = copy(problem.variables)
     update!(data.variables, data.blockoffsets, data.step)
     # Return the cost
     return cost(problem.residuals, data.variables)
+end
+
+function dogleg_iteration!(data::NLLSInternal, problem::NLLSProblem, options::NLLSOptions)::Float64
+    # Compute the Cauchy step
+    gnorm2 = data.gradient' * data.gradient
+    a = gnorm2 / (data.gradient' * data.hessian * data.gradient + floatmin(eltype(data.gradient)))
+    cauchy = -a * data.gradient
+    alpha2 = a * a * gnorm2
+    alpha = sqrt(alpha2)
+    if data.lambda == 0
+        # Make first step the Cauchy point
+        data.lambda = alpha
+    end
+    if alpha < data.lambda
+        # Compute the Newton step
+        newton = -solve(LinearProblem(data.hessian, data.gradient), options.linearsolver).u
+        beta = norm(newton)
+    end
+    cost_ = data.bestcost
+    while true
+        # Determine the step
+        if !(alpha < data.lambda)
+            # Along first leg
+            data.step = (data.lambda / alpha) * cauchy
+            linear_approx = data.lambda * (2 * alpha - data.lambda) / (2 * a)
+        else
+            # Along second leg
+            if beta <= data.lambda
+                # Do the full Newton step
+                data.step = newton
+                linear_approx = cost_
+            else
+                # Find the point along the Cauchy -> Newton line on the trust
+                # region circumference
+                leg = newton - cauchy
+                sq_leg = leg' * leg
+                c = cauchy' * leg
+                step = sqrt(c * c + sq_leg * (data.lambda * data.lambda - alpha2))
+                if c <= 0
+                    step = (-c + step) / sq_leg
+                else
+                    step = (data.lambda * data.lambda - alpha2) / (c + step)
+                end
+                data.step = cauchy + step * leg
+                linear_approx = 0.5 * (a * (1 - step) ^ 2 * gnorm2) + step * (2 - step) * cost_
+            end
+        end
+        # Update the new variables
+        data.variables = copy(problem.variables)
+        update!(data.variables, data.blockoffsets, data.step)
+        # Compute the cost
+        cost_ = cost(problem.residuals, data.variables)
+        # Update lambda
+        mu = (data.bestcost - cost_) / linear_approx
+        if mu > 0.75
+            data.lambda = max(data.lambda, 3 * norm(data.step))
+        elseif mu < 0.25
+            data.lambda *= 0.5
+        end
+        # Check for exit
+        if !(cost_ > data.bestcost) || (maximum(abs, data.step) < options.dstep)
+            # Return the cost
+            return cost_
+        end
+    end
+end
+
+function levenberg_iteration!(data::NLLSInternal, problem::NLLSProblem, options::NLLSOptions)::Float64
+
 end
