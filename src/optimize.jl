@@ -1,4 +1,5 @@
 using SparseArrays, LinearSolve
+import Printf.@printf
 export optimize!, NLLSOptions, NLLSResult
 
 struct NLLSOptions
@@ -23,6 +24,9 @@ mutable struct NLLSInternal{VarTypes}
     blockoffsets::Vector{UInt}
     bestcost::Float64
     lambda::Float64
+    costcomputations::Int
+    gradientcomputations::Int
+    linearsolvers::Int
 
     function NLLSInternal{VarTypes}(problem::NLLSProblem) where VarTypes
         # Compute the block offsets
@@ -36,13 +40,21 @@ mutable struct NLLSInternal{VarTypes}
         end
         start -= 1
         # Initialize everything
-        return new(Vector{VarTypes}(undef, length(offsets)), zeros(Float64, start), zeros(Float64, start, start), Vector{Float64}(undef, start), offsets, 0., 0.)
+        return new(Vector{VarTypes}(undef, length(offsets)), zeros(Float64, start), zeros(Float64, start, start), Vector{Float64}(undef, start), offsets, 0., 0., 0, 0, 0)
     end
 end
 
 struct NLLSResult
     costs::Vector{Float64}
     trajectory::Vector{Vector{Float64}}
+    costcomputations::Int
+    gradientcomputations::Int
+    linearsolvers::Int
+end
+
+function Base.show(io::IO, x::NLLSResult)
+    bestcost = minimum(x.costs)
+    @printf(io, "Optimization took %d iterations to reduce the cost from %f to %f (a %f%% reduction), using:\n   %d cost computations,\n   %d gradient computations,\n   %d linear solver computations\n", length(x.costs), x.costs[1], bestcost, 100*(1-bestcost/x.costs[1]), x.costcomputations, x.gradientcomputations, x.linearsolvers)
 end
 
 function optimize!(problem::NLLSProblem{VarTypes}, options::NLLSOptions=NLLSOptions())::NLLSResult where VarTypes
@@ -51,8 +63,10 @@ function optimize!(problem::NLLSProblem{VarTypes}, options::NLLSOptions=NLLSOpti
     bestvariables = problem.variables
     # Initialize the linear problem
     data.bestcost = costgradhess!(data.gradient, data.hessian, problem.residuals, problem.variables, data.blockoffsets)
+    data.gradientcomputations += 1
     # Initialize the results
-    result = NLLSResult([data.bestcost], Vector{Vector{Float64}}())
+    costs = [data.bestcost]
+    trajectory = Vector{Vector{Float64}}()
     fails = 0
     # Initialize the iterator
     firstletter = lowercase(options.iterator[1])
@@ -69,7 +83,7 @@ function optimize!(problem::NLLSProblem{VarTypes}, options::NLLSOptions=NLLSOpti
         iterator = dogleg_iteration!
     else
         # Unrecognized option
-        return result
+        return NLLSResult(costs, trajectory, data.costcomputations, data.gradientcomputations, data.linearsolvers)
     end
     # Do the iterations
     iter = 0
@@ -77,7 +91,7 @@ function optimize!(problem::NLLSProblem{VarTypes}, options::NLLSOptions=NLLSOpti
         iter += 1
         # Call the per iteration solver
         cost = iterator(data, problem, options)
-        push!(result.costs, cost)
+        push!(costs, cost)
         # Store the best result
         dcost = data.bestcost - cost
         if dcost > 0
@@ -90,7 +104,7 @@ function optimize!(problem::NLLSProblem{VarTypes}, options::NLLSOptions=NLLSOpti
         end
         if options.storetrajectory
             # Store the variable trajectory (as update vectors)
-            push!(result.trajectory, data.step)
+            push!(trajectory, data.step)
         end
         # Check for convergence
         if options.callback(problem, data, cost) || (dcost < data.bestcost * options.dcost) || (maximum(abs, data.step) < options.dstep) || (fails > options.maxfails) || iter >= options.maxiters
@@ -102,10 +116,12 @@ function optimize!(problem::NLLSProblem{VarTypes}, options::NLLSOptions=NLLSOpti
         fill!(data.gradient, 0)
         fill!(data.hessian, 0)
         costgradhess!(data.gradient, data.hessian, problem.residuals, problem.variables, data.blockoffsets)
+        data.gradientcomputations += 1
     end
     # Update the problem variables
     problem.variables .= bestvariables
-    return result
+    # Return the result
+    return NLLSResult(costs, trajectory, data.costcomputations, data.gradientcomputations, data.linearsolvers)
 end
 
 function update!(variables, offsets, step)
@@ -121,10 +137,12 @@ end
 function newton_iteration!(data::NLLSInternal, problem::NLLSProblem, options::NLLSOptions)::Float64
     # Compute the step
     data.step = -solve(LinearProblem(data.hessian, data.gradient), options.linearsolver).u
+    data.linearsolvers += 1
     # Update the new variables
     data.variables = copy(problem.variables)
     update!(data.variables, data.blockoffsets, data.step)
     # Return the cost
+    data.costcomputations += 1
     return cost(problem.residuals, data.variables)
 end
 
@@ -143,6 +161,7 @@ function dogleg_iteration!(data::NLLSInternal, problem::NLLSProblem, options::NL
         # Compute the Newton step
         newton = -solve(LinearProblem(data.hessian, data.gradient), options.linearsolver).u
         beta = norm(newton)
+        data.linearsolvers += 1
     end
     cost_ = data.bestcost
     while true
@@ -178,6 +197,7 @@ function dogleg_iteration!(data::NLLSInternal, problem::NLLSProblem, options::NL
         update!(data.variables, data.blockoffsets, data.step)
         # Compute the cost
         cost_ = cost(problem.residuals, data.variables)
+        data.costcomputations += 1
         # Update lambda
         mu = (data.bestcost - cost_) / linear_approx
         if mu > 0.75
