@@ -1,4 +1,4 @@
-using VisualGeometryDatasets, StaticArrays, BenchmarkTools, GLMakie
+using VisualGeometryDatasets, StaticArrays, BenchmarkTools, GLMakie, Profile, PProf
 import NLLSsolver
 export optimizeBALproblem
 
@@ -113,4 +113,16 @@ function optimizeBALproblem(name="problem-16-22106")
     fig
 end
 
-optimizeBALproblem()
+function profile(name="problem-16-22106")
+    problem = makeBALproblem(filterBALlandmarks(loadbaldataset(name), 1))
+    NLLSsolver.fixvars!(problem, range(1, length(problem.variables)-1))
+    options = NLLSsolver.NLLSOptions(iterator=NLLSsolver.levenbergmarquardt)
+    NLLSsolver.optimize!(problem, options)
+    # @btime NLLSsolver.optimize!($problem, $options)
+    # Profile.Allocs.clear()
+    # Profile.Allocs.@profile sample_rate=0.001 NLLSsolver.optimize!(problem, options)
+    # return PProf.Allocs.pprof(from_c=false)
+end
+
+# optimizeBALproblem()
+profile()

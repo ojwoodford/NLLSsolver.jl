@@ -95,7 +95,7 @@ function optimize!(problem::NLLSProblem{VarTypes}, options::NLLSOptions=NLLSOpti
         elseif options.iterator == levenbergmarquardt
             # Levenberg-Marquardt
             data.lambda = 1.
-            iterator = newton_iteration!
+            iterator = levenberg_iteration!
         elseif options.iterator == dogleg
             # Dogleg
             data.lambda = 0.
@@ -123,7 +123,7 @@ function optimize!(problem::NLLSProblem{VarTypes}, options::NLLSOptions=NLLSOpti
                 push!(trajectory, data.step)
             end
             # Check for convergence
-            if options.callback(problem, data, cost) || (dcost < data.bestcost * options.dcost) || (maximum(abs, data.step) < options.dstep) || (fails > options.maxfails) || iter >= options.maxiters
+            if options.callback(problem, data, cost) || !(dcost >= data.bestcost * options.dcost) || (maximum(abs, data.step) < options.dstep) || (fails > options.maxfails) || iter >= options.maxiters
                 break
             end
             # Update the variables
@@ -236,5 +236,32 @@ function dogleg_iteration!(data::NLLSInternal, problem::NLLSProblem, options::NL
 end
 
 function levenberg_iteration!(data::NLLSInternal, problem::NLLSProblem, options::NLLSOptions)::Float64
-
+    @assert data.lambda >= 0.
+    lastlambda = 0.
+    mu = 2.
+    while true
+        # Dampen the Hessian
+        data.hessian += (data.lambda - lastlambda) * I
+        lastlambda = data.lambda
+        # Solve the linear system
+        data.timesolver += @elapsed data.step = -solve(LinearProblem(data.hessian, data.gradient), options.linearsolver).u
+        data.linearsolvers += 1
+        # Update the new variables
+        data.variables = copy(problem.variables)
+        update!(data.variables, data.blockoffsets, data.step)
+        # Compute the cost
+        data.timecost += @elapsed cost_ = cost(problem.residuals, data.variables)
+        data.costcomputations += 1
+        # Check for exit
+        if !(cost_ > data.bestcost) || (maximum(abs, data.step) < options.dstep)
+            # Success (or convergence) - update lambda
+            step_quality = (cost_ - data.bestcost) / (data.step' * (data.gradient + data.hessian * data.step * 0.5))
+            data.lambda *= max(0.333, 1 - (step_quality - 1) ^ 3)
+            # Return the cost
+            return cost_
+        end
+        # Failure - increase lambda
+        data.lambda *= mu;
+        mu *= 2.;
+    end
 end

@@ -11,3 +11,10 @@ A package for optimizing robustified Non-Linear Least Squares problems, with the
 
 Features not currently supported:
 - **Constraints**: Bounds on variables are not explicitly supported. However, bounded variables can be implemented using special, non-Euclidean parameterizations.
+
+TODO:
+- Reuse LinearSolver
+- Schur
+- EPIs
+- Conditioning
+- Fix EULens

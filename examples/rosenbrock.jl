@@ -45,7 +45,7 @@ function constructtrajectory(start, trajectory)
     return X, Y
 end
 
-function optimizeRosenbrock(start=[-1., -1.], iterators=[NLLSsolver.gaussnewton, NLLSsolver.dogleg])
+function optimizeRosenbrock(start=[-1., -1.], iterators=[NLLSsolver.gaussnewton, NLLSsolver.levenbergmarquardt, NLLSsolver.dogleg])
     # Compute costs over a grid 
     residual = Rosenbrock()
     X = range(-1.5, 3., 1000)
@@ -62,20 +62,21 @@ function optimizeRosenbrock(start=[-1., -1.], iterators=[NLLSsolver.gaussnewton,
     problem = NLLSsolver.NLLSProblem{NLLSsolver.EuclideanVector{2, Float64}}()
     NLLSsolver.addvariable!(problem, NLLSsolver.EuclideanVector(0., 0.))
     NLLSsolver.addresidual!(problem, residual)
-    
-    for iter in iterators
+
+    colors = [:black, :red, :navy]
+    for ind in eachindex(iterators)
         # Set the start
         problem.variables[1] = NLLSsolver.EuclideanVector(start[1], start[2])
 
         # Optimize the cost
-        options = NLLSsolver.NLLSOptions(dcost=1.e-6, iterator=iter, storetrajectory=true)
+        options = NLLSsolver.NLLSOptions(dcost=1.e-6, iterator=iterators[ind], storetrajectory=true)
         result = NLLSsolver.optimize!(problem, options)
 
         # Construct the trajectory
         X, Y = constructtrajectory(start, result.trajectory)
 
         # Plot the trajectory
-        scatterlines!(ax, X, Y, color=:red)
+        scatterlines!(ax, X, Y, color=colors[ind])
     end
     fig
 end
