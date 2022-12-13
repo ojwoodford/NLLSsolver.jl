@@ -76,7 +76,7 @@ function computeresjac(::Val{varflags}, residual::Residual, vars...) where {varf
 
     # Compute the Jacobian
     nres = length(res)
-    type = nres > 1 ? eltype(res) : typeof(res)
+    type = eltype(res)
     nvars = countvars(vars, Val(varflags))
     Z = zeros(SVector{nvars, type})
     jac = ForwardDiff.jacobian(z -> computeresidual(residual, updatevars(vars, varflags, z)...), Z)::SMatrix{nres, nvars, type, nres*nvars}

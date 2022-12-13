@@ -91,7 +91,6 @@ function filterBALlandmarks(data, landmarks)
     return data
 end
 
-
 # Function to optimize a BAL problem
 function optimizeBALproblem(name="problem-16-22106")
     # Create the problem

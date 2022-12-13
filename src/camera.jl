@@ -1,5 +1,5 @@
 export SimpleCamera, NoDistortionCamera, ExtendedUnifiedCamera, BarrelDistortion
-export ideal2image, image2ideal, pixel2image, image2pixel, update, nvars, varindices, getvars, computeresidual
+export ideal2image, image2ideal, pixel2image, image2pixel, update, nvars, varindices, getvars, computeresidual, barrel2eulens
 using StaticArrays, LinearAlgebra
 
 
@@ -128,21 +128,24 @@ struct LensDistortResidual{T} <: AbstractResidual
     rdistort::T
 end
 nvars(::LensDistortResidual) = 1
-varindices(::LensDistortResidual) = 1
+varindices(::LensDistortResidual) = [1]
 function computeresidual(residual::LensDistortResidual, lens::EULensDistortion)
-    return residual.rdistort - ideal2distorted(lens, residual.rlinear)
+    return SVector(residual.rdistort - ideal2distorted(lens, residual.rlinear))
 end
-function getvars(::LensDistortResidual{T}, vars::Vector{Any}) where T
-    return vars[1]::EULensDistortion{T}
+function getvars(::LensDistortResidual{T}, vars::Vector) where T
+    return (vars[1]::EULensDistortion{T},)
 end
 
-function makeeucamera(coeffs)
-    # Compute the sensor values
-    #halfimsz = 
-
+function barrel2eulens(k1, k2, halfimsz)
     # Create an optimization problem to convert the lens distortion
-    #residuals = 
-
-    
-
+    problem = NLLSsolver.NLLSProblem{EULensDistortion}()
+    NLLSsolver.addvariable!(problem, EULensDistortion(0.01, 1000.))
+    for x in range(0, halfimsz, 100)
+        x2 = x ^ 2
+        NLLSsolver.addresidual!(problem, LensDistortResidual(x, x * (1 + x2 * (k1 + x2 * k2))))
+    end
+    # Optimize
+    NLLSsolver.optimize!(problem, NLLSsolver.NLLSOptions(dcost=1.e-6, iterator=NLLSsolver.dogleg, storetrajectory=true))
+    # Return the lens
+    return problem.variables[1]
 end

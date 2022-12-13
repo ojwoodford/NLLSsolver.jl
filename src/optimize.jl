@@ -64,12 +64,12 @@ end
 function Base.show(io::IO, x::NLLSResult)
     bestcost = minimum(x.costs)
     otherstuff = x.timetotal - x.timecost - x.timegradient - x.timesolver
-    @printf(io, "Optimization took %d iterations to reduce the cost from %f to %f (a %.2f%% reduction), using:
+    @printf(io, "NLLSsolver optimization took %f seconds and %d iterations to reduce the cost from %f to %f (a %.2f%% reduction), using:
    %d cost computations in %f seconds (%.2f%% of total time),
    %d gradient computations in %f seconds (%.2f%% of total time),
    %d linear solver computations in %f seconds (%.2f%% of total time),
    %f seconds for other stuff (%.2f%% of total time).\n", 
-            length(x.costs), x.costs[1], bestcost, 100*(1-bestcost/x.costs[1]), 
+            x.timetotal, length(x.costs)-1, x.costs[1], bestcost, 100*(1-bestcost/x.costs[1]), 
             x.costcomputations, x.timecost, 100*x.timecost/x.timetotal,
             x.gradientcomputations, x.timegradient, 100*x.timegradient/x.timetotal,
             x.linearsolvers, x.timesolver, 100*x.timesolver/x.timetotal,
