@@ -8,7 +8,7 @@ struct Rosenbrock <: NLLSsolver.AbstractResidual
 end
 Rosenbrock() = Rosenbrock(1.0, 10.0)
 NLLSsolver.nvars(::Rosenbrock) = 1 # Residual depends on 1 variable
-NLLSsolver.varindices(res::Rosenbrock) = SVector(1) # There's only one variable
+NLLSsolver.varindices(::Rosenbrock) = SVector(1) # There's only one variable
 function NLLSsolver.getvars(::Rosenbrock, vars::Vector)
     return (vars[1]::NLLSsolver.EuclideanVector{2, Float64},)
 end
@@ -45,7 +45,7 @@ function constructtrajectory(start, trajectory)
     return X, Y
 end
 
-function optimizeRosenbrock(start=[-1., -1.], iterators=["Gauss-Newton", "Dogleg"])
+function optimizeRosenbrock(start=[-1., -1.], iterators=[NLLSsolver.gaussnewton, NLLSsolver.dogleg])
     # Compute costs over a grid 
     residual = Rosenbrock()
     X = range(-1.5, 3., 1000)

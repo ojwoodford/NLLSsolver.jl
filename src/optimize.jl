@@ -1,18 +1,20 @@
 using SparseArrays, LinearSolve
 import Printf.@printf
-export optimize!, NLLSOptions, NLLSResult
+export optimize!, NLLSOptions, NLLSResult, NLLSIterator
+
+@enum NLLSIterator gaussnewton levenbergmarquardt dogleg
 
 struct NLLSOptions
     dcost::Float64
     dstep::Float64
     maxfails::Int
     maxiters::Int
-    iterator
+    iterator::NLLSIterator
     linearsolver
     callback
     storetrajectory::Bool
 end
-function NLLSOptions(; maxiters=100, dcost=0.001, dstep=1.e-6, maxfails=3, iterator="newton", callback=(args...)->false, storetrajectory=false, linearsolver=nothing)
+function NLLSOptions(; maxiters=100, dcost=0.001, dstep=1.e-6, maxfails=3, iterator=gaussnewton, callback=(args...)->false, storetrajectory=false, linearsolver=nothing)
     NLLSOptions(dcost, dstep, maxfails, maxiters, iterator, linearsolver, callback, storetrajectory)
 end
 
@@ -69,21 +71,17 @@ function optimize!(problem::NLLSProblem{VarTypes}, options::NLLSOptions=NLLSOpti
     trajectory = Vector{Vector{Float64}}()
     fails = 0
     # Initialize the iterator
-    firstletter = lowercase(options.iterator[1])
-    if firstletter == 'g' || firstletter == 'n'
+    if options.iterator == gaussnewton
         # Gauss-Newton or Newton
         iterator = newton_iteration!
-    elseif firstletter == 'l' || firstletter == 'm'
+    elseif options.iterator == levenbergmarquardt
         # Levenberg-Marquardt
         data.lambda = 1.
         iterator = newton_iteration!
-    elseif firstletter == 'd'
+    elseif options.iterator == dogleg
         # Dogleg
         data.lambda = 0.
         iterator = dogleg_iteration!
-    else
-        # Unrecognized option
-        return NLLSResult(costs, trajectory, data.costcomputations, data.gradientcomputations, data.linearsolvers)
     end
     # Do the iterations
     iter = 0
