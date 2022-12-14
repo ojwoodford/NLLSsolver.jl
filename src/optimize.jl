@@ -14,7 +14,7 @@ struct NLLSOptions
     callback
     storetrajectory::Bool
 end
-function NLLSOptions(; maxiters=100, dcost=0.001, dstep=1.e-6, maxfails=3, iterator=gaussnewton, callback=(args...)->false, storetrajectory=false, linearsolver=nothing)
+function NLLSOptions(; maxiters=100, dcost=1.e-6, dstep=1.e-6, maxfails=3, iterator=gaussnewton, callback=(args...)->false, storetrajectory=false, linearsolver=nothing)
     NLLSOptions(dcost, dstep, maxfails, maxiters, iterator, linearsolver, callback, storetrajectory)
 end
 

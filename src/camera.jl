@@ -34,6 +34,10 @@ struct SimpleCamera{T}
     end
 end
 SimpleCamera(v::T) where T = SimpleCamera{T}(v::T)
+nvars(::SimpleCamera) = 1
+function update(var::SimpleCamera, updatevec, start=1)
+    return SimpleCamera(update(var.f, updatevec, start).val)
+end
 @inline cameracenter(::SimpleCamera) = 0
 @inline focallength(camera::SimpleCamera) = camera.f.val
 
@@ -44,7 +48,7 @@ struct NoDistortionCamera{T}
     c::EuclideanVector{2, T}
 end
 NoDistortionCamera(fx::T, fy::T, cx::T, cy::T) where T = NoDistortionCamera(ZeroToInfScalar(fx), ZeroToInfScalar(fy), EuclideanVector(cx, cy))
-nvars(var::NoDistortionCamera) = 4
+nvars(::NoDistortionCamera) = 4
 function update(var::NoDistortionCamera, updatevec, start=1)
     return NoDistortionCamera(update(var.fx, updatevec, start), update(var.fy, updatevec, start+1), update(var.c, updatevec, start+2))
 end

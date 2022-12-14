@@ -10,9 +10,9 @@ struct BALImage{T}
 end
 NLLSsolver.nvars(::BALImage) = 9
 function NLLSsolver.update(var::BALImage, updatevec, start=1)
-    return BALImage(update(var.pose, updatevec, start),
-                    update(var.sensor, updatevec, start+6),
-                    update(var.lens, updatevec, start+7))
+    return BALImage(NLLSsolver.update(var.pose, updatevec, start),
+                    NLLSsolver.update(var.sensor, updatevec, start+6),
+                    NLLSsolver.update(var.lens, updatevec, start+7))
 end
 function BALImage(rx::T, ry::T, rz::T, tx::T, ty::T, tz::T, f::T, k1::T, k2::T) where T<:Real
     R = NLLSsolver.Rotation3DL(rx, ry, rz)
@@ -68,9 +68,9 @@ function makeBALproblem(data)
     return problem
 end
 
-function filterBALlandmarks(data, landmarks)
+function filterBAL(data, landmarks=[], cameras=[])
     # Find the residuals associated with the landmarks
-    deleteat!(data.measurements, findall(broadcast(m -> m.landmark ∉ landmarks, data.measurements)))
+    deleteat!(data.measurements, findall(broadcast(m -> (m.landmark ∉ landmarks && m.camera ∉ cameras), data.measurements)))
     # Delete the unused cameras and landmarks
     cameras = trues(length(data.cameras))
     landmarks = trues(length(data.landmarks))
@@ -94,10 +94,11 @@ end
 # Function to optimize a BAL problem
 function optimizeBALproblem(name="problem-16-22106")
     # Create the problem
-    data = filterBALlandmarks(loadbaldataset(name), 1)
+    data = filterBAL(loadbaldataset(name), [], 1)
     show(data)
     problem = makeBALproblem(data)
-    NLLSsolver.fixvars!(problem, range(1, length(problem.variables)-1))
+    # NLLSsolver.fixvars!(problem, range(1, length(problem.variables)-1)) # Fix cameras
+    NLLSsolver.fixvars!(problem, range(2, length(problem.variables))) # Fix landmarks
     # Compute the mean cost per measurement
     println("   Mean cost per measurement: ", NLLSsolver.cost(problem)/length(data.measurements))
     # Optimize the cost
@@ -113,16 +114,13 @@ function optimizeBALproblem(name="problem-16-22106")
     fig
 end
 
-function profile(name="problem-16-22106")
-    problem = makeBALproblem(filterBALlandmarks(loadbaldataset(name), 1))
-    NLLSsolver.fixvars!(problem, range(1, length(problem.variables)-1))
-    options = NLLSsolver.NLLSOptions(iterator=NLLSsolver.levenbergmarquardt)
-    NLLSsolver.optimize!(problem, options)
-    # @btime NLLSsolver.optimize!($problem, $options)
-    # Profile.Allocs.clear()
-    # Profile.Allocs.@profile sample_rate=0.001 NLLSsolver.optimize!(problem, options)
-    # return PProf.Allocs.pprof(from_c=false)
-end
+# problem = makeBALproblem(filterBAL(loadbaldataset("problem-16-22106"), [], 1))
+# NLLSsolver.fixvars!(problem, range(2, length(problem.variables)))
+# options = NLLSsolver.NLLSOptions(iterator=NLLSsolver.levenbergmarquardt)
+# # NLLSsolver.optimize!(problem, options)
+# # @btime NLLSsolver.optimize!($problem, $options)
+# Profile.Allocs.clear()
+# Profile.Allocs.@profile sample_rate=0.001 NLLSsolver.optimize!(problem, options)
+# PProf.Allocs.pprof(from_c=false)
 
-# optimizeBALproblem()
-profile()
+optimizeBALproblem()
