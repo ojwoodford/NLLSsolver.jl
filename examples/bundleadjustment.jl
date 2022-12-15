@@ -69,7 +69,7 @@ function makeBALproblem(data)
 end
 
 function filterBAL(data, landmarks=[], cameras=[])
-    # Find the residuals associated with the landmarks
+    # Find the residuals associated with the landmarks and cameras
     deleteat!(data.measurements, findall(broadcast(m -> (m.landmark ∉ landmarks && m.camera ∉ cameras), data.measurements)))
     # Delete the unused cameras and landmarks
     cameras = trues(length(data.cameras))
@@ -114,13 +114,14 @@ function optimizeBALproblem(name="problem-16-22106")
     fig
 end
 
-# problem = makeBALproblem(filterBAL(loadbaldataset("problem-16-22106"), [], 1))
-# NLLSsolver.fixvars!(problem, range(2, length(problem.variables)))
-# options = NLLSsolver.NLLSOptions(iterator=NLLSsolver.levenbergmarquardt)
-# # NLLSsolver.optimize!(problem, options)
-# # @btime NLLSsolver.optimize!($problem, $options)
+problem = makeBALproblem(filterBAL(loadbaldataset("problem-16-22106"), [], 1))
+NLLSsolver.fixvars!(problem, range(2, length(problem.variables)))
+options = NLLSsolver.NLLSOptions(iterator=NLLSsolver.levenbergmarquardt)
+# NLLSsolver.optimize!(problem, options)
+start = problem.variables[1]
+@btime NLLSsolver.optimize!($problem, $options) setup=(problem.variables[1]=start) evals=1
 # Profile.Allocs.clear()
 # Profile.Allocs.@profile sample_rate=0.001 NLLSsolver.optimize!(problem, options)
 # PProf.Allocs.pprof(from_c=false)
 
-optimizeBALproblem()
+# optimizeBALproblem()
