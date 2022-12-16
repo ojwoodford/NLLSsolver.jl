@@ -62,8 +62,8 @@ end
 #     x = LinRange(0, maxval, 1000)
 #     cost = x .^ 2
 #     weight = similar(cost)
-#     for ind in eachindex(cost)
-#         cost[ind], weight[ind], unused = robustify(kernel, cost[ind])
+#     for (ind, c) in enumerate(cost)
+#         cost[ind], weight[ind], unused = robustify(kernel, c)
 #     end
 #     plot(x, [cost, weight])
 # end

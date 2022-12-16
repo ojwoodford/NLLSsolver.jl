@@ -74,19 +74,17 @@ function filterBAL(data, landmarks=[], cameras=[])
     # Delete the unused cameras and landmarks
     cameras = trues(length(data.cameras))
     landmarks = trues(length(data.landmarks))
-    for measurement in data.measurements
-        cameras[measurement.camera] = false
-        landmarks[measurement.landmark] = false
+    for meas in data.measurements
+        cameras[meas.camera] = false
+        landmarks[meas.landmark] = false
     end
     deleteat!(data.cameras, findall(cameras))
     deleteat!(data.landmarks, findall(landmarks))
     # Remap the indices
     cameras = cumsum(.!cameras)
     landmarks = cumsum(.!landmarks)
-    for ind in eachindex(data.measurements)
-        data.measurements[ind] = VisualGeometryDatasets.BALMeasurement(
-                                    data.measurements[ind].x, data.measurements[ind].y,
-                                    cameras[data.measurements[ind].camera], landmarks[data.measurements[ind].landmark])
+    for (ind, meas) in enumerate(data.measurements)
+        data.measurements[ind] = VisualGeometryDatasets.BALMeasurement(meas.x, meas.y, cameras[meas.camera], landmarks[meas.landmark])
     end
     return data
 end

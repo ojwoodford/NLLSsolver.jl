@@ -57,12 +57,10 @@ mutable struct NLLSInternal{VarTypes}
         else
             start = UInt(1)
             nblocks = UInt(0)
-            for index in eachindex(offsets)
-                if problem.unfixed[index]
-                    @inbounds offsets[index] = start
-                    start += convert(UInt, nvars(problem.variables[index]))
-                    nblocks += 1
-                end
+            for index in findall(problem.unfixed)
+                @inbounds offsets[index] = start
+                start += convert(UInt, nvars(problem.variables[index]))
+                nblocks += 1
             end
             start -= 1
         end

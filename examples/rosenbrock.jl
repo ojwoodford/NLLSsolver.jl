@@ -55,7 +55,7 @@ function optimizeRosenbrock(start=[-1., -1.], iterators=[NLLSsolver.gaussnewton,
     # Create the plot
     fig = Figure()
     ax1 = Axis(fig[1, 1]; limits=(X[1], X[end], Y[1], Y[end]), title="Trajectories")
-    ax2 = Axis(fig[1, 2]; title="Costs", xlabel="Iteration")
+    ax2 = Axis(fig[1, 2]; title="Costs", xlabel="Iteration", yscale=log10)
     heatmap!(ax1, X, Y, grid)
     contour!(ax1, X, Y, grid, linewidth=2, color=:white, levels=10)
 
@@ -65,23 +65,23 @@ function optimizeRosenbrock(start=[-1., -1.], iterators=[NLLSsolver.gaussnewton,
     NLLSsolver.addresidual!(problem, residual)
 
     colors = [:black, :red, :navy]
-    for ind in eachindex(iterators)
+    for (ind, iter) in enumerate(iterators)
         # Set the start
         problem.variables[1] = NLLSsolver.EuclideanVector(start[1], start[2])
 
         # Optimize the cost
-        options = NLLSsolver.NLLSOptions(dcost=1.e-6, iterator=iterators[ind], storetrajectory=true, storecosts=true)
+        options = NLLSsolver.NLLSOptions(dcost=1.e-6, iterator=iter, storetrajectory=true, storecosts=true)
         result = NLLSsolver.optimize!(problem, options)
 
         # Construct the trajectory
         X, Y = constructtrajectory(start, result.trajectory)
 
         # Plot the trajectory and costs
-        scatterlines!(ax1, X, Y, color=colors[ind], linewidth=2.5)
-        scatterlines!(ax2, pushfirst!(result.costs, result.startcost).+1.e-15, color=colors[ind], linewidth=1.5, label=String(iterators[ind]))
+        color = colors[mod(ind-1, length(colors)) + 1]
+        scatterlines!(ax1, X, Y, color=color, linewidth=2.5)
+        scatterlines!(ax2, max.(pushfirst!(result.costs, result.startcost), 1.e-38), color=color, linewidth=1.5, label=String(iter))
     end
     axislegend(ax2)
-    ax2.yscale = log10
     return fig
 end
 
