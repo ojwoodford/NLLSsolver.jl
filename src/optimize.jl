@@ -37,6 +37,7 @@ mutable struct NLLSInternal{VarTypes}
     hessian::Union{Matrix{Float64}, BlockSparseMatrix{Float64}}
     step::Vector{Float64}
     blockoffsets::Vector{UInt}
+    blockindices::Vector{UInt}
     bestcost::Float64
     lambda::Float64
     timecost::Float64
@@ -48,34 +49,42 @@ mutable struct NLLSInternal{VarTypes}
 
     function NLLSInternal{VarTypes}(problem::NLLSProblem) where VarTypes
         # Compute the block offsets
-        offsets = zeros(UInt, length(problem.variables))
+        blockindices = zeros(UInt, length(problem.variables))
+        blockoffsets = zeros(UInt, length(problem.variables))
+        blocksizes = zeros(UInt, length(problem.variables))
+        nblocks = UInt(0)
         if typeof(problem.unfixed) == UInt
             # Single variable block
-            nblocks = UInt(1)
-            offsets[problem.unfixed] = 1
-            start = convert(UInt, nvars(problem.variables[problem.unfixed]))
+            nblocks += 1
+            blockindices[problem.unfixed] = 1
+            blockoffsets[problem.unfixed] = 1
+            @inbounds blocksizes[1] = nvars(problem.variables[problem.unfixed])
         else
             start = UInt(1)
-            nblocks = UInt(0)
-            for index in findall(problem.unfixed)
-                @inbounds offsets[index] = start
-                start += convert(UInt, nvars(problem.variables[index]))
-                nblocks += 1
+            for (index, unfixed) in enumerate(problem.unfixed)
+                if unfixed
+                    nblocks += 1
+                    @inbounds blockindices[index] = nblocks
+                    @inbounds blockoffsets[index] = start
+                    N = UInt(nvars(problem.variables[index]))
+                    @inbounds blocksizes[nblocks] = N
+                    start += N
+                end
             end
-            start -= 1
         end
         # Construct the Hessian
-        if true || nblocks == 1
+        if nblocks == 1
             # One unfixed variable. Use a dense matrix hessian
-            mat = zeros(Float64, start, start)
+            mat = zeros(Float64, blocksizes[1], blocksizes[1])
         else
             # Compute the block pairs
 
             # Use a block sparse matrix
-            mat = BlockSparseMatrix{Float64}()
+            resize!(blocksizes, nblocks)
+            mat = BlockSparseMatrix{Float64}(pairs, blocksizes, blocksizes)
         end
         # Initialize everything
-        return new(deepcopy(problem.variables), zeros(Float64, start), mat, Vector{Float64}(undef, start), offsets, 0., 0., 0., 0., 0., 0, 0, 0)
+        return new(deepcopy(problem.variables), zeros(Float64, start), mat, Vector{Float64}(undef, start), blockindices, blockindices, 0., 0., 0., 0., 0., 0, 0, 0)
     end
 end
 struct NLLSResult
@@ -114,7 +123,7 @@ function optimize!(problem::NLLSProblem{VarTypes}, options::NLLSOptions=NLLSOpti
         bestvariables = Vector{VarTypes}(undef, length(data.variables))
         copy!(bestvariables, data.variables, problem.unfixed)
         # Initialize the linear problem
-        data.timegradient += @elapsed data.bestcost = costgradhess!(data.gradient, data.hessian, problem.residuals, problem.variables, data.blockoffsets)
+        data.timegradient += @elapsed data.bestcost = costgradhess!(data.gradient, data.hessian, problem.residuals, problem.variables, data.blockindices)
         data.gradientcomputations += 1
         # Initialize the results
         startcost = data.bestcost
@@ -167,7 +176,7 @@ function optimize!(problem::NLLSProblem{VarTypes}, options::NLLSOptions=NLLSOpti
             data.timegradient += @elapsed begin
                 fill!(data.gradient, 0)
                 zero!(data.hessian)
-                costgradhess!(data.gradient, data.hessian, problem.residuals, problem.variables, data.blockoffsets)
+                costgradhess!(data.gradient, data.hessian, problem.residuals, problem.variables, data.blockindices)
             end
             data.gradientcomputations += 1
         end

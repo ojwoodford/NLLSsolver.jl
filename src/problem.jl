@@ -14,26 +14,16 @@ struct NLLSProblem{VarTypes}
 end
 
 function selectresiduals!(outres::IdDict, inres::Vector{T}, unfixed::Integer) where T
-    ind = Vector{Int}()
-    for (i, res) in enumerate(inres)
-        if any(varindices(res) .== unfixed)
-            push!(ind, i)
-        end
-    end
-    if !isempty(ind)
-        outres[T] = inres[ind]
+    vec = inres[map(r -> any(varindices(r) .== unfixed), inres)]
+    if !isempty(vec)
+        outres[T] = vec
     end
 end
 
 function selectresiduals!(outres::IdDict, inres::Vector{T}, unfixed::BitVector) where T
-    ind = Vector{Int}()
-    for (i, res) in enumerate(inres)
-        if any(unfixed[varindices(res)])
-            push!(ind, i)
-        end
-    end
-    if !isempty(ind)
-        outres[T] = inres[ind]
+    vec = inres[map(r -> any(unfixed[varindices(r)]), inres)]
+    if !isempty(vec)
+        outres[T] = vec
     end
 end
 
