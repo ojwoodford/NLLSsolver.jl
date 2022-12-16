@@ -105,9 +105,17 @@ function gradhesshelper!(grad, hess, residual::Residual, vars::Vector, blockind,
     return c
 end
 
-function costgradhess!(grad, hess, residual::Residual, vars::Vector, blockoffsets::Vector{UInt})::Float64 where Residual <: AbstractResidual
+function getoffsets(residual, blockoffsets::Vector{UInt})
+    return blockoffsets[varindices(residual)]
+end
+
+function getoffsets(residual, blockoffsets::UInt)
+    return convert.(UInt, SVector(varindices(residual)) .== blockoffsets)
+end
+
+function costgradhess!(grad, hess, residual::Residual, vars::Vector, blockoffsets)::Float64 where Residual <: AbstractResidual
     # Get the bitset for the input variables, as an integer
-    blockind = blockoffsets[varindices(residual)]
+    blockind = getoffsets(residual, blockoffsets)
     varflags = foldl((x, y) -> (x << 1) + (y != 0), reverse(blockind), init=0)
 
     # If there are no variables, just return the cost
@@ -120,7 +128,7 @@ function costgradhess!(grad, hess, residual::Residual, vars::Vector, blockoffset
     return valuedispatch(Val(1), Val((2^nvars(residual))-1), v -> gradhesshelper!(grad, hess, residual, vars, blockind, v), varflags)
 end
 
-function costgradhess!(grad, hess, residuals::Vector, vars::Vector, blockoffsets::Vector{UInt})::Float64
+function costgradhess!(grad, hess, residuals::Vector, vars::Vector, blockoffsets)::Float64
     # Go over all resdiduals, updating the gradient & hessian, and aggregating the cost 
     c = 0.
     # @floop 
@@ -132,7 +140,7 @@ function costgradhess!(grad, hess, residuals::Vector, vars::Vector, blockoffsets
     return c
 end
 
-function costgradhess!(grad, hess, residuals::IdDict, vars::Vector, blockoffsets::Vector{UInt})::Float64
+function costgradhess!(grad, hess, residuals::IdDict, vars::Vector, blockoffsets)::Float64
     # Go over all resdiduals in the problem
     # return sum(x -> costgradhess!(grad, hess, x.second::Vector{x.first}, vars, blockoffsets), residuals; init=0.)
     c = 0.

@@ -102,7 +102,7 @@ function optimizeBALproblem(name="problem-16-22106")
     # Compute the mean cost per measurement
     println("   Mean cost per measurement: ", NLLSsolver.cost(problem)/length(data.measurements))
     # Optimize the cost
-    result = NLLSsolver.optimize!(problem, NLLSsolver.NLLSOptions(iterator=NLLSsolver.dogleg))
+    result = NLLSsolver.optimize!(problem, NLLSsolver.NLLSOptions(iterator=NLLSsolver.dogleg, storecosts=true))
     # Compute the new mean cost per measurement
     println("   Mean cost per measurement: ", minimum(result.costs)/length(data.measurements))
     # Print out the solver summary
@@ -110,18 +110,19 @@ function optimizeBALproblem(name="problem-16-22106")
     # Plot the costs
     fig = Figure()
     ax = Axis(fig[1, 1])
+    pushfirst!(result.costs, result.startcost)
     GLMakie.lines!(ax, result.costs)
     fig
 end
 
-problem = makeBALproblem(filterBAL(loadbaldataset("problem-16-22106"), [], 1))
-NLLSsolver.fixvars!(problem, range(2, length(problem.variables)))
-options = NLLSsolver.NLLSOptions(iterator=NLLSsolver.levenbergmarquardt)
+# problem = makeBALproblem(filterBAL(loadbaldataset("problem-16-22106"), [], 1))
+# NLLSsolver.fixvars!(problem, range(2, length(problem.variables)))
+# options = NLLSsolver.NLLSOptions(iterator=NLLSsolver.levenbergmarquardt)
 # NLLSsolver.optimize!(problem, options)
-start = problem.variables[1]
-@btime NLLSsolver.optimize!($problem, $options) setup=(problem.variables[1]=start) evals=1
+# start = problem.variables[1]
+# @btime NLLSsolver.optimize!($problem, $options) setup=(problem.variables[1]=start) evals=1
 # Profile.Allocs.clear()
 # Profile.Allocs.@profile sample_rate=0.001 NLLSsolver.optimize!(problem, options)
 # PProf.Allocs.pprof(from_c=false)
 
-# optimizeBALproblem()
+optimizeBALproblem()

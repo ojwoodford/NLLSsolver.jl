@@ -15,6 +15,7 @@ include("camera.jl")
 include("geometry.jl")
 
 # Optimization
+include("BlockSparseMatrix.jl")
 include("cost.jl")
 include("optimize.jl")
 include("robust.jl")

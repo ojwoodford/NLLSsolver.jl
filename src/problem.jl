@@ -4,12 +4,16 @@ struct NLLSProblem{VarTypes}
     # User provided
     residuals::IdDict{DataType, Any}
     variables::Vector{VarTypes}
-    unfixed::BitVector # Bit vector to store which variables are not fixed (same length as variables)
+    unfixed::Union{UInt, BitVector} # Bit vector to store which variables are not fixed (same length as variables), or a single variable index
 
     # Constructor
     function NLLSProblem{VarTypes}() where VarTypes
         return new(IdDict{DataType, Any}(), Vector{VarTypes}(), BitVector())
     end
+end
+
+# Produce a subproblem containing only the relevant residuals
+function NLLSProblem(problem::NLLSProblem{T}, unfixed) where T
 end
 
 function fixvars!(problem::NLLSProblem, indices)

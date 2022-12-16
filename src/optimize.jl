@@ -3,6 +3,18 @@ import Printf.@printf
 export optimize!, NLLSOptions, NLLSResult, NLLSIterator
 
 @enum NLLSIterator gaussnewton levenbergmarquardt dogleg
+function Base.String(iterator::NLLSIterator) 
+    if iterator == gaussnewton
+        return "Gauss-Newton"
+    end
+    if iterator == levenbergmarquardt
+        return "Levenberg-Marquardt"
+    end
+    if iterator == dogleg
+        return "Dogleg"
+    end
+    return "Unknown iterator"
+end
 
 struct NLLSOptions
     dcost::Float64
@@ -12,16 +24,17 @@ struct NLLSOptions
     iterator::NLLSIterator
     linearsolver
     callback
+    storecosts::Bool
     storetrajectory::Bool
 end
-function NLLSOptions(; maxiters=100, dcost=1.e-6, dstep=1.e-6, maxfails=3, iterator=gaussnewton, callback=(args...)->false, storetrajectory=false, linearsolver=nothing)
-    NLLSOptions(dcost, dstep, maxfails, maxiters, iterator, linearsolver, callback, storetrajectory)
+function NLLSOptions(; maxiters=100, dcost=1.e-6, dstep=1.e-6, maxfails=3, iterator=gaussnewton, callback=(args...)->false, storecosts=false, storetrajectory=false, linearsolver=nothing)
+    NLLSOptions(dcost, dstep, maxfails, maxiters, iterator, linearsolver, callback, storecosts, storetrajectory)
 end
 
 mutable struct NLLSInternal{VarTypes}
     variables::Vector{VarTypes}
     gradient::Vector{Float64}
-    hessian::Union{Matrix{Float64}, SparseMatrixCSC{Float64, Int}}
+    hessian::Union{Matrix{Float64}, BlockSparseMatrix{Float64}}
     step::Vector{Float64}
     blockoffsets::Vector{UInt}
     bestcost::Float64
@@ -36,40 +49,60 @@ mutable struct NLLSInternal{VarTypes}
     function NLLSInternal{VarTypes}(problem::NLLSProblem) where VarTypes
         # Compute the block offsets
         offsets = zeros(UInt, length(problem.variables))
-        start = UInt(1)
-        for index in eachindex(offsets)
-            if problem.unfixed[index]
-                @inbounds offsets[index] = start
-                start += convert(UInt, nvars(problem.variables[index]))
+        if typeof(problem.unfixed) == UInt
+            # Single variable block
+            nblocks = UInt(1)
+            offsets[problem.unfixed] = 1
+            start = convert(UInt, nvars(problem.variables[problem.unfixed]))
+        else
+            start = UInt(1)
+            nblocks = UInt(0)
+            for index in eachindex(offsets)
+                if problem.unfixed[index]
+                    @inbounds offsets[index] = start
+                    start += convert(UInt, nvars(problem.variables[index]))
+                    nblocks += 1
+                end
             end
+            start -= 1
         end
-        start -= 1
+        # Construct the Hessian
+        if true || nblocks == 1
+            # One unfixed variable. Use a dense matrix hessian
+            mat = zeros(Float64, start, start)
+        else
+            # Compute the block pairs
+
+            # Use a block sparse matrix
+            mat = BlockSparseMatrix{Float64}()
+        end
         # Initialize everything
-        return new(Vector{VarTypes}(undef, length(offsets)), zeros(Float64, start), zeros(Float64, start, start), Vector{Float64}(undef, start), offsets, 0., 0., 0., 0., 0., 0, 0, 0)
+        return new(deepcopy(problem.variables), zeros(Float64, start), mat, Vector{Float64}(undef, start), offsets, 0., 0., 0., 0., 0., 0, 0, 0)
     end
 end
-
 struct NLLSResult
-    costs::Vector{Float64}
-    trajectory::Vector{Vector{Float64}}
+    startcost::Float64
+    bestcost::Float64
     timetotal::Float64
     timecost::Float64
     timegradient::Float64
     timesolver::Float64
+    niterations::Int
     costcomputations::Int
     gradientcomputations::Int
     linearsolvers::Int
+    costs::Vector{Float64}
+    trajectory::Vector{Vector{Float64}}
 end
 
 function Base.show(io::IO, x::NLLSResult)
-    bestcost = minimum(x.costs)
     otherstuff = x.timetotal - x.timecost - x.timegradient - x.timesolver
     @printf(io, "NLLSsolver optimization took %f seconds and %d iterations to reduce the cost from %f to %f (a %.2f%% reduction), using:
    %d cost computations in %f seconds (%.2f%% of total time),
    %d gradient computations in %f seconds (%.2f%% of total time),
    %d linear solver computations in %f seconds (%.2f%% of total time),
    %f seconds for other stuff (%.2f%% of total time).\n", 
-            x.timetotal, length(x.costs)-1, x.costs[1], bestcost, 100*(1-bestcost/x.costs[1]), 
+            x.timetotal, x.niterations, x.startcost, x.bestcost, 100*(1-x.bestcost/x.startcost), 
             x.costcomputations, x.timecost, 100*x.timecost/x.timetotal,
             x.gradientcomputations, x.timegradient, 100*x.timegradient/x.timetotal,
             x.linearsolvers, x.timesolver, 100*x.timesolver/x.timetotal,
@@ -80,12 +113,14 @@ function optimize!(problem::NLLSProblem{VarTypes}, options::NLLSOptions=NLLSOpti
     t = @elapsed begin
         # Set up all the internal data structures
         data = NLLSInternal{VarTypes}(problem)
-        bestvariables = problem.variables
+        bestvariables = Vector{VarTypes}(undef, length(data.variables))
+        copy!(bestvariables, data.variables, problem.unfixed)
         # Initialize the linear problem
         data.timegradient += @elapsed data.bestcost = costgradhess!(data.gradient, data.hessian, problem.residuals, problem.variables, data.blockoffsets)
         data.gradientcomputations += 1
         # Initialize the results
-        costs = [data.bestcost]
+        startcost = data.bestcost
+        costs = Vector{Float64}()
         trajectory = Vector{Vector{Float64}}()
         fails = 0
         # Initialize the iterator
@@ -107,12 +142,14 @@ function optimize!(problem::NLLSProblem{VarTypes}, options::NLLSOptions=NLLSOpti
             iter += 1
             # Call the per iteration solver
             cost = iterator(data, problem, options)
-            push!(costs, cost)
+            if options.storecosts
+                push!(costs, cost)
+            end
             # Store the best result
             dcost = data.bestcost - cost
             if dcost > 0
                 data.bestcost = cost
-                bestvariables = data.variables
+                copy!(bestvariables, data.variables, problem.unfixed)
                 fails = 0
             else
                 dcost = cost
@@ -127,27 +164,44 @@ function optimize!(problem::NLLSProblem{VarTypes}, options::NLLSOptions=NLLSOpti
                 break
             end
             # Update the variables
-            problem.variables .= data.variables
+            copy!(problem.variables, data.variables, problem.unfixed)
             # Construct the linear problem
             data.timegradient += @elapsed begin
                 fill!(data.gradient, 0)
-                fill!(data.hessian, 0)
+                zero!(data.hessian)
                 costgradhess!(data.gradient, data.hessian, problem.residuals, problem.variables, data.blockoffsets)
             end
             data.gradientcomputations += 1
         end
         # Update the problem variables
-        problem.variables .= bestvariables
+        copy!(problem.variables, bestvariables, problem.unfixed)
     end
     # Return the result
-    return NLLSResult(costs, trajectory, t, data.timecost, data.timegradient, data.timesolver, data.costcomputations, data.gradientcomputations, data.linearsolvers)
+    return NLLSResult(startcost, data.bestcost, t, data.timecost, data.timegradient, data.timesolver, iter, data.costcomputations, data.gradientcomputations, data.linearsolvers, costs, trajectory)
 end
 
-function update!(variables, offsets, step)
+function update!(to::Vector, from::Vector, offsets::Vector, step)
     # Update each variable
-    for index in eachindex(offsets)
-        if offsets[index] != 0
-            variables[index] = update(variables[index], step, offsets[index])
+    for (index, offset) in enumerate(offsets)
+        if offset != 0
+            to[index] = update(from[index], step, offset)
+        end
+    end
+end
+
+function update!(to::Vector, from::Vector, unfixed::UInt, step)
+    # Update one variable
+    to[unfixed] = update(from[unfixed], step)
+end
+
+function copy!(to::Vector, from::Vector, unfixed::UInt)
+    to[unfixed] = from[unfixed]
+end
+
+function copy!(to::Vector, from::Vector, unfixed::BitVector)
+    for (index, unfixed_) in enumerate(unfixed)
+        if unfixed_
+            to[index] = from[index]
         end
     end
 end
@@ -158,8 +212,7 @@ function newton_iteration!(data::NLLSInternal, problem::NLLSProblem, options::NL
     data.timesolver += @elapsed data.step = -solve(LinearProblem(data.hessian, data.gradient), options.linearsolver).u
     data.linearsolvers += 1
     # Update the new variables
-    data.variables = copy(problem.variables)
-    update!(data.variables, data.blockoffsets, data.step)
+    update!(data.variables, problem.variables, data.blockoffsets, data.step)
     # Return the cost
     data.timecost += @elapsed cost_ = cost(problem.residuals, data.variables)
     data.costcomputations += 1
@@ -215,8 +268,7 @@ function dogleg_iteration!(data::NLLSInternal, problem::NLLSProblem, options::NL
             end
         end
         # Update the new variables
-        data.variables = copy(problem.variables)
-        update!(data.variables, data.blockoffsets, data.step)
+        update!(data.variables, problem.variables, data.blockoffsets, data.step)
         # Compute the cost
         data.timecost += @elapsed cost_ = cost(problem.residuals, data.variables)
         data.costcomputations += 1
@@ -247,8 +299,7 @@ function levenberg_iteration!(data::NLLSInternal, problem::NLLSProblem, options:
         data.timesolver += @elapsed data.step = -solve(LinearProblem(data.hessian, data.gradient), options.linearsolver).u
         data.linearsolvers += 1
         # Update the new variables
-        data.variables = copy(problem.variables)
-        update!(data.variables, data.blockoffsets, data.step)
+        update!(data.variables, problem.variables, data.blockoffsets, data.step)
         # Compute the cost
         data.timecost += @elapsed cost_ = cost(problem.residuals, data.variables)
         data.costcomputations += 1

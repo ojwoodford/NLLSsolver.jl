@@ -29,14 +29,16 @@ struct BlockSparseMatrix{T}
                 start += convert(UInt, rbs[pairs_[ind,1]]) * cbs[pairs_[ind,2]]
             end
             # Construct the block matrix
-            return new(Vector{T}(undef, start-1), SparseArrays.sparse(view(pairs_, :, 1), view(pairs_, :, 2), indices, length(rbs), length(cbs)), rbs, cbs, m, n)
+            nzvals = start - 1
+            sp = SparseArrays.sparse(view(pairs_, :, 1), view(pairs_, :, 2), indices, length(rbs), length(cbs))
         elseif length(pairs) == 2
             # Single pair
             nzvals = convert(UInt, rbs[pairs[1]]) * cbs[pairs[2]]
-            return new(Vector{T}(undef, nzvals), SparseArrays.sparse([pairs[1]], [pairs[2]], [UInt(1)], length(rbs), length(cbs)), rbs, cbs, m, n)
+            sp = SparseArrays.sparse([pairs[1]], [pairs[2]], [UInt(1)], length(rbs), length(cbs))
         else
             ArgumentError("Unexpected pairs")
         end
+        return new(zeros(T, nzvals), sp, rbs, cbs, m, n)
     end
 end
 
@@ -51,6 +53,11 @@ end
 Base.size(bsm::BlockSparseMatrix) = (bsm.m, bsm.n)
 Base.size(bsm::BlockSparseMatrix, dim) = dim == 1 ? bsm.m : (dim == 2 ? bsm.n : 1)
 SparseArrays.nnz(bsm::BlockSparseMatrix) = length(bsm.data)
+
+@inline zero!(aa::AbstractArray) = fill!(aa, 0)
+@inline block(aa::AbstractArray, i, j, rows, cols) = SizedMatrix{rows, cols}(aa)
+@inline block(aa::AbstractArray, i, j) = aa
+SparseArrays.nnz(aa::AbstractArray) = length(aa)
 
 function symmetrifysparse(bsm::BlockSparseMatrix{T}) where T
     # Preallocate arrays
@@ -162,14 +169,14 @@ end
 
 function symmetrifyfull!(mat::Matrix{T}, bsm::BlockSparseMatrix{T}, blocks) where T
     @assert bsm.rowblocksizes == bsm.columnblocksizes
-    m = sum(x -> bsm.rowblocksizes[x], blocks)
-    @assert size(mat) == (m, m)
-    starts = zeros(UInt, length(bsm.rowblocksizes))
-    starts[blocks] .= cumsum(vcat([1], bsm.rowblocksizes[blocks[1:end-1]]))
     lengths = zeros(UInt, length(bsm.rowblocksizes))
     lengths[blocks] .= bsm.rowblocksizes[blocks]
-    pushfirst!(starts, UInt(0))
+    m = sum(lengths)
+    @assert size(mat) == (m, m)
+    starts = zeros(UInt, length(bsm.rowblocksizes))
+    starts[blocks] .= cumsum(vcat(1, bsm.rowblocksizes[blocks[1:end-1]]))
     # Copy blocks into the output
+    fill!(mat, 0)
     (rows, cols, indices) = SparseArrays.findnz(bsm.indices)
     for i in eachindex(rows)
         c = cols[i]

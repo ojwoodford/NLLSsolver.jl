@@ -23,9 +23,9 @@ end
 
 function computeCostGrid(func, X, Y)
     grid = Matrix{Float64}(undef, length(Y), length(X))
-    for y in eachindex(Y)
-        for x in eachindex(X)
-            grid[x,y] = func(SVector(X[x], Y[y]))
+    for (b, y) in enumerate(Y)
+        for (a, x) in enumerate(X)
+            grid[a,b] = func(SVector(x, y))
         end
     end
     return grid
@@ -50,13 +50,14 @@ function optimizeRosenbrock(start=[-1., -1.], iterators=[NLLSsolver.gaussnewton,
     residual = Rosenbrock()
     X = range(-1.5, 3., 1000)
     Y = range(-1.5, 3., 1000)
-    grid = computeCostGrid(x -> log(norm(NLLSsolver.computeresidual(residual, x))), X, Y)
+    grid = computeCostGrid(x -> log1p(norm(NLLSsolver.computeresidual(residual, x))), X, Y)
 
     # Create the plot
     fig = Figure()
-    ax = Axis(fig[1, 1], limits=(X[1], X[end], Y[1], Y[end]))
-    heatmap!(ax, X, Y, grid)
-    contour!(ax, X, Y, grid, linewidth=2, color=:white)
+    ax1 = Axis(fig[1, 1]; limits=(X[1], X[end], Y[1], Y[end]), title="Trajectories")
+    ax2 = Axis(fig[1, 2]; title="Costs", xlabel="Iteration")
+    heatmap!(ax1, X, Y, grid)
+    contour!(ax1, X, Y, grid, linewidth=2, color=:white, levels=10)
 
     # Create the problem
     problem = NLLSsolver.NLLSProblem{NLLSsolver.EuclideanVector{2, Float64}}()
@@ -69,16 +70,19 @@ function optimizeRosenbrock(start=[-1., -1.], iterators=[NLLSsolver.gaussnewton,
         problem.variables[1] = NLLSsolver.EuclideanVector(start[1], start[2])
 
         # Optimize the cost
-        options = NLLSsolver.NLLSOptions(dcost=1.e-6, iterator=iterators[ind], storetrajectory=true)
+        options = NLLSsolver.NLLSOptions(dcost=1.e-6, iterator=iterators[ind], storetrajectory=true, storecosts=true)
         result = NLLSsolver.optimize!(problem, options)
 
         # Construct the trajectory
         X, Y = constructtrajectory(start, result.trajectory)
 
-        # Plot the trajectory
-        scatterlines!(ax, X, Y, color=colors[ind])
+        # Plot the trajectory and costs
+        scatterlines!(ax1, X, Y, color=colors[ind], linewidth=2.5)
+        scatterlines!(ax2, pushfirst!(result.costs, result.startcost).+1.e-15, color=colors[ind], linewidth=1.5, label=String(iterators[ind]))
     end
-    fig
+    axislegend(ax2)
+    ax2.yscale = log10
+    return fig
 end
 
 optimizeRosenbrock()

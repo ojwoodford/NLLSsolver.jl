@@ -1,5 +1,5 @@
 using StaticArrays
-export EuclideanVector, ZeroToInfScalar, ZeroToOneScalar
+export EuclideanVector, ZeroToInfScalar, ZeroToOneScalar, copy!
 
 # Standard Euclidean vector of length N
 const EuclideanVector{N, T} = SVector{N, T}
