@@ -113,14 +113,15 @@ function optimizeBALproblem(name="problem-16-22106")
     fig
 end
 
+problem = NLLSsolver.NLLSProblem(makeBALproblem(loadbaldataset("problem-16-22106")), UInt(1))
 # problem = makeBALproblem(filterBAL(loadbaldataset("problem-16-22106"), [], 1))
 # NLLSsolver.fixvars!(problem, range(2, length(problem.variables)))
-# options = NLLSsolver.NLLSOptions(iterator=NLLSsolver.levenbergmarquardt)
-# NLLSsolver.optimize!(problem, options)
+options = NLLSsolver.NLLSOptions(iterator=NLLSsolver.levenbergmarquardt)
+NLLSsolver.optimize!(problem, options)
 # start = problem.variables[1]
 # @btime NLLSsolver.optimize!($problem, $options) setup=(problem.variables[1]=start) evals=1
 # Profile.Allocs.clear()
 # Profile.Allocs.@profile sample_rate=0.001 NLLSsolver.optimize!(problem, options)
 # PProf.Allocs.pprof(from_c=false)
 
-optimizeBALproblem()
+# optimizeBALproblem()
