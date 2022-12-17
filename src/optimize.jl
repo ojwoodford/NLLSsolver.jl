@@ -48,17 +48,20 @@ mutable struct NLLSInternal{VarTypes}
     linearsolvers::Int
 
     function NLLSInternal{VarTypes}(problem::NLLSProblem) where VarTypes
+        lvar = length(problem.variables)
+        @assert lvar > 0
         # Compute the block offsets
-        blockindices = zeros(UInt, length(problem.variables))
-        blockoffsets = zeros(UInt, length(problem.variables))
-        blocksizes = zeros(UInt, length(problem.variables))
+        blockindices = zeros(UInt, lvar)
+        blockoffsets = zeros(UInt, lvar)
+        blocksizes = zeros(UInt, lvar)
         nblocks = UInt(0)
         if typeof(problem.unfixed) == UInt
             # Single variable block
             nblocks += 1
             blockindices[problem.unfixed] = 1
             blockoffsets[problem.unfixed] = 1
-            @inbounds blocksizes[1] = nvars(problem.variables[problem.unfixed])
+            varlen = UInt(nvars(problem.variables[problem.unfixed]))
+            @inbounds blocksizes[1] = varlen
         else
             start = UInt(1)
             for (index, unfixed) in enumerate(problem.unfixed)
@@ -71,11 +74,12 @@ mutable struct NLLSInternal{VarTypes}
                     start += N
                 end
             end
+            varlen = start - 1
         end
         # Construct the Hessian
         if nblocks == 1
             # One unfixed variable. Use a dense matrix hessian
-            mat = zeros(Float64, blocksizes[1], blocksizes[1])
+            mat = zeros(Float64, varlen, varlen)
         else
             # Compute the block pairs
 
@@ -84,7 +88,7 @@ mutable struct NLLSInternal{VarTypes}
             mat = BlockSparseMatrix{Float64}(pairs, blocksizes, blocksizes)
         end
         # Initialize everything
-        return new(deepcopy(problem.variables), zeros(Float64, start), mat, Vector{Float64}(undef, start), blockindices, blockindices, 0., 0., 0., 0., 0., 0, 0, 0)
+        return new(deepcopy(problem.variables), zeros(Float64, varlen), mat, Vector{Float64}(undef, varlen), blockindices, blockindices, 0., 0., 0., 0., 0., 0, 0, 0)
     end
 end
 struct NLLSResult
