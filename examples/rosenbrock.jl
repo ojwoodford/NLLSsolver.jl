@@ -32,11 +32,10 @@ function computeCostGrid(func, X, Y)
 end
 
 struct RosenbrockResult
-    costs::Vector{Float64}
-    X::Vector{Float64}
-    Y::Vector{Float64}
+    costs::Observable{Vector{Float64}}
+    trajectory::Observable{Vector{Point2f}}
 end
-RosenbrockResult() = RosenbrockResult(Vector{Float64}(), Vector{Float64}(), Vector{Float64}())
+RosenbrockResult() = RosenbrockResult(Observable(Vector{Float64}()), Observable(Vector{Point2f}()))
 
 function runoptimizers!(results, problem, start, iterators)
     for (ind, iter) in enumerate(iterators)
@@ -48,19 +47,20 @@ function runoptimizers!(results, problem, start, iterators)
         result = NLLSsolver.optimize!(problem, options)
 
         # Construct the trajectory
-        resize!(results[ind].X, length(result.trajectory)+1)
-        resize!(results[ind].Y, length(result.trajectory)+1)
-        results[ind].X[1] = start[1]
-        results[ind].Y[1] = start[2]
+        resize!(results[ind].trajectory.val, length(result.trajectory)+1)
+        @inbounds results[ind].trajectory.val[1] = Point2f(start[1], start[2])
         for (i, step) in enumerate(result.trajectory)
-            results[ind].X[i+1] = results[ind].X[i] + step[1]
-            results[ind].Y[i+1] = results[ind].Y[i] + step[2]
+            @inbounds results[ind].trajectory.val[i+1] = results[ind].trajectory.val[i] + Point2f(step[1], step[2])
         end
 
         # Set the costs
-        resize!(results[ind].costs, length(result.costs)+1)
-        results[ind].costs[1] = result.startcost
-        results[ind].costs[2:end] .= max.(result.costs, 1.e-38)
+        resize!(results[ind].costs.val, length(result.costs)+1)
+        @inbounds results[ind].costs.val[1] = result.startcost
+        @inbounds results[ind].costs.val[2:end] .= max.(result.costs, 1.e-38)
+    end
+    for res in results
+        notify(res.costs)
+        notify(res.trajectory)
     end
 end
 
@@ -88,14 +88,20 @@ function optimizeRosenbrock(start=[-0.5, 2.5], iterators=[NLLSsolver.gaussnewton
     contour!(ax1, X, Y, grid, linewidth=2, color=:white, levels=10)
 
     # Plot the trajectory and costs
-    resultsref = Observable(results)
     colors = [:black, :red, :navy]
-    for ind in eachindex(results)
+    for (ind, iter) in enumerate(iterators)
         color = colors[mod(ind-1, length(colors)) + 1]
-        scatterlines!(ax1, resultsref[][ind].X, resultsref[][ind].Y, color=color, linewidth=2.5)
-        scatterlines!(ax2, resultsref[][ind].costs, color=color, linewidth=1.5, label=String(iterators[ind]))
+        scatterlines!(ax1, results[ind].trajectory, color=color, linewidth=2.5)
+        scatterlines!(ax2, results[ind].costs, color=color, linewidth=1.5, label=String(iter))
     end
     axislegend(ax2)
+
+    # Allow start points to be selected
+    on(events(ax1).mousebutton) do event
+        if event.button == Mouse.left && event.action == Mouse.press
+            runoptimizers!(results, problem, mouseposition(ax1.scene), iterators)
+        end
+    end
     return fig
 end
 

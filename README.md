@@ -13,7 +13,6 @@ Features not currently supported:
 - **Constraints**: Bounds on variables are not explicitly supported. However, bounded variables can be implemented using special, non-Euclidean parameterizations.
 
 TODO:
-- Interactive Rosenbrock start point
 - Reuse LinearSolver
 - Schur
 - EPIs
