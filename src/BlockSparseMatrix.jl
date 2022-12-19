@@ -1,6 +1,6 @@
-using StaticArrays
+using StaticArrays, LinearAlgebra
 import SparseArrays
-export BlockSparseMatrix, symmetrifysparse, symmetrifyfull, block, crop
+export BlockSparseMatrix, symmetrifysparse, symmetrifyfull, block, crop, uniformscaling!
 
 struct BlockSparseMatrix{T}
     data::Vector{T}
@@ -42,6 +42,24 @@ struct BlockSparseMatrix{T}
     end
 end
 
+function uniformscaling!(M::AbstractMatrix, k)
+    LinearAlgebra.checksquare(M)
+    for i in axes(M, 1)
+        @inbounds M[i,i] += k
+    end
+end
+
+function uniformscaling!(M::BlockSparseMatrix, k)
+    @assert M.rowblocksizes === M.columnblocksizes
+    for (i, blocksz) in enumerate(M.rowblocksizes)
+        @inbounds ind = M.indices[i,i]
+        @assert ind > 0
+        for j in ind:(blocksz+1):(ind+blocksz^2)
+            @inbounds M.data[j] += k
+        end
+    end
+end
+
 @inline zero!(bsm::BlockSparseMatrix) = fill!(bsm.data, 0)
 @inline block(bsm::BlockSparseMatrix, i, j, rows, cols) = SizedMatrix{rows, cols}(view(bsm.data, StaticArrays.SUnitRange(0, rows*cols-1).+bsm.indices[i,j]))
 function block(bsm::BlockSparseMatrix, i, j)
@@ -70,7 +88,7 @@ function symmetrifysparse(bsm::BlockSparseMatrix{T}) where T
     start = cumsum(bsm.rowblocksizes) .+ 1
     pushfirst!(start, UInt(1))
     ind = 0
-    for col in range(1, length(bsm.rowblocksizes))
+    for col in eachindex(bsm.rowblocksizes)
         sprow = bsm.indices[col,:]
         block_rows, block_indices = SparseArrays.findnz(max(bsm.indices[:,col], sprow))
         transposed = findall(block_indices .== sprow[block_rows])
@@ -79,7 +97,7 @@ function symmetrifysparse(bsm::BlockSparseMatrix{T}) where T
         colstride[transposed] .= rowstride[transposed]
         rowstride[transposed] .= 1
         col_ = start[col]
-        for innercol in range(1, bsm.rowblocksizes[col])
+        for innercol in 1:bsm.rowblocksizes[col]
             for (r, br) in enumerate(block_rows)
                 s = start[br]
                 c = bsm.rowblocksizes[br]
@@ -113,10 +131,10 @@ function SparseArrays.sparse(bsm::BlockSparseMatrix{T}) where T
     start = cumsum(bsm.rowblocksizes) .+ 1
     pushfirst!(start, UInt(1))
     ind = 0
-    for col in range(1, length(bsm.rowblocksizes))
+    for col in eachindex(bsm.rowblocksizes)
         block_rows, block_indices = SparseArrays.findnz(bsm.indices[:,col])
         col_ = start[col]
-        for innercol in range(1, bsm.rowblocksizes[col])
+        for innercol in 1:bsm.rowblocksizes[col]
             for (r, br) in enumerate(block_rows)
                 s = start[br]
                 c = bsm.rowblocksizes[br]

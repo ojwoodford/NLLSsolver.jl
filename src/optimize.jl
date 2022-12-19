@@ -304,7 +304,7 @@ function levenberg_iteration!(data::NLLSInternal, problem::NLLSProblem, options:
     mu = 2.
     while true
         # Dampen the Hessian
-        data.hessian += (data.lambda - lastlambda) * I
+        uniformscaling!(data.hessian, data.lambda - lastlambda)
         lastlambda = data.lambda
         # Solve the linear system
         data.timesolver += @elapsed data.step = -solve(LinearProblem(data.hessian, data.gradient), options.linearsolver).u

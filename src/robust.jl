@@ -59,7 +59,7 @@ end
 
 
 # function displaykernel(kernel, maxval=1)
-#     x = LinRange(0, maxval, 1000)
+#     x = range(0, maxval, 1000)
 #     cost = x .^ 2
 #     weight = similar(cost)
 #     for (ind, c) in enumerate(cost)

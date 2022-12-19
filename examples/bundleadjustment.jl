@@ -95,8 +95,8 @@ function optimizeBALproblem(name="problem-16-22106")
     data = filterBAL(loadbaldataset(name), [], 1)
     show(data)
     problem = makeBALproblem(data)
-    # NLLSsolver.fixvars!(problem, range(1, length(problem.variables)-1)) # Fix cameras
-    NLLSsolver.fixvars!(problem, range(2, length(problem.variables))) # Fix landmarks
+    # NLLSsolver.fixvars!(problem, 1:length(problem.variables)-1) # Fix cameras
+    NLLSsolver.fixvars!(problem, 2:length(problem.variables)) # Fix landmarks
     # Compute the mean cost per measurement
     println("   Mean cost per measurement: ", NLLSsolver.cost(problem)/length(data.measurements))
     # Optimize the cost
@@ -115,7 +115,7 @@ end
 
 problem = NLLSsolver.NLLSProblem(makeBALproblem(loadbaldataset("problem-16-22106")), UInt(1))
 # problem = makeBALproblem(filterBAL(loadbaldataset("problem-16-22106"), [], 1))
-# NLLSsolver.fixvars!(problem, range(2, length(problem.variables)))
+# NLLSsolver.fixvars!(problem, 2:length(problem.variables))
 options = NLLSsolver.NLLSOptions(iterator=NLLSsolver.levenbergmarquardt)
 NLLSsolver.optimize!(problem, options)
 # start = problem.variables[1]
