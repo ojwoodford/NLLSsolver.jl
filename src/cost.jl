@@ -6,15 +6,23 @@ cost(problem::NLLSProblem) = cost(problem.residuals, problem.variables)
 
 function cost(residuals::IdDict, vars::Vector)::Float64
     # Compute the cost of all residuals in the problem
-    return sum(x -> cost(x.second::Vector{x.first}, vars), residuals; init=0.)
+    c = 0.
+    for (key, res) in residuals
+        c += cost(res, vars)
+    end
+    return c 
+    # return sum(x -> cost(x.second::Vector{x.first}, vars), residuals; init=0.)
 end
 
 function cost(residuals::Vector, vars::Vector)::Float64
     # Compute the total cost of all residuals in a container
     c = 0.
-    @floop for res in residuals
-        c_ = cost(res, vars)
-        @reduce c += c_
+    # @floop for res in residuals
+    #     c_ = cost(res, vars)
+    #     @reduce c += c_
+    # end
+    for res in residuals
+        c += cost(res, vars)
     end
     return c
 end
@@ -64,8 +72,8 @@ function updateblocks!(grad, hess, res, jac, w1, w2, blockoffsets)
         g *= w1
     end
     # Update the blocks in the problem
-    @inbounds grad[blockoffsets] += g
-    @inbounds hess[blockoffsets, blockoffsets] += H
+    @inbounds view(grad, blockoffsets) .+= g
+    @inbounds view(hess, blockoffsets, blockoffsets) .+= H
     return nothing
 end
 
