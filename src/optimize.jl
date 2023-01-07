@@ -88,7 +88,7 @@ mutable struct NLLSInternal{VarTypes}
             mat = BlockSparseMatrix{Float64}(pairs, blocksizes, blocksizes)
         end
         # Initialize everything
-        return new(copy(problem.variables), zeros(Float64, varlen), mat, Vector{Float64}(undef, varlen), blockindices, blockindices, 0., 0., 0., 0., 0., 0, 0, 0)
+        return new(copy(problem.variables), zeros(Float64, varlen), mat, Vector{Float64}(undef, varlen), blockoffsets, blockindices, 0., 0., 0., 0., 0., 0, 0, 0)
     end
 end
 struct NLLSResult

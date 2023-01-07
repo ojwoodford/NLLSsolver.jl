@@ -114,15 +114,20 @@ function optimizeBALproblem(name="problem-16-22106")
 end
 
 # problem = NLLSsolver.NLLSProblem(makeBALproblem(loadbaldataset("problem-16-22106")), UInt(1))
-problem = makeBALproblem(filterBAL(loadbaldataset("problem-16-22106"), [], 1))
-NLLSsolver.fixvars!(problem, 2:length(problem.variables))
-options = NLLSsolver.NLLSOptions(iterator=NLLSsolver.levenbergmarquardt)
-start = problem.variables[1]
-NLLSsolver.optimize!(problem, options)
+# problem = makeBALproblem(filterBAL(loadbaldataset("problem-16-22106"), [], 1))
+# NLLSsolver.fixvars!(problem, 2:length(problem.variables))
+# @code_warntype NLLSsolver.costgradhess!(zeros(Float64, 6), zeros(Float64, 6, 6), problem.residuals[BALResidual{Float64}][1], problem.variables, UInt(1))
+# options = NLLSsolver.NLLSOptions(iterator=NLLSsolver.levenbergmarquardt)
+# start = problem.variables[1]
+# NLLSsolver.optimize!(problem, options)
 # @btime NLLSsolver.optimize!($problem, $options) setup=(problem.variables[1]=start) evals=1
-problem.variables[1] = start
-Profile.Allocs.clear()
-Profile.Allocs.@profile sample_rate=1 NLLSsolver.optimize!(problem, options)
-PProf.Allocs.pprof(from_c=false)
+# problem.variables[1] = start
+# Profile.Allocs.clear()
+# Profile.Allocs.@profile sample_rate=1 NLLSsolver.optimize!(problem, options)
+# PProf.Allocs.pprof(from_c=false)
+
+problem = makeBALproblem(loadbaldataset("problem-16-22106"))
+@btime NLLSsolver.cost($problem)
+
 
 # optimizeBALproblem()

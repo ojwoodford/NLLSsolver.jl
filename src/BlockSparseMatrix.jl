@@ -73,8 +73,6 @@ Base.size(bsm::BlockSparseMatrix, dim) = dim == 1 ? bsm.m : (dim == 2 ? bsm.n : 
 SparseArrays.nnz(bsm::BlockSparseMatrix) = length(bsm.data)
 
 @inline zero!(aa::AbstractArray) = fill!(aa, 0)
-@inline block(aa::AbstractArray, i, j, rows, cols) = SizedMatrix{rows, cols}(aa)
-@inline block(aa::AbstractArray, i, j) = aa
 SparseArrays.nnz(aa::AbstractArray) = length(aa)
 
 function symmetrifysparse(bsm::BlockSparseMatrix{T}) where T

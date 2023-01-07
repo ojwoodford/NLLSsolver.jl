@@ -51,30 +51,12 @@ end
     return ntuple(i -> ((varflags >> (i - 1)) & 1) != 0 ? update(vars[i], advar, countvars(vars[1:i-1], Val(varflags))+1) : vars[i], length(vars))
 end
 
-# Compute the offsets of the variables
-@inline function computeoffsets(vars, varflags, blockind)
-    return vcat(ntuple(i -> SR(1, nvars(vars[i]) * ((varflags >> (i - 1)) & 1)) .+ (blockind[i] - 1), length(vars))...)
+@inline function blockoffsets(vars, varflags, blockind)
+    return ntuple(i -> SR(1, nvars(vars[i]) * ((varflags >> (i - 1)) & 1)) .+ (blockind[i] - 1), length(vars))
 end
 
-function updateblocks!(grad, hess, res, jac, w1, w2, blockoffsets)
-    # Compute the unrobust gradient and Hessian
-    g = jac' * res
-    H = jac' * jac
-    # Check for robust case
-    if w1 != 1
-        # IRLS reweighting of Hessian
-        H *= w1
-        if w2 != 0
-            # Second order correction
-            H += (2 * w2) * g * g'
-        end
-        # IRLS reweighting of gradient
-        g *= w1
-    end
-    # Update the blocks in the problem
-    @inbounds view(grad, blockoffsets) .+= g
-    @inbounds view(hess, blockoffsets, blockoffsets) .+= H
-    return nothing
+@inline function localoffsets(vars, varflags)
+    return ntuple(i -> SR(1, nvars(vars[i]) * ((varflags >> (i - 1)) & 1)) .+ countvars(vars[1:i-1], Val(varflags)), length(vars))
 end
 
 # Automatic Jacobian computation
@@ -93,7 +75,31 @@ function computeresjac(::Val{varflags}, residual::Residual, vars...) where {varf
     return res, jac
 end
 
-function gradhesshelper!(grad, hess, residual::Residual, vars::Vector, blockind, ::Val{varflags}) where {varflags, Residual <: AbstractResidual}
+@inline function updatelinearsystem!(grad, hess::Matrix, g, H, vars, varflags, blockind, residual)
+    # Update the blocks in the problem
+    grad .+= g
+    hess .+= H
+end
+
+@inline function updatelinearsystem!(grad, hess::BlockSparseMatrix, g, H, vars, varflags, blockind, residual)
+    # Update the blocks in the problem
+    goffsets = blockoffsets(vars, varflags, blockind)
+    loffsets = localoffsets(vars, varflags)
+    blocks = varindices(residual)
+    for i in eachindex(vars)
+        if ((varflags >> (i - 1)) & 1) == 1
+            @inbounds view(grad, goffsets[i]) .+= g[loffsets[i]]
+            @inbounds block(hess, blocks[i], blocks[i], nvars(vars[i]), nvars(vars[i])) .+= H[loffsets[i],loffsets[i]]
+            for j in i+1:lastindex(vars)
+                if ((varflags >> (j - 1)) & 1) == 1
+                    @inbounds block(hess, blocks[i], blocks[j], nvars(vars[i]), nvars(vars[j])) .+= H[loffsets[i],loffsets[j]]
+                end
+            end
+        end
+    end
+end
+
+function gradhesshelper!(grad, hess, residual::Residual, vars::Vector, blockind, ::Val{varflags})::Float64 where {varflags, Residual <: AbstractResidual}
     # Get the variables
     v = getvars(residual, vars)
 
@@ -105,8 +111,22 @@ function gradhesshelper!(grad, hess, residual::Residual, vars::Vector, blockind,
 
     # If this residual has a weight...
     if w1 != 0    
+        # Compute the unrobust gradient and Hessian
+        g = jac' * res
+        H = jac' * jac
+        # Check for robust case
+        if w1 != 1
+            # IRLS reweighting of Hessian
+            H *= w1
+            if w2 != 0
+                # Second order correction
+                H += (2 * w2) * g * g'
+            end
+            # IRLS reweighting of gradient
+            g *= w1
+        end
         # Update the blocks in the problem
-        updateblocks!(grad, hess, res, jac, w1, w2, computeoffsets(v, varflags, blockind))
+        updatelinearsystem!(grad, hess, g, H, v, varflags, blockind, residual)
     end
 
     # Return the cost
@@ -121,10 +141,10 @@ function getoffsets(residual, blockoffsets::UInt)
     return convert.(UInt, SVector(varindices(residual)) .== blockoffsets)
 end
 
-function costgradhess!(grad, hess, residual::Residual, vars::Vector, blockoffsets)::Float64 where Residual <: AbstractResidual
+function costgradhess!(grad, hess, residual::Residual, vars::Vector, blockoffsets) where Residual <: AbstractResidual
     # Get the bitset for the input variables, as an integer
-    blockind = getoffsets(residual, blockoffsets)
-    varflags = foldl((x, y) -> (x << 1) + (y != 0), reverse(blockind), init=0)
+    blockoff = getoffsets(residual, blockoffsets)
+    varflags = foldl((x, y) -> (x << 1) + (y != 0), reverse(blockoff), init=UInt(0))
 
     # If there are no variables, just return the cost
     if varflags == 0
@@ -132,8 +152,8 @@ function costgradhess!(grad, hess, residual::Residual, vars::Vector, blockoffset
     end
 
     # Dispatch gradient computation based on the varflags, and return the cost
-    #return gradhesshelper!(grad, hess, residual, vars, blockind, Val(varflags))
-    return valuedispatch(Val(1), Val((2^nvars(residual))-1), v -> gradhesshelper!(grad, hess, residual, vars, blockind, v), varflags)
+    # return gradhesshelper!(grad, hess, residual, vars, blockind, Val(varflags))
+    return valuedispatch(Val(1), Val((2^nvars(residual))-1), v -> gradhesshelper!(grad, hess, residual, vars, blockoff, v), varflags)
 end
 
 function costgradhess!(grad, hess, residuals::Vector, vars::Vector, blockoffsets)::Float64
