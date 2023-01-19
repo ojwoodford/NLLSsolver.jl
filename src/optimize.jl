@@ -1,4 +1,4 @@
-using SparseArrays, LinearSolve
+using SparseArrays, LinearSolve, Dates
 import Printf.@printf
 export optimize!, NLLSOptions, NLLSResult, NLLSIterator
 
@@ -43,6 +43,7 @@ mutable struct NLLSInternal{VarTypes}
     costcomputations::Int
     gradientcomputations::Int
     linearsolvers::Int
+    wallclock::DateTime
 
     function NLLSInternal{VarTypes}(problem::NLLSProblem) where VarTypes
         @assert length(problem.variables) > 0
@@ -61,12 +62,12 @@ mutable struct NLLSInternal{VarTypes}
         if nblocks == 1
             # One unfixed variable
             varlen = UInt(nvars(problem.variables[unfixed]))
-            return new(copy(problem.variables), UniVariateLS(unfixed, varlen), Vector{Float64}(undef, varlen), 0., 0., 0., 0., 0., 0, 0, 0)
+            return new(copy(problem.variables), UniVariateLS(unfixed, varlen), Vector{Float64}(undef, varlen), 0., 0., 0., 0., 0., 0, 0, 0, now())
         end
 
         # Multiple variables. Use a block sparse matrix
         mvls = MultiVariateLS(problem.variables, problem.residuals, problem.unfixed, nblocks)
-        return new(copy(problem.variables), mvls, Vector{Float64}(undef, length(mvls.gradient)), 0., 0., 0., 0., 0., 0, 0, 0)
+        return new(copy(problem.variables), mvls, Vector{Float64}(undef, length(mvls.gradient)), 0., 0., 0., 0., 0., 0, 0, 0, now())
     end
 end
 struct NLLSResult
