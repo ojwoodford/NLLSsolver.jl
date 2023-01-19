@@ -10,7 +10,7 @@ struct BlockSparseMatrix{T}
     m::UInt
     n::UInt
 
-    function BlockSparseMatrix{T}(pairs, rowblocksizes, colblocksizes) where T
+    function BlockSparseMatrix{T}(pairs::Vector{SVector{2, U}}, rowblocksizes, colblocksizes) where {T, U}
         # Check the block sizes
         rbs = convert.(UInt8, rowblocksizes)
         cbs = convert.(UInt8, colblocksizes)
@@ -18,26 +18,19 @@ struct BlockSparseMatrix{T}
         @assert all(i -> 0 < i, cbs)
         m = sum(rbs)
         n = sum(cbs)
-        if size(pairs, 1) > 1 && size(pairs, 2) == 2
-            # Sort the indices for faster construction, and ensure unique
-            pairs_ = unique(sortslices(pairs, dims=1), dims=1)
-            # Compute the block pointers and length of data storage
-            start = UInt(1)
-            indices = Vector{UInt}(undef, size(pairs_, 1))
-            for ind in eachindex(indices)
-                indices[ind] = start
-                start += convert(UInt, rbs[pairs_[ind,1]]) * cbs[pairs_[ind,2]]
-            end
-            # Construct the block matrix
-            nzvals = start - 1
-            sp = SparseArrays.sparse(view(pairs_, :, 1), view(pairs_, :, 2), indices, length(rbs), length(cbs))
-        elseif length(pairs) == 2
-            # Single pair
-            nzvals = convert(UInt, rbs[pairs[1]]) * cbs[pairs[2]]
-            sp = SparseArrays.sparse([pairs[1]], [pairs[2]], [UInt(1)], length(rbs), length(cbs))
-        else
-            ArgumentError("Unexpected pairs")
+        # Sort the indices for faster construction, and ensure unique
+        pairs_ = sort(pairs)
+        unique!(pairs_)
+        # Compute the block pointers and length of data storage
+        start = UInt(1)
+        indices = Vector{UInt}(undef, length(pairs))
+        for ind in eachindex(indices)
+            indices[ind] = start
+            start += convert(UInt, rbs[pairs_[ind][1]]) * cbs[pairs_[ind][2]]
         end
+        # Construct the block matrix
+        nzvals = start - 1
+        sp = SparseArrays.sparse([p[1] for p in pairs_], [p[2] for p in pairs_], indices, length(rbs), length(cbs))
         return new(zeros(T, nzvals), sp, rbs, cbs, m, n)
     end
 end
@@ -70,10 +63,26 @@ function block(bsm::BlockSparseMatrix, i, j)
 end
 Base.size(bsm::BlockSparseMatrix) = (bsm.m, bsm.n)
 Base.size(bsm::BlockSparseMatrix, dim) = dim == 1 ? bsm.m : (dim == 2 ? bsm.n : 1)
+Base.length(bsm::BlockSparseMatrix) = bsm.m * bsm.n
 SparseArrays.nnz(bsm::BlockSparseMatrix) = length(bsm.data)
 
 @inline zero!(aa::AbstractArray) = fill!(aa, 0)
 SparseArrays.nnz(aa::AbstractArray) = length(aa)
+
+function multiplylvec!(out::Vector{T}, in::Vector{T}, bsm::BlockSparseMatrix{T}) where T
+    # Equivalent to out = (in' * bsm)'
+    @assert size(bsm, 2) == length(in)
+    @assert length(out) == length(in)
+    fill!(out, 0)
+    # Iterate over all the subblocks
+    # !!! How to account for non-symmetrified matrices?
+end
+
+function multiplylvec!(in::Vector{T}, bsm::BlockSparseMatrix{T}) where T
+    out = Vector{T}(undef, length(in))
+    multiplylvec!(out, bsm, in)
+    return out
+end
 
 function symmetrifysparse(bsm::BlockSparseMatrix{T}) where T
     # Preallocate arrays
@@ -243,7 +252,7 @@ function crop(bsm::BlockSparseMatrix{T}, rowblocks, colblocks) where T
     return output
 end
 
-b = BlockSparseMatrix{Float64}([2 1; 3 2; 1 3; 3 3], [2,3,2], [2,3,2])
+b = BlockSparseMatrix{Float64}([SVector(2, 1), SVector(3, 2), SVector(1, 3), SVector(3, 3)], [2,3,2], [2,3,2])
 block(b, 2, 1) .= randn(3, 2)
 block(b, 3, 2) .= randn(2, 3)
 block(b, 1, 3) .= randn(2, 2)

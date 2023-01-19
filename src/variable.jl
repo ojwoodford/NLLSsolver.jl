@@ -1,5 +1,11 @@
 using StaticArrays
-export EuclideanVector, ZeroToInfScalar, ZeroToOneScalar, copy!
+export EuclideanVector, ZeroToInfScalar, ZeroToOneScalar
+
+# Scalar
+nvars(::Number) = 1
+function update(var::Number, updatevec, start=1)
+    return var + updatevec[start]
+end
 
 # Standard Euclidean vector of length N
 const EuclideanVector{N, T} = SVector{N, T}

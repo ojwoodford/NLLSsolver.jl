@@ -4,27 +4,22 @@ export cost, costgradhess!, computeresjac
 
 cost(problem::NLLSProblem) = cost(problem.residuals, problem.variables)
 
-function cost(residuals::IdDict, vars::Vector)::Float64
+function cost(residuals, vars::Vector)::Float64
     # Compute the cost of all residuals in the problem
     c = 0.
-    for (key, res) in residuals
-        c += cost(res, vars)
-    end
-    return c 
-    # return sum(x -> cost(x.second::Vector{x.first}, vars), residuals; init=0.)
-end
-
-function cost(residuals::Vector, vars::Vector)::Float64
-    # Compute the total cost of all residuals in a container
-    c = 0.
-    # @floop for res in residuals
-    #     c_ = cost(res, vars)
-    #     @reduce c += c_
-    # end
-    for res in residuals
+    @inbounds for res in values(residuals)
         c += cost(res, vars)
     end
     return c
+end
+
+function cost_(residuals::Vector, vars::Vector)::Float64
+    # Compute the total cost of all residuals in a container
+    c = 0.
+    @floop for res in residuals
+        c_ = cost(res, vars)
+        @reduce c += c_
+    end
 end
 
 function cost(residual::Residual, vars::Vector)::Float64 where Residual <: AbstractResidual
@@ -35,7 +30,7 @@ function cost(residual::Residual, vars::Vector)::Float64 where Residual <: Abstr
     r = computeresidual(residual, v...)
     
     # Compute the robustified cost
-    return robustify(robustkernel(residual), r' * r)[1]
+    return robustify(robustkernel(residual), Float64(r' * r))[1]
 end
 
 # Count the numbers of variables in the inputs
@@ -51,8 +46,8 @@ end
     return ntuple(i -> ((varflags >> (i - 1)) & 1) != 0 ? update(vars[i], advar, countvars(vars[1:i-1], Val(varflags))+1) : vars[i], length(vars))
 end
 
-@inline function blockoffsets(vars, varflags, blockind)
-    return ntuple(i -> SR(1, nvars(vars[i]) * ((varflags >> (i - 1)) & 1)) .+ (blockind[i] - 1), length(vars))
+@inline function blockoffsets(vars, varflags, blockoff)
+    return ntuple(i -> SR(1, nvars(vars[i]) * ((varflags >> (i - 1)) & 1)) .+ (blockoff[i] - 1), length(vars))
 end
 
 @inline function localoffsets(vars, varflags)
@@ -75,31 +70,38 @@ function computeresjac(::Val{varflags}, residual::Residual, vars...) where {varf
     return res, jac
 end
 
-@inline function updatelinearsystem!(grad, hess::Matrix, g, H, vars, varflags, blockind, residual)
+@inline function updatelinearsystem!(linsystem::UniVariateLS, g, H, unusedargs...)
     # Update the blocks in the problem
-    grad .+= g
-    hess .+= H
+    linsystem.gradient .+= g
+    linsystem.hessian .+= H
 end
 
-@inline function updatelinearsystem!(grad, hess::BlockSparseMatrix, g, H, vars, varflags, blockind, residual)
+@inline function updatelinearsystem!(linsystem::MultiVariateLS, g, H, vars, ::Val{varflags}, blockindices) where varflags
     # Update the blocks in the problem
-    goffsets = blockoffsets(vars, varflags, blockind)
+    goffsets = blockoffsets(vars, varflags, linsystem.gradoffsets[blockindices])
     loffsets = localoffsets(vars, varflags)
-    blocks = varindices(residual)
     for i in eachindex(vars)
         if ((varflags >> (i - 1)) & 1) == 1
-            @inbounds view(grad, goffsets[i]) .+= g[loffsets[i]]
-            @inbounds block(hess, blocks[i], blocks[i], nvars(vars[i]), nvars(vars[i])) .+= H[loffsets[i],loffsets[i]]
+            @inbounds view(linsystem.gradient, goffsets[i]) .+= g[loffsets[i]]
+            @inbounds block(linsystem.hessian, blockindices[i], blockindices[i], nvars(vars[i]), nvars(vars[i])) .+= H[loffsets[i],loffsets[i]]
             for j in i+1:lastindex(vars)
                 if ((varflags >> (j - 1)) & 1) == 1
-                    @inbounds block(hess, blocks[i], blocks[j], nvars(vars[i]), nvars(vars[j])) .+= H[loffsets[i],loffsets[j]]
+                    @inbounds block(linsystem.hessian, blockindices[i], blockindices[j], nvars(vars[i]), nvars(vars[j])) .+= H[loffsets[i],loffsets[j]]
                 end
             end
         end
     end
 end
 
-function gradhesshelper!(grad, hess, residual::Residual, vars::Vector, blockind, ::Val{varflags})::Float64 where {varflags, Residual <: AbstractResidual}
+function getoffsets(residual, linsystem::MultiVariateLS)
+    return linsystem.blockindices[varindices(residual)]
+end
+
+function getoffsets(residual, linsystem::UniVariateLS)
+    return convert.(UInt, SVector(varindices(residual)) .== linsystem.varindex)
+end
+
+function gradhesshelper!(linsystem, residual::Residual, vars::Vector, ::Val{varflags}, blockind)::Float64 where {varflags, Residual <: AbstractResidual}
     # Get the variables
     v = getvars(residual, vars)
 
@@ -120,31 +122,23 @@ function gradhesshelper!(grad, hess, residual::Residual, vars::Vector, blockind,
             H *= w1
             if w2 != 0
                 # Second order correction
-                H += (2 * w2) * g * g'
+                H += ((2 * w2) * g) * g'
             end
             # IRLS reweighting of gradient
             g *= w1
         end
         # Update the blocks in the problem
-        updatelinearsystem!(grad, hess, g, H, v, varflags, blockind, residual)
+        updatelinearsystem!(linsystem, g, H, v, Val(varflags), blockind)
     end
 
     # Return the cost
     return c
 end
 
-function getoffsets(residual, blockoffsets::Vector{UInt})
-    return blockoffsets[varindices(residual)]
-end
-
-function getoffsets(residual, blockoffsets::UInt)
-    return convert.(UInt, SVector(varindices(residual)) .== blockoffsets)
-end
-
-function costgradhess!(grad, hess, residual::Residual, vars::Vector, blockoffsets) where Residual <: AbstractResidual
+function costgradhess!(linsystem, residual::Residual, vars::Vector) where Residual <: AbstractResidual
     # Get the bitset for the input variables, as an integer
-    blockoff = getoffsets(residual, blockoffsets)
-    varflags = foldl((x, y) -> (x << 1) + (y != 0), reverse(blockoff), init=UInt(0))
+    blockind = getoffsets(residual, linsystem)
+    varflags = foldl((x, y) -> (x << 1) + (y != 0), reverse(blockind), init=UInt(0))
 
     # If there are no variables, just return the cost
     if varflags == 0
@@ -152,28 +146,15 @@ function costgradhess!(grad, hess, residual::Residual, vars::Vector, blockoffset
     end
 
     # Dispatch gradient computation based on the varflags, and return the cost
-    # return gradhesshelper!(grad, hess, residual, vars, blockind, Val(varflags))
-    return valuedispatch(Val(1), Val((2^nvars(residual))-1), v -> gradhesshelper!(grad, hess, residual, vars, blockoff, v), varflags)
+    # return gradhesshelper!(linsystem, residual, vars, Val(varflags), blockind)
+    return valuedispatch(Val(1), Val((2^nvars(residual))-1), v -> gradhesshelper!(linsystem, residual, vars, v, blockind), varflags)
 end
 
-function costgradhess!(grad, hess, residuals::Vector, vars::Vector, blockoffsets)::Float64
-    # Go over all resdiduals, updating the gradient & hessian, and aggregating the cost 
-    c = 0.
-    # @floop 
-    for res in residuals
-        c_ = costgradhess!(grad, hess, res, vars, blockoffsets)
-        # @reduce
-        c += c_
-    end
-    return c
-end
-
-function costgradhess!(grad, hess, residuals::IdDict, vars::Vector, blockoffsets)::Float64
+function costgradhess!(linsystem, residuals, vars::Vector)::Float64
     # Go over all resdiduals in the problem
-    # return sum(x -> costgradhess!(grad, hess, x.second::Vector{x.first}, vars, blockoffsets), residuals; init=0.)
     c = 0.
-    for (key, res) in residuals
-        c += costgradhess!(grad, hess, res, vars, blockoffsets)
+    for res in values(residuals)
+        c += costgradhess!(linsystem, res, vars)
     end
     return c 
 end

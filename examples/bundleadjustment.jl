@@ -128,6 +128,10 @@ end
 
 problem = makeBALproblem(loadbaldataset("problem-16-22106"))
 @btime NLLSsolver.cost($problem)
+# NLLSsolver.cost(problem)
+# Profile.Allocs.clear()
+# Profile.Allocs.@profile sample_rate=1 NLLSsolver.cost(problem)
+# PProf.Allocs.pprof(from_c=false)
 
 
 # optimizeBALproblem()

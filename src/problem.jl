@@ -2,7 +2,7 @@ export NLLSProblem, addresidual!, addvariable!, fixvars!, unfixvars!
 
 struct NLLSProblem{VarTypes}
     # User provided
-    residuals::IdDict{DataType, Any}
+    residuals::Dict{DataType, Vector}
     variables::Vector{VarTypes}
     unfixed::Union{UInt, BitVector} # Bit vector to store which variables are not fixed (same length as variables), or a single variable index
 
