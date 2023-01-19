@@ -15,5 +15,8 @@ docs/site/
 # environment.
 /Manifest.toml
 
+# IDE files
+.vscode
+
 # OS generated files
 .DS_Store
