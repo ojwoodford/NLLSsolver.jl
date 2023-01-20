@@ -69,27 +69,12 @@ SparseArrays.nnz(bsm::BlockSparseMatrix) = length(bsm.data)
 @inline zero!(aa::AbstractArray) = fill!(aa, 0)
 SparseArrays.nnz(aa::AbstractArray) = length(aa)
 
-function multiplylvec!(out::Vector{T}, in::Vector{T}, bsm::BlockSparseMatrix{T}) where T
-    # Equivalent to out = (in' * bsm)'
-    @assert size(bsm, 2) == length(in)
-    @assert length(out) == length(in)
-    fill!(out, 0)
-    # Iterate over all the subblocks
-    # !!! How to account for non-symmetrified matrices?
-end
-
-function multiplylvec!(in::Vector{T}, bsm::BlockSparseMatrix{T}) where T
-    out = Vector{T}(undef, length(in))
-    multiplylvec!(out, bsm, in)
-    return out
-end
-
 function symmetrifysparse(bsm::BlockSparseMatrix{T}) where T
     # Preallocate arrays
     @assert bsm.rowblocksizes == bsm.columnblocksizes
     nzvals = length(bsm.data) * 2 - sum((Vector(diag(bsm.indices)) .!= 0) .* (bsm.rowblocksizes .^ 2))
-    rows = Vector{UInt}(undef, nzvals)
-    cols = Vector{UInt}(undef, nzvals)
+    rows = Vector{Int}(undef, nzvals)
+    cols = Vector{Int}(undef, nzvals)
     values = Vector{T}(undef, nzvals)
     # Sparsify each block column
     start = cumsum(bsm.rowblocksizes) .+ 1
@@ -131,8 +116,8 @@ end
 function SparseArrays.sparse(bsm::BlockSparseMatrix{T}) where T
     # Preallocate arrays
     nzvals = length(bsm.data)
-    rows = Vector{UInt}(undef, nzvals)
-    cols = Vector{UInt}(undef, nzvals)
+    rows = Vector{Int}(undef, nzvals)
+    cols = Vector{Int}(undef, nzvals)
     values = Vector{T}(undef, nzvals)
     # Sparsify each block column
     start = cumsum(bsm.rowblocksizes) .+ 1
