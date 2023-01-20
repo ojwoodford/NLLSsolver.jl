@@ -70,6 +70,10 @@ mutable struct NLLSInternal{VarTypes}
         return new(copy(problem.variables), mvls, Vector{Float64}(undef, length(mvls.gradient)), 0., 0., 0., 0., 0., 0, 0, 0, now())
     end
 end
+function NLLSInternal(problem::NLLSProblem{VarTypes}) where VarTypes
+    return NLLSInternal{VarTypes}(problem)
+end
+
 struct NLLSResult
     startcost::Float64
     bestcost::Float64
