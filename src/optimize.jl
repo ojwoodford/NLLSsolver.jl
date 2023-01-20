@@ -221,8 +221,8 @@ function newton_iteration!(data::NLLSInternal, problem::NLLSProblem, options::NL
 end
 
 function dogleg_iteration!(data::NLLSInternal, problem::NLLSProblem, options::NLLSOptions)::Float64
+    hessian, gradient = gethessgrad(data.linsystem)
     data.timesolver += @elapsed begin
-        hessian, gradient = gethessgrad(data.linsystem)
         # Compute the Cauchy step
         gnorm2 = gradient' * gradient
         a = gnorm2 / ((gradient' * hessian) * gradient + floatmin(eltype(gradient)))
@@ -309,7 +309,7 @@ function levenberg_iteration!(data::NLLSInternal, problem::NLLSProblem, options:
         # Check for exit
         if !(cost_ > data.bestcost) || (maximum(abs, data.step) < options.dstep)
             # Success (or convergence) - update lambda
-            step_quality = (cost_ - data.bestcost) / (((data.step' * hessian) * 0.5 + gradient') * data.step)
+            step_quality = (data.bestcost - cost_) / (((data.step' * hessian) * 0.5 - gradient') * data.step)
             data.lambda *= max(0.333, 1 - (step_quality - 1) ^ 3)
             # Return the cost
             return cost_
