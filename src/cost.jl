@@ -70,27 +70,39 @@ function computeresjac(::Val{varflags}, residual::Residual, vars...) where {varf
     return res, jac
 end
 
-@inline function updatelinearsystem!(linsystem::UniVariateLS, g, H, unusedargs...)
+function updatelinearsystem!(linsystem::UniVariateLS, g, H, unusedargs...)
     # Update the blocks in the problem
     linsystem.gradient .+= g
     linsystem.hessian .+= H
 end
 
-@inline function updatelinearsystem!(linsystem::MultiVariateLS, g, H, vars, ::Val{varflags}, blockindices) where varflags
+function updatehessian!(hessian, H, vars, ::Val{varflags}, blockindices, loffsets) where varflags
     # Update the blocks in the problem
-    goffsets = blockoffsets(vars, varflags, linsystem.gradoffsets[blockindices])
-    loffsets = localoffsets(vars, varflags)
-    for i in eachindex(vars)
+    @unroll for i in 1:10
         if ((varflags >> (i - 1)) & 1) == 1
-            @inbounds view(linsystem.gradient, goffsets[i]) .+= g[loffsets[i]]
-            @inbounds block(linsystem.hessian, blockindices[i], blockindices[i], nvars(vars[i]), nvars(vars[i])) .+= H[loffsets[i],loffsets[i]]
-            for j in i+1:lastindex(vars)
+            @unroll for j in i:10
                 if ((varflags >> (j - 1)) & 1) == 1
-                    @inbounds block(linsystem.hessian, blockindices[i], blockindices[j], nvars(vars[i]), nvars(vars[j])) .+= H[loffsets[i],loffsets[j]]
+                    @inbounds block(hessian, blockindices[i], blockindices[j], nvars(vars[i]), nvars(vars[j])) .+= H[loffsets[i],loffsets[j]]
                 end
             end
         end
     end
+end
+
+function updategradient!(gradient, g, vars, ::Val{varflags}, goffsets, loffsets) where varflags
+    # Update the blocks in the problem
+    goffsets = blockoffsets(vars, varflags, goffsets)
+    @unroll for i in 1:10
+        if ((varflags >> (i - 1)) & 1) == 1
+            @inbounds view(gradient, goffsets[i]) .+= g[loffsets[i]]
+        end
+    end
+end
+
+function updatelinearsystem!(linsystem::MultiVariateLS, g, H, vars, ::Val{varflags}, blockindices) where varflags
+    loffsets = localoffsets(vars, varflags)
+    updategradient!(linsystem.gradient, g, vars, Val(varflags), linsystem.gradoffsets[blockindices], loffsets)
+    updatehessian!(linsystem.hessian, H, vars, Val(varflags), blockindices, loffsets)
 end
 
 function getoffsets(residual, linsystem::MultiVariateLS)

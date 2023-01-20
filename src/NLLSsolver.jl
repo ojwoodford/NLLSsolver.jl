@@ -5,6 +5,7 @@ abstract type AbstractResidual end
 
 # Helper functions
 include("utils.jl")
+include("unroll.jl")
 
 # Problem definition
 include("problem.jl")
