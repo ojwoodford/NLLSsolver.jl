@@ -70,7 +70,17 @@ end
 
 function filterBAL(data, landmarks=[], cameras=[])
     # Find the residuals associated with the landmarks and cameras
-    deleteat!(data.measurements, findall(broadcast(m -> (m.landmark ∉ landmarks && m.camera ∉ cameras), data.measurements)))
+    mask = false
+    if !isempty(landmarks)
+        mask = broadcast(m -> (m.landmark ∉ landmarks), data.measurements)
+    end
+    if !isempty(cameras)
+        mask = broadcast(m -> (m.camera ∉ cameras), data.measurements) .| mask
+    end
+    if mask === false
+        return data
+    end
+    deleteat!(data.measurements, findall(mask))
     # Delete the unused cameras and landmarks
     cameras = trues(length(data.cameras))
     landmarks = trues(length(data.landmarks))
@@ -114,10 +124,11 @@ function optimizeBALproblem(name="problem-16-22106")
 end
 
 # problem = NLLSsolver.NLLSProblem(makeBALproblem(loadbaldataset("problem-16-22106")), UInt(1))
-# problem = makeBALproblem(filterBAL(loadbaldataset("problem-16-22106"), [], 1))
+problem = makeBALproblem(filterBAL(loadbaldataset("problem-16-22106"), 1:100, []))
 # NLLSsolver.fixvars!(problem, 2:length(problem.variables))
 # @code_warntype NLLSsolver.costgradhess!(zeros(Float64, 6), zeros(Float64, 6, 6), problem.residuals[BALResidual{Float64}][1], problem.variables, UInt(1))
-# options = NLLSsolver.NLLSOptions(iterator=NLLSsolver.levenbergmarquardt)
+# options = NLLSsolver.NLLSOptions(iterator=NLLSsolver.levenbergmarquardt, maxiters=10)
+# NLLSsolver.optimize!(problem, options)
 # start = problem.variables[1]
 # NLLSsolver.optimize!(problem, options)
 # @btime NLLSsolver.optimize!($problem, $options) setup=(problem.variables[1]=start) evals=1
@@ -125,9 +136,15 @@ end
 # Profile.Allocs.clear()
 # Profile.Allocs.@profile sample_rate=1 NLLSsolver.optimize!(problem, options)
 # PProf.Allocs.pprof(from_c=false)
+data = NLLSsolver.NLLSInternal(problem)
+# NLLSsolver.costgradhess!(data.linsystem, problem.residuals, problem.variables)
+# options = NLLSsolver.NLLSOptions(iterator=NLLSsolver.levenbergmarquardt, maxiters=10)
+# Profile.clear()
+# @profile NLLSsolver.optimize!(problem, options)
+# pprof()
 
-problem = makeBALproblem(loadbaldataset("problem-16-22106"))
-@btime NLLSsolver.cost($problem)
+# problem = makeBALproblem(loadbaldataset("problem-16-22106"))
+# @btime NLLSsolver.cost($problem)
 # NLLSsolver.cost(problem)
 # Profile.Allocs.clear()
 # Profile.Allocs.@profile sample_rate=1 NLLSsolver.cost(problem)
