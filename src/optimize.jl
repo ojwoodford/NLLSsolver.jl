@@ -309,7 +309,8 @@ function levenberg_iteration!(data::NLLSInternal, problem::NLLSProblem, options:
         # Check for exit
         if !(cost_ > data.bestcost) || (maximum(abs, data.step) < options.dstep)
             # Success (or convergence) - update lambda
-            step_quality = (data.bestcost - cost_) / (((data.step' * hessian) * 0.5 - gradient') * data.step)
+            uniformscaling!(hessian, -lastlambda)
+            step_quality = (cost_ - data.bestcost) / (((data.step' * hessian) * 0.5 + gradient') * data.step)
             data.lambda *= max(0.333, 1 - (step_quality - 1) ^ 3)
             # Return the cost
             return cost_
