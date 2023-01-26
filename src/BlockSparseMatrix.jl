@@ -123,8 +123,8 @@ end
 function symmetrifysparse(bsm::BlockSparseMatrix{T}) where T
     # Preallocate arrays
     @assert bsm.rowblocksizes == bsm.columnblocksizes
-    indices = -bsm.indices - bsm.indices'
-    indices[bsm.indices.!=0] .= bsm.indices.nzval
+    indices = bsm.indices - bsm.indices'
+    @view(indices[diagind(indices)]) .= diag(bsm.indices)
     nzvals = length(bsm.data) * 2 - sum((Vector(diag(bsm.indices)) .!= 0) .* (bsm.rowblocksizes .^ 2))
     return makesparse(bsm, indices, nzvals)
 end
