@@ -48,6 +48,7 @@ struct NoDistortionCamera{T}
     c::EuclideanVector{2, T}
 end
 NoDistortionCamera(fx::T, fy::T, cx::T, cy::T) where T = NoDistortionCamera(ZeroToInfScalar(fx), ZeroToInfScalar(fy), EuclideanVector(cx, cy))
+NoDistortionCamera(f, c) = NoDistortionCamera(f[1], f[2], c[1], c[2])
 nvars(::NoDistortionCamera) = 4
 function update(var::NoDistortionCamera, updatevec, start=1)
     return NoDistortionCamera(update(var.fx, updatevec, start), update(var.fy, updatevec, start+1), update(var.c, updatevec, start+2))
@@ -80,7 +81,7 @@ end
 function distorted2ideal(lens::EULensDistortion, x, W)
     t = 1 - 2 * lens.alpha.val
     n = x' * x
-    u = lens.beta * n
+    u = lens.beta.val * n
     v = 1 - u * (lens.alpha.val ^ 2)
     w = sqrt(t * u + 1)
     z = (1 + lens.alpha.val * (w - 1)) / v

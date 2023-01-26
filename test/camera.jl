@@ -1,6 +1,6 @@
 using NLLSsolver, StaticArrays, Test
 
-function testcamera(cam::AbstractCamera)
+function testcamera(cam)
     x = @SVector randn(2)
     err = (@SVector randn(2)) * 1.e-6
     xe = x + err
