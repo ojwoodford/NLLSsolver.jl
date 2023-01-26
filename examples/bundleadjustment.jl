@@ -102,15 +102,13 @@ end
 # Function to optimize a BAL problem
 function optimizeBALproblem(name="problem-16-22106")
     # Create the problem
-    data = filterBAL(loadbaldataset(name), [], 1)
+    data = loadbaldataset(name)
     show(data)
     problem = makeBALproblem(data)
-    # NLLSsolver.fixvars!(problem, 1:length(problem.variables)-1) # Fix cameras
-    NLLSsolver.fixvars!(problem, 2:length(problem.variables)) # Fix landmarks
     # Compute the mean cost per measurement
     println("   Mean cost per measurement: ", NLLSsolver.cost(problem)/length(data.measurements))
     # Optimize the cost
-    result = NLLSsolver.optimize!(problem, NLLSsolver.NLLSOptions(iterator=NLLSsolver.dogleg, storecosts=true))
+    result = NLLSsolver.optimize!(problem, NLLSsolver.NLLSOptions(iterator=NLLSsolver.levenbergmarquardt, storecosts=true))
     # Compute the new mean cost per measurement
     println("   Mean cost per measurement: ", minimum(result.costs)/length(data.measurements))
     # Print out the solver summary
@@ -123,32 +121,4 @@ function optimizeBALproblem(name="problem-16-22106")
     fig
 end
 
-# problem = NLLSsolver.NLLSProblem(makeBALproblem(loadbaldataset("problem-16-22106")), UInt(1))
-problem = makeBALproblem(filterBAL(loadbaldataset("problem-16-22106"), 1:100, []))
-# NLLSsolver.fixvars!(problem, 2:length(problem.variables))
-# @code_warntype NLLSsolver.costgradhess!(zeros(Float64, 6), zeros(Float64, 6, 6), problem.residuals[BALResidual{Float64}][1], problem.variables, UInt(1))
-# options = NLLSsolver.NLLSOptions(iterator=NLLSsolver.levenbergmarquardt, maxiters=10)
-# NLLSsolver.optimize!(problem, options)
-# start = problem.variables[1]
-# NLLSsolver.optimize!(problem, options)
-# @btime NLLSsolver.optimize!($problem, $options) setup=(problem.variables[1]=start) evals=1
-# problem.variables[1] = start
-# Profile.Allocs.clear()
-# Profile.Allocs.@profile sample_rate=1 NLLSsolver.optimize!(problem, options)
-# PProf.Allocs.pprof(from_c=false)
-data = NLLSsolver.NLLSInternal(problem)
-# NLLSsolver.costgradhess!(data.linsystem, problem.residuals, problem.variables)
-# options = NLLSsolver.NLLSOptions(iterator=NLLSsolver.levenbergmarquardt, maxiters=10)
-# Profile.clear()
-# @profile NLLSsolver.optimize!(problem, options)
-# pprof()
-
-# problem = makeBALproblem(loadbaldataset("problem-16-22106"))
-# @btime NLLSsolver.cost($problem)
-# NLLSsolver.cost(problem)
-# Profile.Allocs.clear()
-# Profile.Allocs.@profile sample_rate=1 NLLSsolver.cost(problem)
-# PProf.Allocs.pprof(from_c=false)
-
-
-# optimizeBALproblem()
+optimizeBALproblem()
