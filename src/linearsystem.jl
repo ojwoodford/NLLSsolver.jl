@@ -39,15 +39,15 @@ struct MultiVariateLS
         blockindices = zeros(UInt, length(vars))
         gradoffsets = zeros(UInt, nblocks)
         blocksizes = zeros(UInt, nblocks)
-        start = UInt(1)
-        nblocks = UInt(0)
-        pairs = Vector{SVector{2, UInt}}()
+        start = 1
+        nblocks = 0
+        pairs = Vector{SVector{2, Int}}()
         for (index, unfixed_) in enumerate(unfixed)
             if unfixed_
                 nblocks += 1
                 blockindices[index] = nblocks
                 gradoffsets[nblocks] = start
-                N = UInt(nvars(vars[index]))
+                N = nvars(vars[index])
                 blocksizes[nblocks] = N
                 start += N
                 push!(pairs, SVector(nblocks, nblocks))
