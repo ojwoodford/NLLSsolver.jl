@@ -311,7 +311,7 @@ function levenberg_iteration!(data::NLLSInternal, problem::NLLSProblem, options:
             # Success (or convergence) - update lambda
             uniformscaling!(hessian, -lastlambda)
             step_quality = (cost_ - data.bestcost) / (((data.step' * hessian) * 0.5 + gradient') * data.step)
-            data.lambda *= max(0.333, 1 - (step_quality - 1) ^ 3)
+            data.lambda *= max(0.1, 1 - (step_quality - 1) ^ 3)
             # Return the cost
             return cost_
         end
