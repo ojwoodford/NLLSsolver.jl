@@ -106,11 +106,11 @@ function optimizeBALproblem(name="problem-16-22106")
     show(data)
     problem = makeBALproblem(data)
     # Compute the mean cost per measurement
-    println("   Mean cost per measurement: ", NLLSsolver.cost(problem)/length(data.measurements))
+    println("   Start mean cost per measurement: ", NLLSsolver.cost(problem)/length(data.measurements))
     # Optimize the cost
     result = NLLSsolver.optimize!(problem, NLLSsolver.NLLSOptions(iterator=NLLSsolver.levenbergmarquardt, storecosts=true))
     # Compute the new mean cost per measurement
-    println("   Mean cost per measurement: ", minimum(result.costs)/length(data.measurements))
+    println("   End mean cost per measurement: ", minimum(result.costs)/length(data.measurements))
     # Print out the solver summary
     show(result)
     # Plot the costs
