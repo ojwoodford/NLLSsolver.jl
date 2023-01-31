@@ -8,7 +8,7 @@ end
 
 function addpairs!(pairs, residual, blockindices)
     blocks = blockindices[varindices(residual)]
-    blocks = blocks[blocks .!= 0]
+    blocks = sort(blocks[blocks .!= 0], rev=true)
     @inbounds for (i, b) in enumerate(blocks)
         @inbounds for b_ in @view blocks[i+1:end]
             push!(pairs, SVector(b, b_))
@@ -77,7 +77,11 @@ function updatehessian!(hessian, H, vars, ::Val{varflags}, blockindices, loffset
         if ((varflags >> (i - 1)) & 1) == 1
             @unroll for j in i:10
                 if ((varflags >> (j - 1)) & 1) == 1
-                    @inbounds block(hessian, blockindices[i], blockindices[j], nvars(vars[i]), nvars(vars[j])) .+= H[loffsets[i],loffsets[j]]
+                    if blockindices[i] >= blockindices[j]
+                        @inbounds block(hessian, blockindices[i], blockindices[j], nvars(vars[i]), nvars(vars[j])) .+= H[loffsets[i],loffsets[j]]
+                    else
+                        @inbounds block(hessian, blockindices[j], blockindices[i], nvars(vars[j]), nvars(vars[i])) .+= H[loffsets[j],loffsets[i]]
+                    end
                 end
             end
         end
