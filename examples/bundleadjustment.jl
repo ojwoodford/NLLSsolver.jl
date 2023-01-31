@@ -8,7 +8,7 @@ struct BALImage{T}
     sensor::NLLSsolver.SimpleCamera{T}
     lens::NLLSsolver.BarrelDistortion{T}
 end
-NLLSsolver.nvars(::BALImage) = 9
+NLLSsolver.nvars(NLLSsolver.@objtype(BALImage)) = 9
 function NLLSsolver.update(var::BALImage, updatevec, start=1)
     return BALImage(NLLSsolver.update(var.pose, updatevec, start),
                     NLLSsolver.update(var.sensor, updatevec, start+6),
@@ -31,7 +31,7 @@ struct BALResidual{T} <: NLLSsolver.AbstractResidual
     varind::SVector{2, Int}
 end
 BALResidual(m, v) = BALResidual(SVector{2}(m[1], m[2]), SVector{2, Int}(v[1], v[2]))
-NLLSsolver.nvars(::BALResidual) = 2 # Residual depends on 2 variables
+NLLSsolver.nvars(NLLSsolver.@objtype(BALResidual)) = 2 # Residual depends on 2 variables
 NLLSsolver.varindices(res::BALResidual) = res.varind
 function NLLSsolver.getvars(res::BALResidual{T}, vars::Vector) where T
     return vars[res.varind[1]]::BALImage{T}, vars[res.varind[2]]::NLLSsolver.Point3D{T}
