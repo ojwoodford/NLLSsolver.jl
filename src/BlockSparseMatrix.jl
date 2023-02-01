@@ -30,7 +30,7 @@ struct BlockSparseMatrix{T}
         end
         # Construct the block matrix
         nzvals = start - 1
-        sp = SparseArrays.sparse([p[1] for p in pairs_], [p[2] for p in pairs_], indices, length(rbs), length(cbs))
+        sp = SparseArrays.sparse([p[2] for p in pairs_], [p[1] for p in pairs_], indices, length(cbs), length(rbs))
         return new(zeros(T, nzvals), sp, rbs, cbs, m, n)
     end
 end
@@ -54,11 +54,11 @@ function uniformscaling!(M::BlockSparseMatrix, k)
 end
 
 @inline zero!(bsm::BlockSparseMatrix) = fill!(bsm.data, 0)
-@inline block(bsm::BlockSparseMatrix, i, j, rows, cols) = SizedMatrix{rows, cols}(view(bsm.data, StaticArrays.SUnitRange(0, rows*cols-1).+bsm.indices[i,j]))
+@inline block(bsm::BlockSparseMatrix, i, j, rows, cols) = SizedMatrix{rows, cols}(view(bsm.data, StaticArrays.SUnitRange(0, rows*cols-1).+bsm.indices[j,i]))
 function block(bsm::BlockSparseMatrix, i, j)
     rows = bsm.rowblocksizes[i]
     cols = bsm.columnblocksizes[j]
-    index = bsm.indices[i,j]
+    index = bsm.indices[j,i]
     return reshape(view(bsm.data, index:index+rows*cols-1), (rows, cols))
 end
 Base.size(bsm::BlockSparseMatrix) = (bsm.m, bsm.n)
@@ -123,14 +123,14 @@ end
 function symmetrifysparse(bsm::BlockSparseMatrix{T}) where T
     # Preallocate arrays
     @assert bsm.rowblocksizes == bsm.columnblocksizes
-    indices = bsm.indices - bsm.indices'
+    indices = bsm.indices' - bsm.indices
     @view(indices[diagind(indices)]) .= diag(bsm.indices)
     nzvals = length(bsm.data) * 2 - sum((Vector(diag(bsm.indices)) .!= 0) .* (bsm.rowblocksizes .^ 2))
     return makesparse(bsm, indices, nzvals)
 end
 
 function SparseArrays.sparse(bsm::BlockSparseMatrix{T}) where T
-    return makesparse(bsm, bsm.indices, length(bsm.data))
+    return makesparse(bsm, sparse(bsm.indices'), length(bsm.data))
 end
 
 function symmetrifyfull(bsm::BlockSparseMatrix{T}) where T
@@ -159,7 +159,7 @@ function symmetrifyfull!(mat::Matrix{T}, bsm::BlockSparseMatrix{T}, blocks=nothi
     @assert size(mat) == (m, m)
     # Copy blocks into the output
     fill!(mat, 0)
-    for (r, c, index) in zip(SparseArrays.findnz(bsm.indices)...)
+    for (c, r, index) in zip(SparseArrays.findnz(bsm.indices)...)
         cs = starts[c]
         if cs == 0
             continue
@@ -187,7 +187,7 @@ function Base.Matrix(bsm::BlockSparseMatrix{T}) where T
     pushfirst!(colstarts, UInt(0))
     output = zeros(T, rowstarts[end], colstarts[end])
     # Copy blocks into the output
-    for (r, c, index) in zip(SparseArrays.findnz(bsm.indices)...)
+    for (c, r, index) in zip(SparseArrays.findnz(bsm.indices)...)
         rs = rowstarts[r]
         rf = rowstarts[r+1]
         cs = colstarts[c]
@@ -202,12 +202,12 @@ end
 
 function crop(bsm::BlockSparseMatrix{T}, rowblocks, colblocks) where T
     # Create the output
-    (rows, cols, indices) = SparseArrays.findnz(view(bsm.indices, rowblocks, colblocks))
+    (cols, rows, indices) = SparseArrays.findnz(view(bsm.indices, colblocks, rowblocks))
     output = BlockSparseMatrix{T}(hcat(rows, cols), bsm.rowblocksizes[rowblocks], colblocksizes[colblocks])
     # Copy all the blocks
-    for (r, c, indin) in zip(rows, cols, indices)
+    for (c, r, indin) in zip(cols, rows, indices)
         len = convert(UInt, output.rowblocksizes[r]) * output.colblocksizes[c] - 1
-        indout = output.indices[r,c]
+        indout = output.indices[c,r]
         view(output.data, indout:indout+len) .= view(bsm.data, indin:indin+len)
     end
     # Return the new matrix
