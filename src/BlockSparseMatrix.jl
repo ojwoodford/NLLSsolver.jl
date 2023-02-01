@@ -88,27 +88,27 @@ function makesparse(bsm::BlockSparseMatrix{T}, indices, nzvals) where T
         if isempty(sprows)
             continue
         end
-        block_indices = indices.nzval[sprows]
-        block_rows = indices.rowval[sprows]
+        @inbounds block_indices = indices.nzval[sprows]
+        @inbounds block_rows = indices.rowval[sprows]
         transposed = block_indices .< 0
         block_indices = abs.(block_indices)
         rowstride = ones(UInt, length(block_indices))
-        rowstride[transposed] .= bsm.columnblocksizes[col]
-        colstride = bsm.rowblocksizes[block_rows]
-        colstride[transposed] .= 1
-        col_ = startcol[col]
+        @inbounds rowstride[transposed] .= bsm.columnblocksizes[col]
+        @inbounds colstride = bsm.rowblocksizes[block_rows]
+        @inbounds colstride[transposed] .= 1
+        @inbounds col_ = startcol[col]
         for innercol in 1:bsm.columnblocksizes[col]
             for (r, br) in enumerate(block_rows)
-                s = startrow[br]
-                c = bsm.rowblocksizes[br]
-                v = block_indices[r]
+                @inbounds s = startrow[br]
+                @inbounds c = bsm.rowblocksizes[br]
+                @inbounds v = block_indices[r]
                 while c > 0
                     ind += 1
-                    rows[ind] = s
+                    @inbounds rows[ind] = s
                     s += 1
-                    cols[ind] = col_
-                    values[ind] = bsm.data[v]
-                    v += rowstride[r]
+                    @inbounds cols[ind] = col_
+                    @inbounds values[ind] = bsm.data[v]
+                    @inbounds v += rowstride[r]
                     c -= 1
                 end
             end
@@ -124,7 +124,7 @@ function symmetrifysparse(bsm::BlockSparseMatrix{T}) where T
     # Preallocate arrays
     @assert bsm.rowblocksizes == bsm.columnblocksizes
     indices = bsm.indices' - bsm.indices
-    @view(indices[diagind(indices)]) .= diag(bsm.indices)
+    @inbounds @view(indices[diagind(indices)]) .= diag(bsm.indices)
     nzvals = length(bsm.data) * 2 - sum((Vector(diag(bsm.indices)) .!= 0) .* (bsm.rowblocksizes .^ 2))
     return makesparse(bsm, indices, nzvals)
 end
@@ -171,9 +171,9 @@ function symmetrifyfull!(mat::Matrix{T}, bsm::BlockSparseMatrix{T}, blocks=nothi
         r_ = lengths[r]
         c_ = lengths[c]
         V = reshape(view(bsm.data, index:index+(r_*c_)-1), (r_, c_))
-        mat[rs:rs+r_-1,cs:cs+c_-1] .= V
+        @inbounds mat[rs:rs+r_-1,cs:cs+c_-1] .= V
         if r != c
-            mat[cs:cs+c_-1,rs:rs+r_-1] .= V'
+            @inbounds mat[cs:cs+c_-1,rs:rs+r_-1] .= V'
         end
     end
     return nothing
@@ -188,13 +188,13 @@ function Base.Matrix(bsm::BlockSparseMatrix{T}) where T
     output = zeros(T, rowstarts[end], colstarts[end])
     # Copy blocks into the output
     for (c, r, index) in zip(SparseArrays.findnz(bsm.indices)...)
-        rs = rowstarts[r]
-        rf = rowstarts[r+1]
-        cs = colstarts[c]
-        cf = colstarts[c+1]
+        @inbounds rs = rowstarts[r]
+        @inbounds rf = rowstarts[r+1]
+        @inbounds cs = colstarts[c]
+        @inbounds cf = colstarts[c+1]
         r_ = rf - rs
         c_ = cf - cs
-        output[rs+1:rf,cs+1:cf] .= reshape(view(bsm.data, index:index+r_*c_-1), (r_, c_))
+        @inbounds output[rs+1:rf,cs+1:cf] .= reshape(view(bsm.data, index:index+r_*c_-1), (r_, c_))
     end
     # Return the matrix
     return output
