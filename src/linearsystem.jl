@@ -88,6 +88,14 @@ function updatehessian!(hessian, H, vars, ::Val{varflags}, blockindices, loffset
     end
 end
 
+@inline function blockoffsets(vars, varflags, blockoff)
+    return ntuple(i -> SR(1, nvars(vars[i]) * ((varflags >> (i - 1)) & 1)) .+ (blockoff[i] - 1), length(vars))
+end
+
+@inline function localoffsets(vars, varflags)
+    return ntuple(i -> SR(1, nvars(vars[i]) * ((varflags >> (i - 1)) & 1)) .+ countvars(vars[1:i-1], Val(varflags)), length(vars))
+end
+
 function updategradient!(gradient, g, vars, ::Val{varflags}, goffsets, loffsets) where varflags
     # Update the blocks in the problem
     goffsets = blockoffsets(vars, varflags, goffsets)
