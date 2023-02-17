@@ -1,6 +1,6 @@
 using StaticArrays, HybridArrays, LinearAlgebra
 import SparseArrays
-export BlockSparseMatrix, symmetrifysparse, symmetrifyfull, block, crop, uniformscaling!
+export BlockSparseMatrix, makesparse, symmetrifysparse, symmetrifyfull, block, crop, uniformscaling!
 
 struct BlockSparseMatrix{T}
     data::Vector{T}                                   # Storage for all the matrix data
@@ -131,9 +131,7 @@ function symmetrifysparse(bsm::BlockSparseMatrix{T}) where T
     return makesparse(bsm, indices, nzvals)
 end
 
-function SparseArrays.sparse(bsm::BlockSparseMatrix{T}) where T
-    return makesparse(bsm, bsm.indices, length(bsm.data))
-end
+SparseArrays.sparse(bsm::BlockSparseMatrix) = makesparse(bsm, bsm.indices, length(bsm.data))
 
 function symmetrifyfull(bsm::BlockSparseMatrix{T}) where T
     @assert bsm.rowblocksizes == bsm.columnblocksizes

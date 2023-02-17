@@ -1,3 +1,4 @@
+import SparseArrays
 export UniVariateLS, MultiVariateLS, makemvls, gethessgrad, zero!, uniformscaling!
 
 function addpairs!(pairs, residuals::Vector, blockindices)
@@ -33,9 +34,15 @@ struct MultiVariateLS
     gradient::Vector{Float64}
     blockindices::Vector{UInt} # One for each variable
     gradoffsets::Vector{UInt} # One per unfixed variable
+    symmetricindices::SparseArrays.SparseMatrixCSC{Int, Int}
+    nzvals::Int
 
     function MultiVariateLS(pairs, blocksizes, blockindices, gradoffsets, varlen=sum(varlen))
-        return new(BlockSparseMatrix{Float64}(pairs, blocksizes, blocksizes), zeros(Float64, varlen), blockindices, gradoffsets)
+        bsm = BlockSparseMatrix{Float64}(pairs, blocksizes, blocksizes)
+        symmetricindices = bsm.indices - bsm.indicestransposed
+        @inbounds @view(symmetricindices[diagind(symmetricindices)]) .= diag(bsm.indices)
+        nzvals = length(bsm.data) * 2 - sum((Vector(diag(bsm.indices)) .!= 0) .* (convert.(Int, bsm.rowblocksizes) .^ 2))
+        return new(bsm, zeros(Float64, varlen), blockindices, gradoffsets, symmetricindices, nzvals)
     end
 end
 
@@ -126,7 +133,7 @@ end
 
 function gethessgrad(linsystem::MultiVariateLS)
     if size(linsystem.hessian, 1) > 1000 && 3 * nnz(linsystem.hessian) < length(linsystem.hessian)
-        return symmetrifysparse(linsystem.hessian), linsystem.gradient
+        return makesparse(linsystem.hessian, linsystem.symmetricindices, linsystem.nzvals), linsystem.gradient
     end
     return symmetrifyfull(linsystem.hessian), linsystem.gradient
 end
