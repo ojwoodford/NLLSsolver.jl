@@ -66,7 +66,7 @@ mutable struct NLLSInternal{VarTypes}
         end
 
         # Multiple variables. Use a block sparse matrix
-        mvls = MultiVariateLS(problem.variables, problem.residuals, problem.unfixed, nblocks)
+        mvls = makemvls(problem.variables, problem.residuals, problem.unfixed, nblocks)
         return new(copy(problem.variables), mvls, Vector{Float64}(undef, length(mvls.gradient)), 0., 0., 0., 0., 0., 0, 0, 0, now())
     end
 end

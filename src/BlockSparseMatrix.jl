@@ -1,37 +1,42 @@
-using StaticArrays, LinearAlgebra
+using StaticArrays, HybridArrays, LinearAlgebra
 import SparseArrays
 export BlockSparseMatrix, symmetrifysparse, symmetrifyfull, block, crop, uniformscaling!
 
 struct BlockSparseMatrix{T}
-    data::Vector{T}
-    indices::SparseArrays.SparseMatrixCSC{Int, Int}
-    rowblocksizes::Vector{UInt8}
-    columnblocksizes::Vector{UInt8}
-    m::Int
-    n::Int
+    data::Vector{T}                                   # Storage for all the matrix data
+    indices::SparseArrays.SparseMatrixCSC{Int, Int}   # Start indices for each block matrix
+    indicestransposed::SparseArrays.SparseMatrixCSC{Int, Int}   # Start indices for each block matrix, stored transposed
+    rowblocksizes::Vector{UInt8}                      # Number of rows for each block of rows
+    columnblocksizes::Vector{UInt8}                   # Number of columns for each block of columns
+    m::Int                                            # Number of rows of the represented matrix
+    n::Int                                            # Number of columns of the represented matrix
 
-    function BlockSparseMatrix{T}(pairs::Vector{SVector{2, U}}, rowblocksizes, colblocksizes) where {T, U}
+    function BlockSparseMatrix{T}(nnzvals, indicestransposed, rowblocksizes, colblocksizes) where T
         # Check the block sizes
         rbs = convert.(UInt8, rowblocksizes)
         cbs = convert.(UInt8, colblocksizes)
         @assert all(i -> 0 < i, rbs)
         @assert all(i -> 0 < i, cbs)
-        m = sum(rbs)
-        n = sum(cbs)
+        @assert size(indicestransposed) == (length(cbs), length(rbs))
+        return new(zeros(T, nnzvals), SparseArrays.sparse(indicestransposed'), indicestransposed, rbs, cbs, sum(rbs), sum(cbs))
+    end
+
+    function BlockSparseMatrix{T}(pairs::Vector{SVector{2, U}}, rowblocksizes, colblocksizes) where {T, U}
         # Sort the indices for faster construction, and ensure unique
         pairs_ = sort(pairs)
         unique!(pairs_)
         # Compute the block pointers and length of data storage
         start = 1
-        indices = Vector{Int}(undef, length(pairs))
+        indices = Vector{Int}(undef, length(pairs_))
         for ind in eachindex(indices)
             indices[ind] = start
-            start += convert(UInt, rbs[pairs_[ind][1]]) * cbs[pairs_[ind][2]]
+            # Store the blocks rowwise
+            start += convert(Int, rowblocksizes[pairs_[ind][1]]) * convert(Int, colblocksizes[pairs_[ind][2]])
         end
-        # Construct the block matrix
-        nzvals = start - 1
-        sp = SparseArrays.sparse([p[2] for p in pairs_], [p[1] for p in pairs_], indices, length(cbs), length(rbs))
-        return new(zeros(T, nzvals), sp, rbs, cbs, m, n)
+        # Initialize the block pointer sparse matrix
+        indicestransposed = SparseArrays.sparse([p[2] for p in pairs_], [p[1] for p in pairs_], indices, length(colblocksizes), length(rowblocksizes))
+        # Construct the BlockSparseMatrix
+        return BlockSparseMatrix{T}(start - 1, indicestransposed, rowblocksizes, colblocksizes)
     end
 end
 
@@ -53,14 +58,11 @@ function uniformscaling!(M::BlockSparseMatrix, k)
     end
 end
 
-@inline zero!(bsm::BlockSparseMatrix) = fill!(bsm.data, 0)
-@inline block(bsm::BlockSparseMatrix, i, j, rows, cols) = SizedMatrix{rows, cols}(view(bsm.data, StaticArrays.SUnitRange(0, rows*cols-1).+bsm.indices[j,i]))
-function block(bsm::BlockSparseMatrix, i, j)
-    rows = bsm.rowblocksizes[i]
-    cols = bsm.columnblocksizes[j]
-    index = bsm.indices[j,i]
-    return reshape(view(bsm.data, index:index+rows*cols-1), (rows, cols))
-end
+zero!(bsm::BlockSparseMatrix) = fill!(bsm.data, 0)
+@inline block(bsm::BlockSparseMatrix, i, j, ::Val{rows}, ::Val{cols}) where {rows, cols} = SizedMatrix{rows, cols}(view(bsm.data, SR(0, rows*cols-1).+bsm.indices[i,j]))
+@inline block(bsm::BlockSparseMatrix, i, j, rows::Integer, cols::Integer) = reshape(view(bsm.data, SR(0, rows*cols-1).+bsm.indices[i,j]), (rows, cols))
+@inline block(bsm::BlockSparseMatrix, i, j, ::Val{rows}, cols::Integer) where rows = HybridArray{Tuple{rows, StaticArrays.Dynamic()}}(block(bsm, i, j, rows, cols))
+@inline block(bsm::BlockSparseMatrix, i, j) = block(bsm, i, j, bsm.rowblocksizes[i], bsm.columnblocksizes[j])
 Base.size(bsm::BlockSparseMatrix) = (bsm.m, bsm.n)
 Base.size(bsm::BlockSparseMatrix, dim) = dim == 1 ? bsm.m : (dim == 2 ? bsm.n : 1)
 Base.length(bsm::BlockSparseMatrix) = bsm.m * bsm.n
@@ -123,14 +125,14 @@ end
 function symmetrifysparse(bsm::BlockSparseMatrix{T}) where T
     # Preallocate arrays
     @assert bsm.rowblocksizes == bsm.columnblocksizes
-    indices = bsm.indices' - bsm.indices
+    indices = bsm.indices - bsm.indicestransposed
     @inbounds @view(indices[diagind(indices)]) .= diag(bsm.indices)
     nzvals = length(bsm.data) * 2 - sum((Vector(diag(bsm.indices)) .!= 0) .* (bsm.rowblocksizes .^ 2))
     return makesparse(bsm, indices, nzvals)
 end
 
 function SparseArrays.sparse(bsm::BlockSparseMatrix{T}) where T
-    return makesparse(bsm, sparse(bsm.indices'), length(bsm.data))
+    return makesparse(bsm, bsm.indices, length(bsm.data))
 end
 
 function symmetrifyfull(bsm::BlockSparseMatrix{T}) where T
@@ -159,7 +161,7 @@ function symmetrifyfull!(mat::Matrix{T}, bsm::BlockSparseMatrix{T}, blocks=nothi
     @assert size(mat) == (m, m)
     # Copy blocks into the output
     fill!(mat, 0)
-    for (c, r, index) in zip(SparseArrays.findnz(bsm.indices)...)
+    for (c, r, index) in zip(SparseArrays.findnz(bsm.indicestransposed)...)
         cs = starts[c]
         if cs == 0
             continue
@@ -187,7 +189,7 @@ function Base.Matrix(bsm::BlockSparseMatrix{T}) where T
     pushfirst!(colstarts, UInt(0))
     output = zeros(T, rowstarts[end], colstarts[end])
     # Copy blocks into the output
-    for (c, r, index) in zip(SparseArrays.findnz(bsm.indices)...)
+    for (c, r, index) in zip(SparseArrays.findnz(bsm.indicestransposed)...)
         @inbounds rs = rowstarts[r]
         @inbounds rf = rowstarts[r+1]
         @inbounds cs = colstarts[c]
