@@ -292,6 +292,7 @@ end
 function levenberg_iteration!(data::NLLSInternal, problem::NLLSProblem, options::NLLSOptions)::Float64
     @assert data.lambda >= 0.
     hessian, gradient = gethessgrad(data.linsystem)
+    linprob = LinearProblem(hessian, gradient)
     lastlambda = 0.
     mu = 2.
     while true
@@ -299,7 +300,7 @@ function levenberg_iteration!(data::NLLSInternal, problem::NLLSProblem, options:
         uniformscaling!(hessian, data.lambda - lastlambda)
         lastlambda = data.lambda
         # Solve the linear system
-        data.timesolver += @elapsed data.step .= -linearsolve(hessian, gradient, options.linearsolver)
+        data.timesolver += @elapsed data.step .= -solve(linprob, options.linearsolver).u
         data.linearsolvers += 1
         # Update the new variables
         update!(data.variables, problem.variables, data.linsystem, data.step)
