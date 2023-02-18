@@ -93,9 +93,9 @@ function updatehessian!(hessian, H, vars, ::Val{varflags}, blockindices, loffset
             @unroll for j in i:10
                 if ((varflags >> (j - 1)) & 1) == 1
                     if blockindices[i] <= blockindices[j]
-                        @inbounds block(hessian, blockindices[i], blockindices[j], nvars(vars[i]), nvars(vars[j])) .+= H[loffsets[i],loffsets[j]]
+                        @inbounds block(hessian, blockindices[i], blockindices[j], Val(nvars(vars[i])), Val(nvars(vars[j]))) .+= H[loffsets[i],loffsets[j]]
                     else
-                        @inbounds block(hessian, blockindices[j], blockindices[i], nvars(vars[j]), nvars(vars[i])) .+= H[loffsets[j],loffsets[i]]
+                        @inbounds block(hessian, blockindices[j], blockindices[i], Val(nvars(vars[j])), Val(nvars(vars[i]))) .+= H[loffsets[j],loffsets[i]]
                     end
                 end
             end

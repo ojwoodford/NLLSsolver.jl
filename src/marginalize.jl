@@ -5,7 +5,7 @@ function marginalize!(to::MultiVariateLS, from::MultiVariateLS, block::Integer, 
     # Get the list of blocks to marginalize out
     ind = from.hessian.indicestransposed.colptr[block]:from.hessian.indicestransposed.colptr[block+1]-1
     blocks = from.hessian.indicestransposed.rowval[ind]
-    @assert blocks[end] == block && all(view(blocks, 1:length(blocks)-1) .<= length(to.hessian.rowblocksizes))
+    @assert blocks[end] == block && all(view(blocks, 1:lastindex(blocks)-1) .<= length(to.hessian.rowblocksizes))
     N = length(blocks) - 1
     dataindices = from.hessian.indicestransposed.nzval[ind]
     blocksizes = from.hessian.rowblocksizes[blocks]
@@ -47,7 +47,7 @@ function initcrop!(to::MultiVariateLS, from::MultiVariateLS, fromblock=length(to
     # Reset the linear system to all zeros
     zero!(to)
     # Copy over all the cropped bits
-    to.gradient .= view(from.gradient, SR(1, length(to.gradient)))
+    to.gradient .= view(from.gradient, 1:lastindex(to.gradient))
     endind = from.hessian.indices.nzval[from.hessian.indices.colptr[fromblock]] - 1
     view(to.hessian.data, 1:endind) .= view(from.hessian.data, 1:endind)
 end
