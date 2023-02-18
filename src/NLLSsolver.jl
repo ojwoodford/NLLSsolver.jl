@@ -18,6 +18,7 @@ include("geometry.jl")
 # Optimization
 include("BlockSparseMatrix.jl")
 include("linearsystem.jl")
+include("marginalize.jl")
 include("robust.jl")
 include("cost.jl")
 include("optimize.jl")
