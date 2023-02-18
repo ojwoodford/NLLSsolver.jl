@@ -1,6 +1,6 @@
 using StaticArrays, HybridArrays, LinearAlgebra
 import SparseArrays
-export BlockSparseMatrix, makesparse, symmetrifysparse, symmetrifyfull, block, crop, uniformscaling!
+export BlockSparseMatrix, makesparse, symmetrifysparse, symmetrifyfull, block, uniformscaling!
 
 struct BlockSparseMatrix{T}
     data::Vector{T}                                   # Storage for all the matrix data
@@ -18,7 +18,7 @@ struct BlockSparseMatrix{T}
         @assert all(i -> 0 < i, rbs)
         @assert all(i -> 0 < i, cbs)
         @assert size(indicestransposed) == (length(cbs), length(rbs))
-        return new(zeros(T, nnzvals), SparseArrays.sparse(indicestransposed'), indicestransposed, rbs, cbs, sum(rbs), sum(cbs))
+        return new(zeros(T, nnzvals), SparseArrays.sparse(indicestransposed'), SparseArrays.sparse(indicestransposed), rbs, cbs, sum(rbs), sum(cbs))
     end
 
     function BlockSparseMatrix{T}(pairs::Vector{SVector{2, U}}, rowblocksizes, colblocksizes) where {T, U}
@@ -91,7 +91,7 @@ function makesparse(bsm::BlockSparseMatrix{T}, indices, nzvals) where T
             continue
         end
         @inbounds block_indices = indices.nzval[sprows]
-        @inbounds block_rows = indices.rowval[sprows]
+        @inbounds block_rows = view(indices.rowval, sprows)
         transposed = block_indices .< 0
         block_indices = abs.(block_indices)
         rowstride = ones(UInt, length(block_indices))
@@ -197,19 +197,5 @@ function Base.Matrix(bsm::BlockSparseMatrix{T}) where T
         @inbounds output[rs+1:rf,cs+1:cf] .= reshape(view(bsm.data, index:index+r_*c_-1), (r_, c_))
     end
     # Return the matrix
-    return output
-end
-
-function crop(bsm::BlockSparseMatrix{T}, rowblocks, colblocks) where T
-    # Create the output
-    (cols, rows, indices) = SparseArrays.findnz(view(bsm.indices, colblocks, rowblocks))
-    output = BlockSparseMatrix{T}(hcat(rows, cols), bsm.rowblocksizes[rowblocks], colblocksizes[colblocks])
-    # Copy all the blocks
-    for (c, r, indin) in zip(cols, rows, indices)
-        len = convert(UInt, output.rowblocksizes[r]) * output.colblocksizes[c] - 1
-        indout = output.indices[c,r]
-        view(output.data, indout:indout+len) .= view(bsm.data, indin:indin+len)
-    end
-    # Return the new matrix
     return output
 end
