@@ -1,4 +1,4 @@
-import SparseArrays
+using SparseArrays
 export UniVariateLS, MultiVariateLS, makemvls, gethessgrad, zero!, uniformscaling!
 
 function addpairs!(pairs, residuals::Vector, blockindices)
@@ -34,38 +34,42 @@ struct MultiVariateLS
     gradient::Vector{Float64}
     blockindices::Vector{UInt} # One for each variable
     gradoffsets::Vector{UInt} # One per unfixed variable
-    symmetricindices::SparseArrays.SparseMatrixCSC{Int, Int}
+    symmetricindices::SparseMatrixCSC{Int, Int}
     nzvals::Int
 
-    function MultiVariateLS(pairs, blocksizes, blockindices, gradoffsets, varlen=sum(varlen))
-        bsm = BlockSparseMatrix{Float64}(pairs, blocksizes, blocksizes)
-        symmetricindices = bsm.indices - bsm.indicestransposed
-        @inbounds @view(symmetricindices[diagind(symmetricindices)]) .= diag(bsm.indices)
-        nzvals = length(bsm.data) * 2 - sum((Vector(diag(bsm.indices)) .!= 0) .* (convert.(Int, bsm.rowblocksizes) .^ 2))
-        return new(bsm, zeros(Float64, varlen), blockindices, gradoffsets, symmetricindices, nzvals)
+    function MultiVariateLS(hessian::BlockSparseMatrix, blockindices)
+        @assert hessian.rowblocksizes == hessian.columnblocksizes
+        symmetricindices = hessian.indices - hessian.indicestransposed
+        @inbounds @view(symmetricindices[diagind(symmetricindices)]) .= diag(hessian.indices)
+        nzvals = length(hessian.data) * 2 - sum((Vector(diag(hessian.indices)) .!= 0) .* (convert.(Int, hessian.rowblocksizes) .^ 2))
+        gradoffsets = cumsum(hessian.rowblocksizes)
+        varlen = gradoffsets[end]
+        circshift!(gradoffsets, -1)
+        gradoffsets[1] = 0
+        gradoffsets .+= 1
+        return new(hessian, zeros(Float64, varlen), blockindices, gradoffsets, symmetricindices, nzvals)
+    end
+
+    function MultiVariateLS(pairs, blocksizes, blockindices=1:length(blocksizes))
+        return MultiVariateLS(BlockSparseMatrix{Float64}(pairs, blocksizes, blocksizes), blockindices)
     end
 end
 
 function makemvls(vars, residuals, unfixed, nblocks)
     # Multiple variables. Use a block sparse matrix
     blockindices = zeros(UInt, length(vars))
-    gradoffsets = zeros(UInt, nblocks)
     blocksizes = zeros(UInt, nblocks)
-    start = 1
     nblocks = 0
     pairs = Vector{SVector{2, Int}}()
     for (index, unfixed_) in enumerate(unfixed)
         if unfixed_
             nblocks += 1
             blockindices[index] = nblocks
-            gradoffsets[nblocks] = start
             N = nvars(vars[index])
             blocksizes[nblocks] = N
-            start += N
             push!(pairs, SVector(nblocks, nblocks))
         end
     end
-    varlen = start - 1
 
     # Compute the off-diagonal pairs
     @inbounds for (key, res) in residuals
@@ -73,7 +77,7 @@ function makemvls(vars, residuals, unfixed, nblocks)
     end
 
     # Construct the MultiVariateLS
-    return MultiVariateLS(pairs, blocksizes, blockindices, gradoffsets, varlen)
+    return MultiVariateLS(pairs, blocksizes, blockindices)
 end
 
 function updatelinearsystem!(linsystem::UniVariateLS, g, H, unusedargs...)
