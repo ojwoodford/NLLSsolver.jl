@@ -1,4 +1,4 @@
-using VisualGeometryDatasets, StaticArrays, BenchmarkTools, GLMakie, Profile, PProf
+using VisualGeometryDatasets, StaticArrays
 import NLLSsolver
 export optimizeBALproblem
 
@@ -68,39 +68,8 @@ function makeBALproblem(data)
     return problem
 end
 
-function filterBAL(data, landmarks=[], cameras=[])
-    # Find the residuals associated with the landmarks and cameras
-    mask = false
-    if !isempty(landmarks)
-        mask = broadcast(m -> (m.landmark ∉ landmarks), data.measurements)
-    end
-    if !isempty(cameras)
-        mask = broadcast(m -> (m.camera ∉ cameras), data.measurements) .| mask
-    end
-    if mask === false
-        return data
-    end
-    deleteat!(data.measurements, findall(mask))
-    # Delete the unused cameras and landmarks
-    cameras = trues(length(data.cameras))
-    landmarks = trues(length(data.landmarks))
-    for meas in data.measurements
-        cameras[meas.camera] = false
-        landmarks[meas.landmark] = false
-    end
-    deleteat!(data.cameras, findall(cameras))
-    deleteat!(data.landmarks, findall(landmarks))
-    # Remap the indices
-    cameras = cumsum(.!cameras)
-    landmarks = cumsum(.!landmarks)
-    for (ind, meas) in enumerate(data.measurements)
-        data.measurements[ind] = VisualGeometryDatasets.BALMeasurement(meas.x, meas.y, cameras[meas.camera], landmarks[meas.landmark])
-    end
-    return data
-end
-
 # Function to optimize a BAL problem
-function optimizeBALproblem(name="problem-16-22106")
+function optimizeBALproblem(name)
     # Create the problem
     data = loadbaldataset(name)
     show(data)
@@ -113,12 +82,6 @@ function optimizeBALproblem(name="problem-16-22106")
     println("   End mean cost per measurement: ", minimum(result.costs)/length(data.measurements))
     # Print out the solver summary
     show(result)
-    # Plot the costs
-    fig = Figure()
-    ax = Axis(fig[1, 1])
-    pushfirst!(result.costs, result.startcost)
-    GLMakie.lines!(ax, result.costs)
-    fig
 end
 
-optimizeBALproblem()
+optimizeBALproblem("problem-16-22106")
