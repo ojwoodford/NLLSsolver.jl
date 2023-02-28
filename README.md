@@ -12,9 +12,6 @@ A package for optimizing robustified Non-Linear Least Squares problems, with the
 Features not currently supported:
 - **Constraints**: Bounds on variables are not explicitly supported. However, bounded variables can be implemented using special, non-Euclidean parameterizations.
 
-TODO:
-- Reuse LinearSolver
-- Schur
-- EPIs
-- Conditioning
-- Fix EULens
+## Examples to run:
+- **Rosenbrock function** (examples/rosenbrock.jl): Visualizes optimization of the Rosenbrock function using all available optimizers. Click on the parameter space to interactively select a new start point.
+- **Bundle adjustment** (examples/bundleadjustment.jl): Optimization of large scale [Bundle Adjustement in the Large](https://grail.cs.washington.edu/projects/bal/) problems.
