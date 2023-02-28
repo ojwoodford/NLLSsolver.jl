@@ -40,7 +40,7 @@ function robustify(kernel::HuberKernel{T}, cost) where T
         return cost * kernel.height, kernel.height_sqrt, T(0)
     end
     sqrtcost = sqrt(cost)
-    return (sqrtcost * (kernel.width * 2) - kernel.width_squared) * kernel.height, kernel.width * kernel.height_sqrt / sqrtcost, (-0.5 * kernel.width * kernel.height_sqrt) / (cost * sqrtcost)
+    return (sqrtcost * (kernel.width * 2) - kernel.width_squared) * kernel.height, kernel.width * kernel.height_sqrt / sqrtcost, T(0) #(-0.5 * kernel.width * kernel.height_sqrt) / (cost * sqrtcost)
 end
 
 
