@@ -39,7 +39,7 @@ end
 function NLLSsolver.computeresidual(res::BALResidual, im::BALImage, X::NLLSsolver.Point3D)
     return transform(im, X) - res.measurement
 end
-const balrobustifier = NLLSsolver.HuberKernel(2., 4., 1., 1.)
+const balrobustifier = NLLSsolver.HuberKernel(2., 4., 1.)
 function NLLSsolver.robustkernel(::BALResidual)
     return balrobustifier
 end

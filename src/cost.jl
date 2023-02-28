@@ -89,7 +89,7 @@ function gradhesshelper!(linsystem, residual::Residual, vars::Vector, ::Val{varf
         if w1 != 1
             # IRLS reweighting of Hessian
             H *= w1
-            if w2 != 0
+            if w2 < 0
                 # Second order correction
                 H += ((2 * w2) * g) * g'
             end
