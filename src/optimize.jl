@@ -4,8 +4,8 @@ function optimize!(problem::NLLSProblem{VarTypes}, options::NLLSOptions=NLLSOpti
     # Pre-allocate the temporary data
     t = Base.time_ns()
     computehessian = in(options.iterator, [gaussnewton, levenbergmarquardt, dogleg])
-    costgradient! = computehessian ? costgradhess! : costresjac!
     data = NLLSInternal{VarTypes}(problem, computehessian)
+    costgradient! = computehessian ? costgradhess! : costresjac!
     # Call the optimizer with the required iterator struct
     if options.iterator == gaussnewton
         # Gauss-Newton or Newton
@@ -35,10 +35,9 @@ function optimize!(problem::NLLSProblem{VarTypes}, options::NLLSOptions, data::N
         costs = Vector{Float64}()
         trajectory = Vector{Vector{Float64}}()
         # Do the iterations
-        iter = 0
         fails = 0
         while true
-            iter += 1
+            data.iternum += 1
             # Call the per iteration solver
             cost = iterate!(iteratedata, data, problem, options)
             if options.storecosts
@@ -59,7 +58,7 @@ function optimize!(problem::NLLSProblem{VarTypes}, options::NLLSOptions, data::N
                 push!(trajectory, copy(data.step))
             end
             # Check for convergence
-            if options.callback(problem, data, cost) || !(dcost >= data.bestcost * options.dcost) || (maximum(abs, data.step) < options.dstep) || (fails > options.maxfails) || iter >= options.maxiters
+            if options.callback(problem, data, cost) || !(dcost >= data.bestcost * options.dcost) || (maximum(abs, data.step) < options.dstep) || (fails > options.maxfails) || data.iternum >= options.maxiters
                 break
             end
             # Update the variables
@@ -75,7 +74,7 @@ function optimize!(problem::NLLSProblem{VarTypes}, options::NLLSOptions, data::N
         copy!(problem.variables, data.bestvariables, problem.unfixed)
     end
     # Return the result
-    return NLLSResult(startcost, data.bestcost, t, timeinit, data.timecost, data.timegradient, data.timesolver, iter, data.costcomputations, data.gradientcomputations, data.linearsolvers, costs, trajectory)
+    return NLLSResult(startcost, data.bestcost, t, timeinit, data.timecost, data.timegradient, data.timesolver, data.iternum, data.costcomputations, data.gradientcomputations, data.linearsolvers, costs, trajectory)
 end
 
 function update!(to::Vector, from::Vector, linsystem::MultiVariateLS, step)

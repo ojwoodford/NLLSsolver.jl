@@ -40,12 +40,14 @@ mutable struct NLLSInternal{VarTypes}
     timecost::Float64
     timegradient::Float64
     timesolver::Float64
+    iternum::Int
     costcomputations::Int
     gradientcomputations::Int
     linearsolvers::Int
-    wallclock::DateTime
+    starttimens::UInt64
 
     function NLLSInternal{VarTypes}(problem::NLLSProblem, computehessian) where VarTypes
+        starttimens = Base.time_ns()
         @assert length(problem.variables) > 0
         # Compute the block offsets
         if typeof(problem.unfixed) == UInt
@@ -62,12 +64,12 @@ mutable struct NLLSInternal{VarTypes}
         if nblocks == 1
             # One unfixed variable
             varlen = UInt(nvars(problem.variables[unfixed]))
-            return new(copy(problem.variables), copy(problem.variables), UniVariateLS(unfixed, varlen), Vector{Float64}(undef, varlen), 0., 0., 0., 0., 0, 0, 0, now())
+            return new(copy(problem.variables), copy(problem.variables), UniVariateLS(unfixed, varlen), Vector{Float64}(undef, varlen), 0., 0., 0., 0., 0, 0, 0, starttimens)
         end
 
         # Multiple variables. Use a block sparse matrix
         mvls = makemvls(problem.variables, problem.residuals, problem.unfixed, nblocks)
-        return new(copy(problem.variables), copy(problem.variables), mvls, Vector{Float64}(undef, length(mvls.gradient)), 0., 0., 0., 0., 0, 0, 0, now())
+        return new(copy(problem.variables), copy(problem.variables), mvls, Vector{Float64}(undef, length(mvls.gradient)), 0., 0., 0., 0., 0, 0, 0, 0, starttimens)
     end
 end
 function NLLSInternal(problem::NLLSProblem{VarTypes}, computehessian) where VarTypes
