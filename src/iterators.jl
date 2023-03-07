@@ -23,7 +23,7 @@ end
 
 # Dogleg optimization
 mutable struct DoglegData
-    lambda::Float64
+    trustradius::Float64
 
     function DoglegData()
         return new(0.0)
@@ -39,11 +39,11 @@ function iterate!(doglegdata::DoglegData, data::NLLSInternal, problem::NLLSProbl
         cauchy = -a * gradient
         alpha2 = a * a * gnorm2
         alpha = sqrt(alpha2)
-        if doglegdata.lambda == 0
+        if doglegdata.trustradius == 0
             # Make first step the Cauchy point
-            doglegdata.lambda = alpha
+            doglegdata.trustradius = alpha
         end
-        if alpha < doglegdata.lambda
+        if alpha < doglegdata.trustradius
             # Compute the Newton step
             data.step .= -linearsolve(hessian, gradient, options.linearsolver)
             beta = norm(data.step)
@@ -53,13 +53,13 @@ function iterate!(doglegdata::DoglegData, data::NLLSInternal, problem::NLLSProbl
     cost_ = data.bestcost
     while true
         # Determine the step
-        if !(alpha < doglegdata.lambda)
+        if !(alpha < doglegdata.trustradius)
             # Along first leg
-            data.step .= (doglegdata.lambda / alpha) * cauchy
-            linear_approx = doglegdata.lambda * (2 * alpha - doglegdata.lambda) / (2 * a)
+            data.step .= (doglegdata.trustradius / alpha) * cauchy
+            linear_approx = doglegdata.trustradius * (2 * alpha - doglegdata.trustradius) / (2 * a)
         else
             # Along second leg
-            if beta <= doglegdata.lambda
+            if beta <= doglegdata.trustradius
                 # Do the full Newton step
                 linear_approx = cost_
             else
@@ -68,12 +68,12 @@ function iterate!(doglegdata::DoglegData, data::NLLSInternal, problem::NLLSProbl
                 data.step .-= cauchy
                 sq_leg = data.step' * data.step
                 c = cauchy' * data.step
-                lambasq = doglegdata.lambda * doglegdata.lambda - alpha2
-                step = sqrt(c * c + sq_leg * lambasq)
+                trsq = doglegdata.trustradius * doglegdata.trustradius - alpha2
+                step = sqrt(c * c + sq_leg * trsq)
                 if c <= 0
                     step = (-c + step) / sq_leg
                 else
-                    step = lambasq / (c + step)
+                    step = trsq / (c + step)
                 end
                 data.step .*= step
                 data.step .+= cauchy
@@ -85,12 +85,12 @@ function iterate!(doglegdata::DoglegData, data::NLLSInternal, problem::NLLSProbl
         # Compute the cost
         data.timecost += @elapsed cost_ = cost(problem.residuals, data.variables)
         data.costcomputations += 1
-        # Update lambda
+        # Update trust region radius
         mu = (data.bestcost - cost_) / linear_approx
         if mu > 0.75
-            doglegdata.lambda = max(doglegdata.lambda, 3 * norm(data.step))
+            doglegdata.trustradius = max(doglegdata.trustradius, 3 * norm(data.step))
         elseif mu < 0.25
-            doglegdata.lambda *= 0.5
+            doglegdata.trustradius *= 0.5
         end
         # Check for exit
         if !(cost_ > data.bestcost) || (maximum(abs, data.step) < options.dstep)

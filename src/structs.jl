@@ -78,6 +78,7 @@ struct NLLSResult
     startcost::Float64
     bestcost::Float64
     timetotal::Float64
+    timeinit::Float64
     timecost::Float64
     timegradient::Float64
     timesolver::Float64
@@ -90,15 +91,18 @@ struct NLLSResult
 end
 
 function Base.show(io::IO, x::NLLSResult)
+    timetotal = x.timetotal + x.timeinit
     otherstuff = x.timetotal - x.timecost - x.timegradient - x.timesolver
     @printf(io, "NLLSsolver optimization took %f seconds and %d iterations to reduce the cost from %f to %f (a %.2f%% reduction), using:
    %d cost computations in %f seconds (%.2f%% of total time),
    %d gradient computations in %f seconds (%.2f%% of total time),
    %d linear solver computations in %f seconds (%.2f%% of total time),
+   %f seconds for initialization (%.2f%% of total time), and
    %f seconds for other stuff (%.2f%% of total time).\n", 
-            x.timetotal, x.niterations, x.startcost, x.bestcost, 100*(1-x.bestcost/x.startcost), 
-            x.costcomputations, x.timecost, 100*x.timecost/x.timetotal,
-            x.gradientcomputations, x.timegradient, 100*x.timegradient/x.timetotal,
-            x.linearsolvers, x.timesolver, 100*x.timesolver/x.timetotal,
-            otherstuff, 100*otherstuff/x.timetotal)
+            timetotal, x.niterations, x.startcost, x.bestcost, 100*(1-x.bestcost/x.startcost), 
+            x.costcomputations, x.timecost, 100*x.timecost/timetotal,
+            x.gradientcomputations, x.timegradient, 100*x.timegradient/timetotal,
+            x.linearsolvers, x.timesolver, 100*x.timesolver/timetotal,
+            x.timeinit, 100*x.timeinit/timetotal,
+            otherstuff, 100*otherstuff/timetotal)
 end

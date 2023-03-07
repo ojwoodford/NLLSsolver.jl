@@ -1,26 +1,32 @@
 export optimize!
 
 function optimize!(problem::NLLSProblem{VarTypes}, options::NLLSOptions=NLLSOptions())::NLLSResult where VarTypes
+    # Pre-allocate the temporary data
+    t = Base.time_ns()
+    computehessian = in(options.iterator, [gaussnewton, levenbergmarquardt, dogleg])
+    costgradient! = computehessian ? costgradhess! : costresjac!
+    data = NLLSInternal{VarTypes}(problem, computehessian)
     # Call the optimizer with the required iterator struct
     if options.iterator == gaussnewton
         # Gauss-Newton or Newton
-        return optimize!(problem, options, true, NewtonData())
+        newtondata = NewtonData()
+        return optimize!(problem, options, data, newtondata, costgradient!, (Base.time_ns() - t) * 1.e-9)
     end
     if options.iterator == levenbergmarquardt
         # Levenberg-Marquardt
-        return optimize!(problem, options, true, LevMarData())
+        levmardata = LevMarData()
+        return optimize!(problem, options, data, levmardata, costgradient!, (Base.time_ns() - t) * 1.e-9)
     end
     if options.iterator == dogleg
         # Dogleg
-        return optimize!(problem, options, true, DoglegData())
+        doglegdata = DoglegData()
+        return optimize!(problem, options, data, doglegdata, costgradient!, (Base.time_ns() - t) * 1.e-9)
     end
+    error("Iterator not recognized")
 end
 
-function optimize!(problem::NLLSProblem{VarTypes}, options::NLLSOptions, computehessian::Bool, iteratedata)::NLLSResult where VarTypes
+function optimize!(problem::NLLSProblem{VarTypes}, options::NLLSOptions, data::NLLSInternal{VarTypes}, iteratedata, costgradient!, timeinit)::NLLSResult where VarTypes
     t = @elapsed begin
-        # Set up all the internal data structures
-        costgradient! = computehessian ? costgradhess! : costresjac!
-        data = NLLSInternal{VarTypes}(problem, computehessian)
         # Initialize the linear problem
         data.timegradient += @elapsed data.bestcost = costgradient!(data.linsystem, problem.residuals, problem.variables)
         data.gradientcomputations += 1
@@ -69,7 +75,7 @@ function optimize!(problem::NLLSProblem{VarTypes}, options::NLLSOptions, compute
         copy!(problem.variables, data.bestvariables, problem.unfixed)
     end
     # Return the result
-    return NLLSResult(startcost, data.bestcost, t, data.timecost, data.timegradient, data.timesolver, iter, data.costcomputations, data.gradientcomputations, data.linearsolvers, costs, trajectory)
+    return NLLSResult(startcost, data.bestcost, t, timeinit, data.timecost, data.timegradient, data.timesolver, iter, data.costcomputations, data.gradientcomputations, data.linearsolvers, costs, trajectory)
 end
 
 function update!(to::Vector, from::Vector, linsystem::MultiVariateLS, step)
