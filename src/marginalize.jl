@@ -38,8 +38,8 @@ end
 
 function marginalize!(to::MultiVariateLS, from::MultiVariateLS, fromblock=length(to.A.rowblocksizes)+1)
     for block in fromblock:length(from.A.rowblocksizes)
-        #marginalize!(to, from, block, Val(from.A.rowblocksizes[block]))
-        valuedispatch(Val(1), Val(32), v -> marginalize!(to, from, block, v), from.A.rowblocksizes[block])
+        # marginalize!(to, from, block, Val(Int(from.A.rowblocksizes[block])))
+        valuedispatch(Val(1), Val(32), v -> marginalize!(to, from, block, v), Int(from.A.rowblocksizes[block]))
     end
 end
 
