@@ -11,14 +11,21 @@ struct BlockSparseMatrix{T}
     m::Int                                            # Number of rows of the represented matrix
     n::Int                                            # Number of columns of the represented matrix
 
-    function BlockSparseMatrix{T}(nnzvals, indicestransposed, rowblocksizes, colblocksizes) where T
+    function BlockSparseMatrix{T}(nnzvals, indices, rowblocksizes, colblocksizes) where T
         # Check the block sizes
         rbs = convert.(UInt8, rowblocksizes)
-        cbs = convert.(UInt8, colblocksizes)
         @assert all(i -> 0 < i, rbs)
-        @assert all(i -> 0 < i, cbs)
-        @assert size(indicestransposed) == (length(cbs), length(rbs))
-        return new(zeros(T, nnzvals), SparseArrays.sparse(indicestransposed'), SparseArrays.sparse(indicestransposed), rbs, cbs, sum(rbs), sum(cbs))
+        sumrbs = sum(rbs)
+        if rowblocksizes == colblocksizes
+            cbs = rbs
+            sumcbs = sumrbs
+        else
+            cbs = convert.(UInt8, colblocksizes)
+            @assert all(i -> 0 < i, cbs)
+            sumcbs = sum(cbs)
+        end
+        @assert size(indices) == (length(rbs), length(cbs))
+        return new(zeros(T, nnzvals), SparseArrays.sparse(indices), SparseArrays.sparse(indices'), rbs, cbs, sumrbs, sumcbs)
     end
 
     function BlockSparseMatrix{T}(pairs::Vector{SVector{2, U}}, rowblocksizes, colblocksizes) where {T, U}
@@ -36,7 +43,7 @@ struct BlockSparseMatrix{T}
         # Initialize the block pointer sparse matrix
         indicestransposed = SparseArrays.sparse([p[2] for p in pairs_], [p[1] for p in pairs_], indices, length(colblocksizes), length(rowblocksizes))
         # Construct the BlockSparseMatrix
-        return BlockSparseMatrix{T}(start - 1, indicestransposed, rowblocksizes, colblocksizes)
+        return BlockSparseMatrix{T}(start - 1, indicestransposed', rowblocksizes, colblocksizes)
     end
 end
 
