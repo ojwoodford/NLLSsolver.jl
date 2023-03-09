@@ -34,6 +34,7 @@ struct MultiVariateLS
     b::Vector{Float64}
     blockindices::Vector{UInt} # One for each variable
     boffsets::Vector{UInt} # One per unfixed variable
+    symmetricindices::SparseMatrixCSC{Int, Int}
     nzvals::Int
 
     function MultiVariateLS(A::BlockSparseMatrix, blockindices)
@@ -121,8 +122,8 @@ end
 
 function updatelinearsystem!(linsystem::MultiVariateLS, g, H, vars, ::Val{varflags}, blockindices) where varflags
     loffsets = localoffsets(vars, varflags)
-    updateb!(linsystem.b, g, vars, Val(varflags), linsystem.gradoffsets[blockindices], loffsets)
-    updatesymA(linsystem.A, H, vars, Val(varflags), blockindices, loffsets)
+    updateb!(linsystem.b, g, vars, Val(varflags), linsystem.boffsets[blockindices], loffsets)
+    updatesymA!(linsystem.A, H, vars, Val(varflags), blockindices, loffsets)
 end
 
 function uniformscaling!(linsystem, k)
@@ -138,6 +139,17 @@ function gethessgrad(linsystem::MultiVariateLS)
         return makesparse(linsystem.A, linsystem.symmetricindices, linsystem.nzvals), linsystem.b
     end
     return symmetrifyfull(linsystem.A), linsystem.b
+end
+
+function getresjac(linsystem::UniVariateLS)
+    return linsystem.A, linsystem.b
+end
+
+function getresjac(linsystem::MultiVariateLS)
+    if size(linsystem.A, 1) > 1000 && 3 * nnz(linsystem.A) < length(linsystem.A)
+        return SparseArrays.sparse(linsystem.A), linsystem.b
+    end
+    return Matrix(linsystem.A), linsystem.b
 end
 
 function zero!(linsystem)

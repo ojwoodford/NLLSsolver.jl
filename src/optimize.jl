@@ -81,7 +81,7 @@ function update!(to::Vector, from::Vector, linsystem::MultiVariateLS, step)
     # Update each variable
     @inbounds for (i, j) in enumerate(linsystem.blockindices)
         if j != 0
-            a = update(from[i], step, linsystem.gradoffsets[j])
+            a = update(from[i], step, linsystem.boffsets[j])
             to[i] = a
         end
     end

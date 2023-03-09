@@ -69,7 +69,7 @@ mutable struct NLLSInternal{VarTypes}
 
         # Multiple variables. Use a block sparse matrix
         mvls = makemvls(problem.variables, problem.residuals, problem.unfixed, nblocks)
-        return new(copy(problem.variables), copy(problem.variables), mvls, Vector{Float64}(undef, length(mvls.gradient)), 0., 0., 0., 0., 0, 0, 0, 0, starttimens)
+        return new(copy(problem.variables), copy(problem.variables), mvls, Vector{Float64}(undef, length(mvls.b)), 0., 0., 0., 0., 0, 0, 0, 0, starttimens)
     end
 end
 function NLLSInternal(problem::NLLSProblem{VarTypes}, computehessian) where VarTypes
