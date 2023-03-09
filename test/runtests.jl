@@ -4,4 +4,5 @@ using Test
     include("camera.jl")
     include("BlockSparseMatrix.jl")
     include("marginalize.jl")
+    include("functional.jl")
 end
