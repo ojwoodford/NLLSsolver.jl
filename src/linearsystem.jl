@@ -34,19 +34,14 @@ struct MultiVariateLS
     b::Vector{Float64}
     blockindices::Vector{UInt} # One for each variable
     boffsets::Vector{UInt} # One per unfixed variable
-    symmetricindices::SparseMatrixCSC{Int, Int}
-    nzvals::Int
 
     function MultiVariateLS(A::BlockSparseMatrix, blockindices)
-        symmetricindices = A.indices - A.indicestransposed
-        @inbounds @view(symmetricindices[diagind(symmetricindices)]) .= diag(A.indices)
-        nzvals = length(A.data) * 2 - sum((Vector(diag(A.indices)) .!= 0) .* (convert.(Int, A.rowblocksizes) .^ 2))
         boffsets = cumsum(A.rowblocksizes)
         varlen = boffsets[end]
         circshift!(boffsets, -1)
         boffsets[1] = 0
         boffsets .+= 1
-        return new(A, zeros(Float64, varlen), blockindices, boffsets, symmetricindices, nzvals)
+        return new(A, zeros(Float64, varlen), blockindices, boffsets)
     end
 
     function MultiVariateLS(pairs, blocksizes, blockindices=1:length(blocksizes))
@@ -91,7 +86,7 @@ function updatesymA!(A, a, vars, ::Val{varflags}, blockindices, loffsets) where 
         if ((varflags >> (i - 1)) & 1) == 1
             @unroll for j in i:10
                 if ((varflags >> (j - 1)) & 1) == 1
-                    if blockindices[i] <= blockindices[j]
+                    if blockindices[i] <= blockindices[j] # Make sure the BSM is upper triangular
                         @inbounds block(A, blockindices[i], blockindices[j], Val(nvars(vars[i])), Val(nvars(vars[j]))) .+= a[loffsets[i],loffsets[j]]
                     else
                         @inbounds block(A, blockindices[j], blockindices[i], Val(nvars(vars[j])), Val(nvars(vars[i]))) .+= a[loffsets[j],loffsets[i]]
@@ -136,7 +131,7 @@ end
 
 function gethessgrad(linsystem::MultiVariateLS)
     if size(linsystem.A, 1) > 1000 && 3 * nnz(linsystem.A) < length(linsystem.A)
-        return makesparse(linsystem.A, linsystem.symmetricindices, linsystem.nzvals), linsystem.b
+        return symmetrifysparse(linsystem.A), linsystem.b
     end
     return symmetrifyfull(linsystem.A), linsystem.b
 end
