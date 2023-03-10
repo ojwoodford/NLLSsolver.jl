@@ -3,7 +3,7 @@ export optimize!
 function optimize!(problem::NLLSProblem{VarTypes}, options::NLLSOptions=NLLSOptions())::NLLSResult where VarTypes
     # Pre-allocate the temporary data
     t = Base.time_ns()
-    computehessian = in(options.iterator, [levenbergmarquardt, dogleg])
+    computehessian = in(options.iterator, [gaussnewton, levenbergmarquardt, dogleg])
     data = NLLSInternal{VarTypes}(problem, computehessian)
     costgradient! = computehessian ? costgradhess! : costresjac!
     # Call the optimizer with the required iterator struct
@@ -101,9 +101,5 @@ function copy!(to::Vector, from::Vector, unfixed::BitVector)
             to[index] = from[index]
         end
     end
-end
-
-function linearsolve(A::AbstractMatrix, b::AbstractVector, options)
-    return solve(LinearProblem(A, b), options).u
 end
 

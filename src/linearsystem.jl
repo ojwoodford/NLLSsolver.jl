@@ -3,7 +3,7 @@ export UniVariateLS, MultiVariateLS, makemvls, makesymmvls, gethessgrad, getjacr
 
 function addvarvarpairs!(pairs, residuals::Vector, blockindices)
     for res in residuals
-        addpairs!(pairs, res, blockindices)
+        addvarvarpairs!(pairs, res, blockindices)
     end
 end
 

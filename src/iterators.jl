@@ -1,4 +1,14 @@
+using LDLFactorizations
 export iterate!, NewtonData, DoglegData, LevMarData
+
+function symmetricsolve(A::AbstractMatrix, b::AbstractVector, options)
+    return ldl(A) \ b
+end
+
+function linearsolve(A::AbstractMatrix, b::AbstractVector, options)
+    return solve(LinearProblem(A, b)).u
+end
+
 
 # Iterators assume that the linear problem has been constructed
 
@@ -9,8 +19,8 @@ end
 function iterate!(::NewtonData, data::NLLSInternal, problem::NLLSProblem, options::NLLSOptions)::Float64
     # Compute the step
     data.timesolver += @elapsed begin
-        jac, res = getjacres(data.linsystem)
-        data.step .= -linearsolve(jac, res, options.linearsolver)
+        hessian, gradient = gethessgrad(data.linsystem)
+        data.step .= -symmetricsolve(hessian, gradient, options)
     end
     data.linearsolvers += 1
     # Update the new variables
@@ -45,7 +55,7 @@ function iterate!(doglegdata::DoglegData, data::NLLSInternal, problem::NLLSProbl
         end
         if alpha < doglegdata.trustradius
             # Compute the Newton step
-            data.step .= -linearsolve(hessian, gradient, options.linearsolver)
+            data.step .= -symmetricsolve(hessian, gradient, options)
             beta = norm(data.step)
             data.linearsolvers += 1
         end
@@ -112,7 +122,6 @@ end
 function iterate!(levmardata::LevMarData, data::NLLSInternal, problem::NLLSProblem, options::NLLSOptions)::Float64
     @assert levmardata.lambda >= 0.
     hessian, gradient = gethessgrad(data.linsystem)
-    linprob = LinearProblem(hessian, gradient)
     lastlambda = 0.
     mu = 2.
     while true
@@ -120,7 +129,7 @@ function iterate!(levmardata::LevMarData, data::NLLSInternal, problem::NLLSProbl
         uniformscaling!(hessian, levmardata.lambda - lastlambda)
         lastlambda = levmardata.lambda
         # Solve the linear system
-        data.timesolver += @elapsed data.step .= -solve(linprob, options.linearsolver).u
+        data.timesolver += @elapsed data.step .= -symmetricsolve(hessian, gradient, options)
         data.linearsolvers += 1
         # Update the new variables
         update!(data.variables, problem.variables, data.linsystem, data.step)
