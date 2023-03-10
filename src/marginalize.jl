@@ -66,13 +66,13 @@ end
 function constructcrop(from::MultiVariateLS, fromblock)
     # Create a dense map of the reduced area
     toblock = fromblock - 1
-    indices = Matrix(view(from.A.indicestransposed, 1:toblock, 1:toblock))
+    indices = Matrix(view(from.A.indices, 1:toblock, 1:toblock))
     start = from.A.indices.nzval[from.A.indices.colptr[fromblock]]
     blocksizes = convert.(Int, from.A.rowblocksizes[1:toblock])
     for c = 1:toblock
         cindices = view(from.A.indices.rowval, from.A.indices.colptr[c]:from.A.indices.colptr[c+1]-1)
         nc = blocksizes[c]
-        for r = 1:c
+        for r = c:toblock
             if indices[r,c] != 0
                 continue
             end

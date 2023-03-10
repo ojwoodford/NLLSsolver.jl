@@ -97,28 +97,12 @@ function makesparseindices(bsm::BlockSparseMatrix, symmetrify::Bool=false)
     for (col_, colblocksize) in enumerate(bsm.columnblocksizes)
         sprows = bsm.indices.colptr[col_]:bsm.indices.colptr[col_+1]-1
         if symmetrify
-            if !isempty(sprows) && bsm.indices.rowval[sprows[end]] == col_
-                sprows_ = bsm.indicestransposed.colptr[col_]+1:bsm.indicestransposed.colptr[col_+1]-1
-            else
-                sprows_ = bsm.indicestransposed.colptr[col_]:bsm.indicestransposed.colptr[col_+1]-1
-            end
-            @assert isempty(sprows) || isempty(sprows_) || sprows[end] < sprows_[1] # BSM must be upper triangular for symmetrification
+            sprows_ = bsm.indicestransposed.colptr[col_]:bsm.indicestransposed.colptr[col_+1]-1-(!isempty(sprows) && bsm.indices.rowval[sprows[1]] == col_)
+            @assert isempty(sprows) || isempty(sprows_) || sprows[1] > sprows_[end] # BSM must be lower triangular for symmetrification
         end
         for innercol in 0:colblocksize-1
-            # Above diagonal blocks (if symmetrifying)
-            for r in sprows
-                @inbounds row = bsm.indices.rowval[r]
-                @inbounds s = startrow[row]
-                @inbounds c = bsm.rowblocksizes[row]
-                @inbounds v = bsm.indices.nzval[r] + innercol * c
-                for i in 0:c-1
-                    ind += 1
-                    @inbounds rows[ind] = s + i
-                    @inbounds indices[ind] = v + i
-                end
-            end
             if symmetrify
-                # Below diagonal blocks (transposed)
+                # Above diagonal blocks (transposed)
                 for r in sprows_
                     @inbounds row = bsm.indicestransposed.rowval[r]
                     @inbounds s = startrow[row]
@@ -130,6 +114,18 @@ function makesparseindices(bsm::BlockSparseMatrix, symmetrify::Bool=false)
                         @inbounds indices[ind] = v
                         v += colblocksize
                     end
+                end
+            end
+            # Below diagonal blocks (if symmetrifying)
+            for r in sprows
+                @inbounds row = bsm.indices.rowval[r]
+                @inbounds s = startrow[row]
+                @inbounds c = bsm.rowblocksizes[row]
+                @inbounds v = bsm.indices.nzval[r] + innercol * c
+                for i in 0:c-1
+                    ind += 1
+                    @inbounds rows[ind] = s + i
+                    @inbounds indices[ind] = v + i
                 end
             end
             col += 1

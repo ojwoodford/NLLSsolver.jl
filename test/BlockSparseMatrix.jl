@@ -17,6 +17,11 @@ using NLLSsolver, SparseArrays, StaticArrays, Test
     block(b, 1, 3, 3, 1) .= [10.; 11; 12]
     block(b, 3, 3) .= 13.
 
+    # Internal checks
+    @test all(b.indices.nzval != 0)
+    @test b.indices == b.indicestransposed'
+
+    # Interface checks
     @test eltype(b) == Float64
     @test size(b) == (7, 6)
     @test length(b) == 42
@@ -35,18 +40,18 @@ using NLLSsolver, SparseArrays, StaticArrays, Test
     @test Matrix(s) == out
 
     # Construct a test matrix
-    out2 = [0  0  1   3   5   0 ; 
-            0  0  2   4   6   0 ;
-            0  0  7   8   9   13;
-            0  0  8   10  11  14;
-            0  0  9   11  12  15;
-            0  0  0   0   0   16]
+    out2 = [0  0  0   0   0   0 ; 
+            0  0  0   0   0   0 ;
+            1  4  7   8   9   0 ;
+            2  5  8   10  11  0 ;
+            3  6  9   11  12  0 ;
+            0  0  13  14  15  16]
     outsym = max.(out2, out2')
 
     # Construct a matching BSM
-    bs = BlockSparseMatrix{Int64}([SVector(1, 2), SVector(2, 3), SVector(2, 2), SVector(3, 3)], [2,3,1], [2,3,1])
-    block(bs, 1, 2) .= reshape(1:6, (2, 3))
-    block(bs, 2, 3, 3, 1) .= SVector{3, Int64}(13:15)
+    bs = BlockSparseMatrix{Int64}([SVector(2, 1), SVector(3, 2), SVector(2, 2), SVector(3, 3)], [2,3,1], [2,3,1])
+    block(bs, 2, 1) .= reshape(1:6, (3, 2))
+    block(bs, 3, 2, 1, 3) .= SVector{3, Int64}(13:15)'
     block(bs, 2, 2, 3, 3) .= [7 8 9; 8 10 11; 9 11 12]
     block(bs, 3, 3) .= 16
 
