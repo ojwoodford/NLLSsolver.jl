@@ -11,7 +11,7 @@ using NLLSsolver, SparseArrays, StaticArrays, Test
     for i in 1:2:length(pairs_)
         push!(pairs, SVector(pairs_[i], pairs_[i+1]))
     end
-    from = MultiVariateLS(pairs, blocksizes)
+    from = MultiVariateLS(BlockSparseMatrix{Float64}(pairs, blocksizes, blocksizes), 1:length(blocksizes))
     from.A.data .= randn(length(from.A.data))
     from.b .= randn(length(from.b))
     # Make the diagonal blocks symmetric

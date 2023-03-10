@@ -1,13 +1,13 @@
 using SparseArrays
-export UniVariateLS, MultiVariateLS, makemvls, gethessgrad, zero!, uniformscaling!
+export UniVariateLS, MultiVariateLS, makemvls, makesymmvls, gethessgrad, getjacres, zero!, uniformscaling!
 
-function addpairs!(pairs, residuals::Vector, blockindices)
+function addvarvarpairs!(pairs, residuals::Vector, blockindices)
     for res in residuals
         addpairs!(pairs, res, blockindices)
     end
 end
 
-function addpairs!(pairs, residual, blockindices)
+function addvarvarpairs!(pairs, residual, blockindices)
     blocks = blockindices[varindices(residual)]
     blocks = sort(blocks[blocks .!= 0], rev=true)
     @inbounds for (i, b) in enumerate(blocks)
@@ -17,17 +17,29 @@ function addpairs!(pairs, residual, blockindices)
     end
 end
 
+function addresvarpairs!(pairs, resblocksizes, residuals::Vector, blockindices, ind)
+    for res in residuals
+        addresvarpairs!(pairs, resblocksizes, res, blockindices, ind)
+        ind += 1
+    end
+end
+
+function addresvarpairs!(pairs, resblocksizes, residual, blockindices, ind)
+    blocks = blockindices[varindices(residual)]
+    blocks = blocks[blocks .!= 0]
+    @inbounds for b in blocks
+        push!(pairs, SVector(ind, b))
+    end
+    resblocksizes[ind] = nres(residual)
+end
+
 # Uni-variate linear system
 struct UniVariateLS
     A::Matrix{Float64}
     b::Vector{Float64}
     varindex::UInt
 
-    function UniVariateLS(unfixed, varlen)
-        return new(zeros(Float64, varlen, varlen), zeros(Float64, varlen), unfixed)
-    end
-
-    function UniVariateLS(unfixed, varlen, reslen)
+    function UniVariateLS(unfixed, varlen, reslen=varlen)
         return new(zeros(Float64, reslen, varlen), zeros(Float64, reslen), unfixed)
     end
 end
@@ -37,20 +49,53 @@ struct MultiVariateLS
     A::BlockSparseMatrix{Float64}
     b::Vector{Float64}
     blockindices::Vector{UInt} # One for each variable
-    boffsets::Vector{UInt} # One per unfixed variable
+    boffsets::Vector{UInt} # One per block in b
+    soloffsets::Vector{UInt} # One for each unfixed variable
 
     function MultiVariateLS(A::BlockSparseMatrix, blockindices)
         boffsets = cumsum(A.rowblocksizes)
-        varlen = boffsets[end]
+        blen = boffsets[end]
         circshift!(boffsets, -1)
         boffsets[1] = 0
         boffsets .+= 1
-        return new(A, zeros(Float64, varlen), blockindices, boffsets)
+        if A.rowblocksizes == A.columnblocksizes
+            soloffsets = boffsets
+        else
+            soloffsets = cumsum(A.columnblocksizes)
+            circshift!(soloffsets, -1)
+            soloffsets[1] = 0
+            soloffsets .+= 1
+        end
+        return new(A, zeros(Float64, blen), blockindices, boffsets, soloffsets)
+    end
+end
+
+function makemvls(vars, residuals, unfixed, nblocks)
+    # Multiple variables. Use a block sparse matrix
+    blockindices = zeros(UInt, length(vars))
+    varblocksizes = zeros(UInt, nblocks)
+    resblocksizes = zeros(UInt, numresiduals(residuals))
+    pairs = Vector{SVector{2, Int}}()
+    nblocks = 0
+    # Get the variable block sizes
+    for (index, unfixed_) in enumerate(unfixed)
+        if unfixed_
+            nblocks += 1
+            blockindices[index] = nblocks
+            N = nvars(vars[index])
+            varblocksizes[nblocks] = N
+        end
     end
 
-    function MultiVariateLS(pairs, blocksizes, blockindices=1:length(blocksizes))
-        return MultiVariateLS(BlockSparseMatrix{Float64}(pairs, blocksizes, blocksizes), blockindices)
+    # Compute the residual-variable pairs
+    ind = 1
+    @inbounds for res in values(residuals)
+        addresvarpairs!(pairs, resblocksizes, res, blockindices, ind)
+        ind += length(res)
     end
+
+    # Construct the MultiVariateLS
+    return MultiVariateLS(BlockSparseMatrix{Float64}(pairs, resblocksizes, varblocksizes), blockindices)
 end
 
 function makesymmvls(vars, residuals, unfixed, nblocks)
@@ -71,11 +116,11 @@ function makesymmvls(vars, residuals, unfixed, nblocks)
 
     # Compute the off-diagonal pairs
     @inbounds for res in values(residuals)
-        addpairs!(pairs, res, blockindices)
+        addvarvarpairs!(pairs, res, blockindices)
     end
 
     # Construct the MultiVariateLS
-    return MultiVariateLS(pairs, blocksizes, blockindices)
+    return MultiVariateLS(BlockSparseMatrix{Float64}(pairs, blocksizes, blocksizes), blockindices)
 end
 
 function updatesymlinearsystem!(linsystem::UniVariateLS, g, H, unusedargs...)
@@ -97,9 +142,9 @@ function updatesymA!(A, a, vars, ::Val{varflags}, blockindices, loffsets) where 
             @unroll for j in i:10
                 if ((varflags >> (j - 1)) & 1) == 1
                     if blockindices[i] >= blockindices[j] # Make sure the BSM is lower triangular
-                        @inbounds block(A, blockindices[i], blockindices[j], Val(nvars(vars[i])), Val(nvars(vars[j]))) .+= view(a, loffsets[i], loffsets[j])
+                        block(A, blockindices[i], blockindices[j], Val(nvars(vars[i])), Val(nvars(vars[j]))) .+= @inbounds view(a, loffsets[i], loffsets[j])
                     else
-                        @inbounds block(A, blockindices[j], blockindices[i], Val(nvars(vars[j])), Val(nvars(vars[i]))) .+= view(a, loffsets[j], loffsets[i])
+                        block(A, blockindices[j], blockindices[i], Val(nvars(vars[j])), Val(nvars(vars[i]))) .+= @inbounds view(a, loffsets[j], loffsets[i])
                     end
                 end
             end
@@ -131,19 +176,21 @@ function updatesymlinearsystem!(linsystem::MultiVariateLS, g, H, vars, ::Val{var
     updatesymA!(linsystem.A, H, vars, Val(varflags), blockindices, loffsets)
 end
 
-function updateA!(A, a, vars, ::Val{varflags}, blockindices, loffsets, ind) where varflags
+function updateA!(A, a, ::Val{varflags}, blockindices, loffsets, ind) where varflags
     # Update the blocks in the problem
+    rows = A.indicestransposed.colptr[ind]:A.indicestransposed.colptr[ind+1]-1
+    @inbounds dataptr = view(A.indicestransposed.nzval, rows)
+    @inbounds rows = view(A.indicestransposed.rowval, rows)
     @unroll for i in 1:10
         if ((varflags >> (i - 1)) & 1) == 1
-            @inbounds block(A, ind, blockindices[j], Val(Size(a)[1]), Val(nvars(vars[i]))) .= view(a, :, loffsets[i])
+            @inbounds view(A.data, SR(0, Size(a)[1]*Size(loffsets[i])[1]-1) .+ dataptr[findfirst(isequal(blockindices[i]), rows)]) .= reshape(view(a, :, loffsets[i]), :)
         end
     end
 end
 
 function updatelinearsystem!(linsystem::MultiVariateLS, res, jac, ind, vars, ::Val{varflags}, blockindices) where varflags
-    loffsets = localoffsets(vars, varflags)
-    view(linsystem.b, SR(1, Size(res)[1]).+(ind-1)) .= res
-    updateA!(linsystem.A, jac, vars, Val(varflags), blockindices, loffsets, ind)
+    view(linsystem.b, SR(0, Size(res)[1]-1) .+ linsystem.boffsets[ind]) .= res
+    updateA!(linsystem.A, jac, Val(varflags), blockindices, localoffsets(vars, varflags), ind)
 end
 
 function uniformscaling!(linsystem, k)
@@ -155,18 +202,18 @@ function gethessgrad(linsystem::UniVariateLS)
 end
 
 function gethessgrad(linsystem::MultiVariateLS)
-    if size(linsystem.A, 1) > 1000 && 3 * nnz(linsystem.A) < length(linsystem.A)
+    if size(linsystem.A, 2) > 1000 && 3 * nnz(linsystem.A) < length(linsystem.A)
         return symmetrifysparse(linsystem.A), linsystem.b
     end
     return symmetrifyfull(linsystem.A), linsystem.b
 end
 
-function getresjac(linsystem::UniVariateLS)
+function getjacres(linsystem::UniVariateLS)
     return linsystem.A, linsystem.b
 end
 
-function getresjac(linsystem::MultiVariateLS)
-    if size(linsystem.A, 1) > 1000 && 3 * nnz(linsystem.A) < length(linsystem.A)
+function getjacres(linsystem::MultiVariateLS)
+    if size(linsystem.A, 2) > 1000 && 3 * nnz(linsystem.A) < length(linsystem.A)
         return SparseArrays.sparse(linsystem.A), linsystem.b
     end
     return Matrix(linsystem.A), linsystem.b

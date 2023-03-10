@@ -1,6 +1,6 @@
 using FLoops: @floop, @reduce
 import ForwardDiff, NLLSsolver.valuedispatch, NLLSsolver.NLLSProblem, NLLSsolver.AbstractResidual
-export cost, costgradhess!, computeresjac
+export cost, costgradhess!, costresjac!, computeresjac
 
 cost(problem::NLLSProblem) = cost(problem.residuals, problem.variables)
 
@@ -97,7 +97,7 @@ function gradhesshelper!(linsystem, residual::Residual, vars::Vector, ::Val{varf
             g *= w1
         end
         # Update the blocks in the problem
-        updatelinearsystem!(linsystem, g, H, v, Val(varflags), blockind)
+        updatesymlinearsystem!(linsystem, g, H, v, Val(varflags), blockind)
     end
 
     # Return the cost
@@ -124,6 +124,63 @@ function costgradhess!(linsystem, residuals, vars::Vector)::Float64
     c = 0.
     for res in values(residuals)
         c += costgradhess!(linsystem, res, vars)
+    end
+    return c 
+end
+
+function resjachelper!(linsystem, residual::Residual, vars::Vector, ::Val{varflags}, blockind, ind)::Float64 where {varflags, Residual <: AbstractResidual}
+    # Get the variables
+    v = getvars(residual, vars)
+
+    # Compute the residual
+    res, jac = computeresjac(Val(varflags), residual, v...)
+
+    # Compute the robustified cost and the IRLS weight
+    c, w1, unused = robustify(robustkernel(residual), res' * res)
+
+    # If this residual has a weight...
+    if w1 != 0    
+        # Check for robust case
+        if w1 != 1
+            # IRLS reweighting
+            w1 = sqrt(w1)
+            res .*= w1
+            jac .*= w1
+        end
+        # Update the blocks in the problem
+        updatelinearsystem!(linsystem, res, jac, ind, v, Val(varflags), blockind)
+    end
+
+    # Return the cost
+    return c
+end
+
+function costresjac!(linsystem, residual::Residual, vars::Vector, ind) where Residual <: AbstractResidual
+    # Get the bitset for the input variables, as an integer
+    blockind = getoffsets(residual, linsystem)
+    varflags = foldl((x, y) -> (x << 1) + (y != 0), reverse(blockind), init=UInt(0))
+
+    # If there are no variables, just return the cost
+    if varflags == 0
+        c = cost(residual, vars)
+    else
+        # Dispatch gradient computation based on the varflags, and return the cost
+        # c = jachelper!(linsystem, residual, vars, Val(varflags), blockind)
+        c = valuedispatch(Val(1), Val((2^nvars(residual))-1), v -> resjachelper!(linsystem, residual, vars, v, blockind, ind), varflags)
+    end
+
+    # Return the cost
+    return c
+end
+
+Base.length(::AbstractResidual) = 1
+
+function costresjac!(linsystem, residuals, vars::Vector, ind=1)::Float64
+    # Go over all resdiduals in the problem
+    c = 0.
+    for res in values(residuals)
+        c += costresjac!(linsystem, res, vars, ind)
+        ind += length(res)
     end
     return c 
 end

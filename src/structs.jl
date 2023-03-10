@@ -46,10 +46,11 @@ mutable struct NLLSInternal{VarTypes}
     linearsolvers::Int
     starttimens::UInt64
 
-    function NLLSInternal{VarTypes}(problem::NLLSProblem, computehessian) where VarTypes
+    function NLLSInternal{VarTypes}(problem::NLLSProblem, computehessian::Bool) where VarTypes
         starttimens = Base.time_ns()
         @assert length(problem.variables) > 0
         # Compute the block offsets
+        unfixed = UInt(0)
         if typeof(problem.unfixed) == UInt
             # Single variable block
             nblocks = UInt(1)
@@ -58,18 +59,21 @@ mutable struct NLLSInternal{VarTypes}
         else
             nblocks = UInt(sum(problem.unfixed))
             @assert nblocks > 0
-            unfixed = UInt(findfirst(problem.unfixed))
         end
         # Construct the Hessian
         if nblocks == 1
             # One unfixed variable
+            if unfixed == 0
+                unfixed = UInt(findfirst(problem.unfixed))
+            end
             varlen = UInt(nvars(problem.variables[unfixed]))
-            return new(copy(problem.variables), copy(problem.variables), UniVariateLS(unfixed, varlen), Vector{Float64}(undef, varlen), 0., 0., 0., 0., 0, 0, 0, starttimens)
+            linsystem = UniVariateLS(unfixed, varlen, computehessian ? varlen : UInt(lengthresiduals(problem.residuals)))
+            return new(copy(problem.variables), copy(problem.variables), linsystem, Vector{Float64}(undef, varlen), 0., 0., 0., 0., 0, 0, 0, starttimens)
         end
 
         # Multiple variables. Use a block sparse matrix
-        mvls = makemvls(problem.variables, problem.residuals, problem.unfixed, nblocks)
-        return new(copy(problem.variables), copy(problem.variables), mvls, Vector{Float64}(undef, length(mvls.b)), 0., 0., 0., 0., 0, 0, 0, 0, starttimens)
+        mvls = computehessian ? makesymmvls(problem.variables, problem.residuals, problem.unfixed, nblocks) : makemvls(problem.variables, problem.residuals, problem.unfixed, nblocks)
+        return new(copy(problem.variables), copy(problem.variables), mvls, Vector{Float64}(undef, size(mvls.A, 2)), 0., 0., 0., 0., 0, 0, 0, 0, starttimens)
     end
 end
 function NLLSInternal(problem::NLLSProblem{VarTypes}, computehessian) where VarTypes

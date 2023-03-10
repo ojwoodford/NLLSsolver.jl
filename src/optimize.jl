@@ -3,7 +3,7 @@ export optimize!
 function optimize!(problem::NLLSProblem{VarTypes}, options::NLLSOptions=NLLSOptions())::NLLSResult where VarTypes
     # Pre-allocate the temporary data
     t = Base.time_ns()
-    computehessian = in(options.iterator, [gaussnewton, levenbergmarquardt, dogleg])
+    computehessian = in(options.iterator, [levenbergmarquardt, dogleg])
     data = NLLSInternal{VarTypes}(problem, computehessian)
     costgradient! = computehessian ? costgradhess! : costresjac!
     # Call the optimizer with the required iterator struct
@@ -81,8 +81,7 @@ function update!(to::Vector, from::Vector, linsystem::MultiVariateLS, step)
     # Update each variable
     @inbounds for (i, j) in enumerate(linsystem.blockindices)
         if j != 0
-            a = update(from[i], step, linsystem.boffsets[j])
-            to[i] = a
+            to[i] = update(from[i], step, linsystem.soloffsets[j])
         end
     end
 end
