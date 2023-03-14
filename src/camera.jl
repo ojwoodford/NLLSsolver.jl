@@ -1,5 +1,5 @@
 export SimpleCamera, NoDistortionCamera, ExtendedUnifiedCamera, BarrelDistortion
-export ideal2image, image2ideal, pixel2image, image2pixel, update, nvars, varindices, getvars, computeresidual, barrel2eulens
+export ideal2image, image2ideal, pixel2image, image2pixel, update, nvars, nres, varindices, getvars, computeresidual, barrel2eulens
 using StaticArrays, LinearAlgebra
 
 
@@ -34,7 +34,7 @@ struct SimpleCamera{T}
     end
 end
 SimpleCamera(v::T) where T = SimpleCamera{T}(v::T)
-nvars(::SimpleCamera) = 1
+nvars(@objtype(SimpleCamera)) = 1
 function update(var::SimpleCamera, updatevec, start=1)
     return SimpleCamera(update(var.f, updatevec, start).val)
 end
@@ -49,7 +49,7 @@ struct NoDistortionCamera{T}
 end
 NoDistortionCamera(fx::T, fy::T, cx::T, cy::T) where T = NoDistortionCamera(ZeroToInfScalar(fx), ZeroToInfScalar(fy), EuclideanVector(cx, cy))
 NoDistortionCamera(f, c) = NoDistortionCamera(f[1], f[2], c[1], c[2])
-nvars(::NoDistortionCamera) = 4
+nvars(@objtype(NoDistortionCamera)) = 4
 function update(var::NoDistortionCamera, updatevec, start=1)
     return NoDistortionCamera(update(var.fx, updatevec, start), update(var.fy, updatevec, start+1), update(var.c, updatevec, start+2))
 end
@@ -62,7 +62,7 @@ struct EULensDistortion{T}
     beta::ZeroToInfScalar{T}
 end
 EULensDistortion(alpha::T, beta::T) where T = EULensDistortion(ZeroToOneScalar(alpha), ZeroToInfScalar(beta))
-nvars(::EULensDistortion) = 2
+nvars(@objtype(EULensDistortion)) = 2
 function update(var::EULensDistortion, updatevec, start=1)
     return EULensDistortion(update(var.alpha, updatevec, start), update(var.beta, updatevec, start+1))
 end
@@ -94,7 +94,7 @@ struct ExtendedUnifiedCamera{T<:Number}
     lens::EULensDistortion{T}
 end
 ExtendedUnifiedCamera(f, c, a, b) = ExtendedUnifiedCamera(NoDistortionCamera(f[1], f[2], c[1], c[2]), EULensDistortion(a, b))
-nvars(::ExtendedUnifiedCamera) = 6
+nvars(@objtype(ExtendedUnifiedCamera)) = 6
 function update(var::ExtendedUnifiedCamera, updatevec, start=1)
     return ExtendedUnifiedCamera(update(var.sensor, updatevec, start),
                                  update(var.lens, updatevec, start+4))
@@ -117,7 +117,7 @@ struct BarrelDistortion{T}
     k1::T
     k2::T
 end
-nvars(::BarrelDistortion) = 2
+nvars(@objtype(BarrelDistortion)) = 2
 function update(var::BarrelDistortion, updatevec, start=1)
     return BarrelDistortion(var.k1 + updatevec[start], var.k2 + updatevec[start+1])
 end
@@ -132,7 +132,8 @@ struct LensDistortResidual{T} <: AbstractResidual
     rlinear::T
     rdistort::T
 end
-nvars(::LensDistortResidual) = 1
+nvars(@objtype(LensDistortResidual)) = 1 # The residual depends on one variable
+nres(@objtype(LensDistortResidual)) = 1 # The residual vector has length one
 varindices(::LensDistortResidual) = [1]
 function computeresidual(residual::LensDistortResidual, lens::EULensDistortion)
     return SVector(residual.rdistort - ideal2distorted(lens, residual.rlinear))

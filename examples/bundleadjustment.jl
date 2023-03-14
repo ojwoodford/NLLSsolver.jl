@@ -1,4 +1,4 @@
-using VisualGeometryDatasets, StaticArrays, BenchmarkTools, GLMakie, Profile, PProf
+using VisualGeometryDatasets, StaticArrays
 import NLLSsolver
 export optimizeBALproblem
 
@@ -8,7 +8,7 @@ struct BALImage{T}
     sensor::NLLSsolver.SimpleCamera{T}
     lens::NLLSsolver.BarrelDistortion{T}
 end
-NLLSsolver.nvars(::BALImage) = 9
+NLLSsolver.nvars(NLLSsolver.@objtype(BALImage)) = 9
 function NLLSsolver.update(var::BALImage, updatevec, start=1)
     return BALImage(NLLSsolver.update(var.pose, updatevec, start),
                     NLLSsolver.update(var.sensor, updatevec, start+6),
@@ -31,7 +31,8 @@ struct BALResidual{T} <: NLLSsolver.AbstractResidual
     varind::SVector{2, Int}
 end
 BALResidual(m, v) = BALResidual(SVector{2}(m[1], m[2]), SVector{2, Int}(v[1], v[2]))
-NLLSsolver.nvars(::BALResidual) = 2 # Residual depends on 2 variables
+NLLSsolver.nvars(NLLSsolver.@objtype(BALResidual)) = 2 # Residual depends on 2 variables
+NLLSsolver.nres(NLLSsolver.@objtype(BALResidual)) = 2 # Residual vector has length 2
 NLLSsolver.varindices(res::BALResidual) = res.varind
 function NLLSsolver.getvars(res::BALResidual{T}, vars::Vector) where T
     return vars[res.varind[1]]::BALImage{T}, vars[res.varind[2]]::NLLSsolver.Point3D{T}
@@ -39,7 +40,7 @@ end
 function NLLSsolver.computeresidual(res::BALResidual, im::BALImage, X::NLLSsolver.Point3D)
     return transform(im, X) - res.measurement
 end
-const balrobustifier = NLLSsolver.HuberKernel(2., 4., 1., 1.)
+const balrobustifier = NLLSsolver.HuberKernel(2., 4., 1.)
 function NLLSsolver.robustkernel(::BALResidual)
     return balrobustifier
 end
@@ -68,39 +69,8 @@ function makeBALproblem(data)
     return problem
 end
 
-function filterBAL(data, landmarks=[], cameras=[])
-    # Find the residuals associated with the landmarks and cameras
-    mask = false
-    if !isempty(landmarks)
-        mask = broadcast(m -> (m.landmark ∉ landmarks), data.measurements)
-    end
-    if !isempty(cameras)
-        mask = broadcast(m -> (m.camera ∉ cameras), data.measurements) .| mask
-    end
-    if mask === false
-        return data
-    end
-    deleteat!(data.measurements, findall(mask))
-    # Delete the unused cameras and landmarks
-    cameras = trues(length(data.cameras))
-    landmarks = trues(length(data.landmarks))
-    for meas in data.measurements
-        cameras[meas.camera] = false
-        landmarks[meas.landmark] = false
-    end
-    deleteat!(data.cameras, findall(cameras))
-    deleteat!(data.landmarks, findall(landmarks))
-    # Remap the indices
-    cameras = cumsum(.!cameras)
-    landmarks = cumsum(.!landmarks)
-    for (ind, meas) in enumerate(data.measurements)
-        data.measurements[ind] = VisualGeometryDatasets.BALMeasurement(meas.x, meas.y, cameras[meas.camera], landmarks[meas.landmark])
-    end
-    return data
-end
-
 # Function to optimize a BAL problem
-function optimizeBALproblem(name="problem-16-22106")
+function optimizeBALproblem(name)
     # Create the problem
     data = loadbaldataset(name)
     show(data)
@@ -113,12 +83,6 @@ function optimizeBALproblem(name="problem-16-22106")
     println("   End mean cost per measurement: ", minimum(result.costs)/length(data.measurements))
     # Print out the solver summary
     show(result)
-    # Plot the costs
-    fig = Figure()
-    ax = Axis(fig[1, 1])
-    pushfirst!(result.costs, result.startcost)
-    GLMakie.lines!(ax, result.costs)
-    fig
 end
 
-optimizeBALproblem()
+optimizeBALproblem("problem-16-22106")
