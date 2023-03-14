@@ -17,6 +17,7 @@ StaticArrays = "90137ffa-7385-5640-81b9-e52037218182"
 VisualGeometryDatasets = "962a53e2-84f2-440b-bfbc-4e96ec28357f"
 
 [compat]
+ForwardDiff = "0.10"
 VisualGeometryDatasets = "0.2"
 FLoops = "0.2"
 HybridArrays = "0.4"
