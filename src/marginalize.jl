@@ -3,29 +3,29 @@ export marginalize!, initcrop!, constructcrop
 
 function marginalize!(to::MultiVariateLS, from::MultiVariateLS, block::Integer, ::Val{blocksz}) where blocksz
     # Get the list of blocks to marginalize out
-    ind = from.hessian.indicestransposed.colptr[block]:from.hessian.indicestransposed.colptr[block+1]-1
-    blocks = from.hessian.indicestransposed.rowval[ind]
-    @assert blocks[end] == block && all(view(blocks, 1:lastindex(blocks)-1) .<= length(to.hessian.rowblocksizes))
+    ind = from.A.indicestransposed.colptr[block]:from.A.indicestransposed.colptr[block+1]-1
+    blocks = from.A.indicestransposed.rowval[ind]
+    @assert blocks[end] == block && all(view(blocks, 1:lastindex(blocks)-1) .<= length(to.A.rowblocksizes))
     N = length(blocks) - 1
-    dataindices = from.hessian.indicestransposed.nzval[ind]
-    blocksizes = from.hessian.rowblocksizes[blocks]
+    dataindices = from.A.indicestransposed.nzval[ind]
+    blocksizes = from.A.rowblocksizes[blocks]
     @assert blocksizes[end] == blocksz
     # Compute inverse for the diagonal block (to be marginalized)
-    inverseblock = inv(SizedMatrix{blocksz, blocksz}(view(from.hessian.data, SR(0, blocksz*blocksz-1).+dataindices[end])))
+    inverseblock = inv(SizedMatrix{blocksz, blocksz}(view(from.A.data, SR(0, blocksz*blocksz-1).+dataindices[end])))
     # For each non-marginalized block
-    blockgrad = SizedVector{blocksz}(view(from.gradient, SR(0, blocksz-1) .+ from.gradoffsets[block]))
+    blockgrad = SizedVector{blocksz}(view(from.b, SR(0, blocksz-1) .+ from.boffsets[block]))
     for a in 1:N
         # Multiply inverse by first block
         lena = blocksizes[a]
         blocka = blocks[a]
-        S = HybridArray{Tuple{blocksz, StaticArrays.Dynamic()}}(reshape(view(from.hessian.data, (0:blocksz*lena-1) .+ dataindices[a]), blocksz, lena))' * inverseblock
+        S = HybridArray{Tuple{blocksz, StaticArrays.Dynamic()}}(reshape(view(from.A.data, (0:blocksz*lena-1) .+ dataindices[a]), blocksz, lena))' * inverseblock
         # Update gradient
-        view(to.gradient, SR(0, lena-1) .+ to.gradoffsets[blocka]) .-= S * blockgrad
+        view(to.b, SR(0, lena-1) .+ to.boffsets[blocka]) .-= S * blockgrad
         # Update Hessian blocks
         for b in 1:a
             lenb = blocksizes[b]
-            B = HybridArray{Tuple{blocksz, StaticArrays.Dynamic()}}(reshape(view(from.hessian.data, (0:blocksz*lenb-1) .+ dataindices[b]), blocksz, lenb))
-            reshape(view(to.hessian.data, (0:lena*lenb-1) .+ to.hessian.indicestransposed[blocks[b],blocka]), lena, lenb) .-= S * B
+            B = HybridArray{Tuple{blocksz, StaticArrays.Dynamic()}}(reshape(view(from.A.data, (0:blocksz*lenb-1) .+ dataindices[b]), blocksz, lenb))
+            reshape(view(to.A.data, (0:lena*lenb-1) .+ to.A.indicestransposed[blocks[b],blocka]), lena, lenb) .-= S * B
         end
     end
 end
@@ -36,20 +36,20 @@ function marginalize!(to::MultiVariateLS, from::MultiVariateLS, blocks::Abstract
     end
 end
 
-function marginalize!(to::MultiVariateLS, from::MultiVariateLS, fromblock=length(to.hessian.rowblocksizes)+1)
-    for block in fromblock:length(from.hessian.rowblocksizes)
-        #marginalize!(to, from, block, Val(from.hessian.rowblocksizes[block]))
-        valuedispatch(Val(1), Val(32), v -> marginalize!(to, from, block, v), from.hessian.rowblocksizes[block])
+function marginalize!(to::MultiVariateLS, from::MultiVariateLS, fromblock=length(to.A.rowblocksizes)+1)
+    for block in fromblock:length(from.A.rowblocksizes)
+        # marginalize!(to, from, block, Val(Int(from.A.rowblocksizes[block])))
+        valuedispatch(Val(1), Val(32), v -> marginalize!(to, from, block, v), Int(from.A.rowblocksizes[block]))
     end
 end
 
-function initcrop!(to::MultiVariateLS, from::MultiVariateLS, fromblock=length(to.hessian.rowblocksizes)+1)
+function initcrop!(to::MultiVariateLS, from::MultiVariateLS, fromblock=length(to.A.rowblocksizes)+1)
     # Reset the linear system to all zeros
     zero!(to)
     # Copy over all the cropped bits
-    to.gradient .= view(from.gradient, 1:lastindex(to.gradient))
-    endind = from.hessian.indices.nzval[from.hessian.indices.colptr[fromblock]] - 1
-    view(to.hessian.data, 1:endind) .= view(from.hessian.data, 1:endind)
+    to.b .= view(from.b, 1:lastindex(to.b))
+    endind = from.A.indices.nzval[from.A.indices.colptr[fromblock]] - 1
+    view(to.A.data, 1:endind) .= view(from.A.data, 1:endind)
 end
 
 function hasoverlap(A, B) # Assumed to be two sorted lists
@@ -66,17 +66,17 @@ end
 function constructcrop(from::MultiVariateLS, fromblock)
     # Create a dense map of the reduced area
     toblock = fromblock - 1
-    indices = Matrix(view(from.hessian.indicestransposed, 1:toblock, 1:toblock))
-    start = from.hessian.indices.nzval[from.hessian.indices.colptr[fromblock]]
-    blocksizes = convert.(Int, from.hessian.rowblocksizes[1:toblock])
+    indices = Matrix(view(from.A.indices, 1:toblock, 1:toblock))
+    start = from.A.indices.nzval[from.A.indices.colptr[fromblock]]
+    blocksizes = convert.(Int, from.A.rowblocksizes[1:toblock])
     for c = 1:toblock
-        cindices = view(from.hessian.indices.rowval, from.hessian.indices.colptr[c]:from.hessian.indices.colptr[c+1]-1)
+        cindices = view(from.A.indices.rowval, from.A.indices.colptr[c]:from.A.indices.colptr[c+1]-1)
         nc = blocksizes[c]
-        for r = 1:c
+        for r = c:toblock
             if indices[r,c] != 0
                 continue
             end
-            if !hasoverlap(cindices, view(from.hessian.indices.rowval, from.hessian.indices.colptr[r]:from.hessian.indices.colptr[r+1]-1))
+            if !hasoverlap(cindices, view(from.A.indices.rowval, from.A.indices.colptr[r]:from.A.indices.colptr[r+1]-1))
                 continue
             end
             # We need to add a block
@@ -84,7 +84,7 @@ function constructcrop(from::MultiVariateLS, fromblock)
             start += nc * blocksizes[r]
         end
     end
-    hessian = BlockSparseMatrix{Float64}(start-1, indices, blocksizes, blocksizes)
-    return MultiVariateLS(hessian, from.blockindices)
+    A = BlockSparseMatrix{Float64}(start-1, indices, blocksizes, blocksizes)
+    return MultiVariateLS(A, from.blockindices)
 end
 

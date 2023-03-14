@@ -15,11 +15,15 @@ include("variable.jl")
 include("camera.jl")
 include("geometry.jl")
 
-# Optimization
+# Types
 include("BlockSparseMatrix.jl")
 include("linearsystem.jl")
+include("structs.jl")
+
+# Optimization
 include("marginalize.jl")
 include("robust.jl")
 include("cost.jl")
+include("iterators.jl")
 include("optimize.jl")
 end

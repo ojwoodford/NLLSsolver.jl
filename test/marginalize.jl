@@ -11,12 +11,12 @@ using NLLSsolver, SparseArrays, StaticArrays, Test
     for i in 1:2:length(pairs_)
         push!(pairs, SVector(pairs_[i], pairs_[i+1]))
     end
-    from = MultiVariateLS(pairs, blocksizes)
-    from.hessian.data .= randn(length(from.hessian.data))
-    from.gradient .= randn(length(from.gradient))
+    from = MultiVariateLS(BlockSparseMatrix{Float64}(pairs, blocksizes, blocksizes), 1:length(blocksizes))
+    from.A.data .= randn(length(from.A.data))
+    from.b .= randn(length(from.b))
     # Make the diagonal blocks symmetric
     for (ind, sz) in enumerate(blocksizes)
-        diagblock = block(from.hessian, ind, ind, sz, sz)
+        diagblock = block(from.A, ind, ind, sz, sz)
         diagblock .= diagblock + diagblock'
     end
 
@@ -25,21 +25,22 @@ using NLLSsolver, SparseArrays, StaticArrays, Test
     initcrop!(to, from)
 
     # Check that the crop is correct
-    hessian = symmetrifyfull(from.hessian)
+    hessian = symmetrifyfull(from.A)
     croplen = sum(blocksizes[1:fromblock-1])
-    @test view(hessian, 1:croplen, 1:croplen) == symmetrifyfull(to.hessian)
-    @test view(from.gradient, 1:croplen) == to.gradient
-    @test all((to.gradoffsets .+ blocksizes[1:fromblock-1]) .<= (length(to.gradient) + 1))
+    @test view(hessian, 1:croplen, 1:croplen) == symmetrifyfull(to.A)
+    @test view(from.b, 1:croplen) == to.b
+    @test all((to.boffsets .+ blocksizes[1:fromblock-1]) .<= (length(to.b) + 1))
 
     # Compute the marginalized system
     marginalize!(to, from)
 
     # Compute the ground truth reduced system
-    S = hessian[1:croplen,croplen+1:end] / hessian[croplen+1:end,croplen+1:end]
-    hessian = hessian[1:croplen,1:croplen] - S * hessian[croplen+1:end,1:croplen]
-    gradient = from.gradient[1:croplen] - S * from.gradient[croplen+1:end]
+    N = size(hessian, 2)
+    S = view(hessian, 1:croplen, croplen+1:N) / view(hessian, croplen+1:N, croplen+1:N)
+    hessian = view(hessian, 1:croplen, 1:croplen) - S * view(hessian, croplen+1:N, 1:croplen)
+    gradient = view(from.b, 1:croplen) - S * view(from.b, croplen+1:N)
 
-    # Check that the result is correct
-    @test hessian ≈ symmetrifyfull(to.hessian)
-    @test gradient ≈ to.gradient
+    # # Check that the result is correct
+    @test isapprox(hessian, symmetrifyfull(to.A); rtol=1.e-14)
+    @test isapprox(gradient, to.b; rtol=1.e-14)
 end

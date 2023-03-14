@@ -17,6 +17,11 @@ using NLLSsolver, SparseArrays, StaticArrays, Test
     block(b, 1, 3, 3, 1) .= [10.; 11; 12]
     block(b, 3, 3) .= 13.
 
+    # Internal checks
+    @test all(b.indices.nzval != 0)
+    @test b.indices == b.indicestransposed'
+
+    # Interface checks
     @test eltype(b) == Float64
     @test size(b) == (7, 6)
     @test length(b) == 42
@@ -35,25 +40,25 @@ using NLLSsolver, SparseArrays, StaticArrays, Test
     @test Matrix(s) == out
 
     # Construct a test matrix
-    out2 = [0  0  0  0  0  10; 
-            0  0  0  0  0  11;
-            1  4  0  0  0  0 ;
-            2  5  0  0  0  0 ;
-            3  6  0  0  0  0 ;
-            0  0  7  8  9  12]
+    out2 = [0  0  0   0   0   0 ; 
+            0  0  0   0   0   0 ;
+            1  4  7   8   9   0 ;
+            2  5  8   10  11  0 ;
+            3  6  9   11  12  0 ;
+            0  0  13  14  15  16]
     outsym = max.(out2, out2')
 
     # Construct a matching BSM
-    bs = BlockSparseMatrix{Int64}([SVector(2, 1), SVector(3, 2), SVector(1, 3), SVector(3, 3)], [2,3,1], [2,3,1])
+    bs = BlockSparseMatrix{Int64}([SVector(2, 1), SVector(3, 2), SVector(2, 2), SVector(3, 3)], [2,3,1], [2,3,1])
     block(bs, 2, 1) .= reshape(1:6, (3, 2))
-    block(bs, 3, 2, 1, 3) .= SMatrix{1, 3, Int64, 3}(7:9)
-    block(bs, 1, 3, 2, 1) .= [10; 11]
-    block(bs, 3, 3) .= 12
+    block(bs, 3, 2, 1, 3) .= SVector{3, Int64}(13:15)'
+    block(bs, 2, 2, 3, 3) .= [7 8 9; 8 10 11; 9 11 12]
+    block(bs, 3, 3) .= 16
 
     @test eltype(bs) == Int64
     @test size(bs) == (6, 6)
     @test length(bs) == 36
-    @test nnz(bs) == 12
+    @test nnz(bs) == 19
 
     m2 = Matrix(bs)
     @test typeof(m2) == Matrix{Int64}
@@ -64,7 +69,7 @@ using NLLSsolver, SparseArrays, StaticArrays, Test
     @test issparse(s2)
     @test typeof(s2) == SparseMatrixCSC{Int64, Int64}
     @test size(s2) == (6, 6)
-    @test nnz(s2) == 12
+    @test nnz(s2) == 19
     @test Matrix(s2) == out2
 
     m3 = symmetrifyfull(bs)
@@ -76,6 +81,6 @@ using NLLSsolver, SparseArrays, StaticArrays, Test
     @test issparse(s3)
     @test typeof(s3) == SparseMatrixCSC{Int64, Int64}
     @test size(s3) == (6, 6)
-    @test nnz(s3) == 23
+    @test nnz(s3) == 28
     @test Matrix(s3) == outsym
 end

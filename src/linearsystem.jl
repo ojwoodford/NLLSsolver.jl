@@ -1,15 +1,15 @@
 using SparseArrays
-export UniVariateLS, MultiVariateLS, makemvls, gethessgrad, zero!, uniformscaling!
+export UniVariateLS, MultiVariateLS, makemvls, makesymmvls, gethessgrad, getjacres, zero!, uniformscaling!
 
-function addpairs!(pairs, residuals::Vector, blockindices)
+function addvarvarpairs!(pairs, residuals::Vector, blockindices)
     for res in residuals
-        addpairs!(pairs, res, blockindices)
+        addvarvarpairs!(pairs, res, blockindices)
     end
 end
 
-function addpairs!(pairs, residual, blockindices)
+function addvarvarpairs!(pairs, residual, blockindices)
     blocks = blockindices[varindices(residual)]
-    blocks = sort(blocks[blocks .!= 0])
+    blocks = sort(blocks[blocks .!= 0], rev=true)
     @inbounds for (i, b) in enumerate(blocks)
         @inbounds for b_ in @view blocks[i+1:end]
             push!(pairs, SVector(b, b_))
@@ -17,45 +17,85 @@ function addpairs!(pairs, residual, blockindices)
     end
 end
 
+function addresvarpairs!(pairs, resblocksizes, residuals::Vector, blockindices, ind)
+    for res in residuals
+        addresvarpairs!(pairs, resblocksizes, res, blockindices, ind)
+        ind += 1
+    end
+end
+
+function addresvarpairs!(pairs, resblocksizes, residual, blockindices, ind)
+    blocks = blockindices[varindices(residual)]
+    blocks = blocks[blocks .!= 0]
+    @inbounds for b in blocks
+        push!(pairs, SVector(ind, b))
+    end
+    resblocksizes[ind] = nres(residual)
+end
+
 # Uni-variate linear system
 struct UniVariateLS
-    hessian::Matrix{Float64}
-    gradient::Vector{Float64}
+    A::Matrix{Float64}
+    b::Vector{Float64}
     varindex::UInt
 
-    function UniVariateLS(unfixed, varlen)
-        return new(zeros(Float64, varlen, varlen), zeros(Float64, varlen), unfixed)
+    function UniVariateLS(unfixed, varlen, reslen=varlen)
+        return new(zeros(Float64, reslen, varlen), zeros(Float64, reslen), unfixed)
     end
+end
+
+function computestartindices(blocksizes)
+    startind = circshift(blocksizes, 1)
+    startind[1] = 0
+    startind = cumsum(startind) .+ 1
+    return startind
 end
 
 # Multi-variate linear system
 struct MultiVariateLS
-    hessian::BlockSparseMatrix{Float64}
-    gradient::Vector{Float64}
+    A::BlockSparseMatrix{Float64}
+    b::Vector{Float64}
     blockindices::Vector{UInt} # One for each variable
-    gradoffsets::Vector{UInt} # One per unfixed variable
-    symmetricindices::SparseMatrixCSC{Int, Int}
-    nzvals::Int
+    boffsets::Vector{UInt} # One per block in b
+    soloffsets::Vector{UInt} # One for each unfixed variable
 
-    function MultiVariateLS(hessian::BlockSparseMatrix, blockindices)
-        @assert hessian.rowblocksizes == hessian.columnblocksizes
-        symmetricindices = hessian.indices - hessian.indicestransposed
-        @inbounds @view(symmetricindices[diagind(symmetricindices)]) .= diag(hessian.indices)
-        nzvals = length(hessian.data) * 2 - sum((Vector(diag(hessian.indices)) .!= 0) .* (convert.(Int, hessian.rowblocksizes) .^ 2))
-        gradoffsets = cumsum(hessian.rowblocksizes)
-        varlen = gradoffsets[end]
-        circshift!(gradoffsets, -1)
-        gradoffsets[1] = 0
-        gradoffsets .+= 1
-        return new(hessian, zeros(Float64, varlen), blockindices, gradoffsets, symmetricindices, nzvals)
-    end
-
-    function MultiVariateLS(pairs, blocksizes, blockindices=1:length(blocksizes))
-        return MultiVariateLS(BlockSparseMatrix{Float64}(pairs, blocksizes, blocksizes), blockindices)
+    function MultiVariateLS(A::BlockSparseMatrix, blockindices)
+        boffsets = computestartindices(A.rowblocksizes)
+        blen = boffsets[end] + A.rowblocksizes[end] - 1
+        soloffsets = A.rowblocksizes == A.columnblocksizes ? boffsets : computestartindices(A.columnblocksizes)
+        return new(A, zeros(Float64, blen), blockindices, boffsets, soloffsets)
     end
 end
 
 function makemvls(vars, residuals, unfixed, nblocks)
+    # Multiple variables. Use a block sparse matrix
+    blockindices = zeros(UInt, length(vars))
+    varblocksizes = zeros(UInt, nblocks)
+    resblocksizes = zeros(UInt, numresiduals(residuals))
+    pairs = Vector{SVector{2, Int}}()
+    nblocks = 0
+    # Get the variable block sizes
+    for (index, unfixed_) in enumerate(unfixed)
+        if unfixed_
+            nblocks += 1
+            blockindices[index] = nblocks
+            N = nvars(vars[index])
+            varblocksizes[nblocks] = N
+        end
+    end
+
+    # Compute the residual-variable pairs
+    ind = 1
+    @inbounds for res in values(residuals)
+        addresvarpairs!(pairs, resblocksizes, res, blockindices, ind)
+        ind += length(res)
+    end
+
+    # Construct the MultiVariateLS
+    return MultiVariateLS(BlockSparseMatrix{Float64}(pairs, resblocksizes, varblocksizes), blockindices)
+end
+
+function makesymmvls(vars, residuals, unfixed, nblocks)
     # Multiple variables. Use a block sparse matrix
     blockindices = zeros(UInt, length(vars))
     blocksizes = zeros(UInt, nblocks)
@@ -72,30 +112,36 @@ function makemvls(vars, residuals, unfixed, nblocks)
     end
 
     # Compute the off-diagonal pairs
-    @inbounds for (key, res) in residuals
-        addpairs!(pairs, res, blockindices)
+    @inbounds for res in values(residuals)
+        addvarvarpairs!(pairs, res, blockindices)
     end
 
     # Construct the MultiVariateLS
-    return MultiVariateLS(pairs, blocksizes, blockindices)
+    return MultiVariateLS(BlockSparseMatrix{Float64}(pairs, blocksizes, blocksizes), blockindices)
 end
 
-function updatelinearsystem!(linsystem::UniVariateLS, g, H, unusedargs...)
+function updatesymlinearsystem!(linsystem::UniVariateLS, g, H, unusedargs...)
     # Update the blocks in the problem
-    linsystem.gradient .+= g
-    linsystem.hessian .+= H
+    linsystem.b .+= g
+    linsystem.A .+= H
 end
 
-function updatehessian!(hessian, H, vars, ::Val{varflags}, blockindices, loffsets) where varflags
+function updatelinearsystem!(linsystem::UniVariateLS, res, jac, ind, unusedargs...)
+    # Update the blocks in the problem
+    view(linsystem.b, SR(1, Size(res)[1]).+(ind-1)) .= res
+    view(linsystem.A, SR(1, Size(res)[1]).+(ind-1), :) .= jac
+end
+
+function updatesymA!(A, a, vars, ::Val{varflags}, blockindices, loffsets) where varflags
     # Update the blocks in the problem
     @unroll for i in 1:10
         if ((varflags >> (i - 1)) & 1) == 1
             @unroll for j in i:10
                 if ((varflags >> (j - 1)) & 1) == 1
-                    if blockindices[i] <= blockindices[j]
-                        @inbounds block(hessian, blockindices[i], blockindices[j], Val(nvars(vars[i])), Val(nvars(vars[j]))) .+= H[loffsets[i],loffsets[j]]
+                    if blockindices[i] >= blockindices[j] # Make sure the BSM is lower triangular
+                        block(A, blockindices[i], blockindices[j], Val(nvars(vars[i])), Val(nvars(vars[j]))) .+= @inbounds view(a, loffsets[i], loffsets[j])
                     else
-                        @inbounds block(hessian, blockindices[j], blockindices[i], Val(nvars(vars[j])), Val(nvars(vars[i]))) .+= H[loffsets[j],loffsets[i]]
+                        block(A, blockindices[j], blockindices[i], Val(nvars(vars[j])), Val(nvars(vars[i]))) .+= @inbounds view(a, loffsets[j], loffsets[i])
                     end
                 end
             end
@@ -111,38 +157,66 @@ end
     return ntuple(i -> SR(1, nvars(vars[i]) * ((varflags >> (i - 1)) & 1)) .+ countvars(vars[1:i-1], Val(varflags)), length(vars))
 end
 
-function updategradient!(gradient, g, vars, ::Val{varflags}, goffsets, loffsets) where varflags
+function updateb!(B, b, vars, ::Val{varflags}, goffsets, loffsets) where varflags
     # Update the blocks in the problem
     goffsets = blockoffsets(vars, varflags, goffsets)
     @unroll for i in 1:10
         if ((varflags >> (i - 1)) & 1) == 1
-            @inbounds view(gradient, goffsets[i]) .+= g[loffsets[i]]
+            @inbounds view(B, goffsets[i]) .+= view(b, loffsets[i])
         end
     end
 end
 
-function updatelinearsystem!(linsystem::MultiVariateLS, g, H, vars, ::Val{varflags}, blockindices) where varflags
+function updatesymlinearsystem!(linsystem::MultiVariateLS, g, H, vars, ::Val{varflags}, blockindices) where varflags
     loffsets = localoffsets(vars, varflags)
-    updategradient!(linsystem.gradient, g, vars, Val(varflags), linsystem.gradoffsets[blockindices], loffsets)
-    updatehessian!(linsystem.hessian, H, vars, Val(varflags), blockindices, loffsets)
+    updateb!(linsystem.b, g, vars, Val(varflags), linsystem.boffsets[blockindices], loffsets)
+    updatesymA!(linsystem.A, H, vars, Val(varflags), blockindices, loffsets)
+end
+
+function updateA!(A, a, ::Val{varflags}, blockindices, loffsets, ind) where varflags
+    # Update the blocks in the problem
+    rows = A.indicestransposed.colptr[ind]:A.indicestransposed.colptr[ind+1]-1
+    @inbounds dataptr = view(A.indicestransposed.nzval, rows)
+    @inbounds rows = view(A.indicestransposed.rowval, rows)
+    @unroll for i in 1:10
+        if ((varflags >> (i - 1)) & 1) == 1
+            @inbounds view(A.data, SR(0, Size(a)[1]*Size(loffsets[i])[1]-1) .+ dataptr[findfirst(isequal(blockindices[i]), rows)]) .= reshape(view(a, :, loffsets[i]), :)
+        end
+    end
+end
+
+function updatelinearsystem!(linsystem::MultiVariateLS, res, jac, ind, vars, ::Val{varflags}, blockindices) where varflags
+    view(linsystem.b, SR(0, Size(res)[1]-1) .+ linsystem.boffsets[ind]) .= res
+    updateA!(linsystem.A, jac, Val(varflags), blockindices, localoffsets(vars, varflags), ind)
 end
 
 function uniformscaling!(linsystem, k)
-    uniformscaling!(linsystem.hessian, k)
+    uniformscaling!(linsystem.A, k)
 end
 
 function gethessgrad(linsystem::UniVariateLS)
-    return linsystem.hessian, linsystem.gradient
+    return linsystem.A, linsystem.b
 end
 
 function gethessgrad(linsystem::MultiVariateLS)
-    if size(linsystem.hessian, 1) > 1000 && 3 * nnz(linsystem.hessian) < length(linsystem.hessian)
-        return makesparse(linsystem.hessian, linsystem.symmetricindices, linsystem.nzvals), linsystem.gradient
+    if size(linsystem.A, 2) > 1000 && 3 * nnz(linsystem.A) < length(linsystem.A)
+        return symmetrifysparse(linsystem.A), linsystem.b
     end
-    return symmetrifyfull(linsystem.hessian), linsystem.gradient
+    return symmetrifyfull(linsystem.A), linsystem.b
+end
+
+function getjacres(linsystem::UniVariateLS)
+    return linsystem.A, linsystem.b
+end
+
+function getjacres(linsystem::MultiVariateLS)
+    if size(linsystem.A, 2) > 1000 && 3 * nnz(linsystem.A) < length(linsystem.A)
+        return SparseArrays.sparse(linsystem.A), linsystem.b
+    end
+    return Matrix(linsystem.A), linsystem.b
 end
 
 function zero!(linsystem)
-    fill!(linsystem.gradient, 0)
-    zero!(linsystem.hessian)
+    fill!(linsystem.b, 0)
+    zero!(linsystem.A)
 end

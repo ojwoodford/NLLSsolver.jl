@@ -1,4 +1,4 @@
-export NLLSProblem, addresidual!, addvariable!, fixvars!, unfixvars!
+export NLLSProblem, addresidual!, addvariable!, fixvars!, unfixvars!, numresiduals, lengthresiduals
 
 struct NLLSProblem{VarTypes}
     # User provided
@@ -68,5 +68,21 @@ function addvariable!(problem::NLLSProblem, variable)
     push!(problem.unfixed, false)
     # Return the index
     return length(problem.variables)
+end
+
+function numresiduals(residuals::Dict{DataType, Vector})
+    num = 0
+    @inbounds for vec in values(residuals)
+        num += length(vec)
+    end
+    return num
+end
+
+function lengthresiduals(residuals::Dict{DataType, Vector})
+    len = 0
+    @inbounds for (key, vec) in residuals
+        len += length(vec) * nres(key)
+    end
+    return len
 end
 
