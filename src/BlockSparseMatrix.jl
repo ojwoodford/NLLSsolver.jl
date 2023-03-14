@@ -1,37 +1,49 @@
-using StaticArrays, LinearAlgebra
+using StaticArrays, HybridArrays, LinearAlgebra
 import SparseArrays
-export BlockSparseMatrix, symmetrifysparse, symmetrifyfull, block, crop, uniformscaling!
+export BlockSparseMatrix, makesparseindices, symmetrifysparse, symmetrifyfull, block, uniformscaling!
 
 struct BlockSparseMatrix{T}
-    data::Vector{T}
-    indices::SparseArrays.SparseMatrixCSC{Int, Int}
-    rowblocksizes::Vector{UInt8}
-    columnblocksizes::Vector{UInt8}
-    m::Int
-    n::Int
+    data::Vector{T}                                   # Storage for all the matrix data
+    indices::SparseArrays.SparseMatrixCSC{Int, Int}   # Start indices for each block matrix
+    indicestransposed::SparseArrays.SparseMatrixCSC{Int, Int}   # Start indices for each block matrix, stored transposed
+    rowblocksizes::Vector{UInt8}                      # Number of rows for each block of rows
+    columnblocksizes::Vector{UInt8}                   # Number of columns for each block of columns
+    m::Int                                            # Number of rows of the represented matrix
+    n::Int                                            # Number of columns of the represented matrix
 
-    function BlockSparseMatrix{T}(pairs::Vector{SVector{2, U}}, rowblocksizes, colblocksizes) where {T, U}
+    function BlockSparseMatrix{T}(nnzvals, indices, rowblocksizes, colblocksizes) where T
         # Check the block sizes
         rbs = convert.(UInt8, rowblocksizes)
-        cbs = convert.(UInt8, colblocksizes)
         @assert all(i -> 0 < i, rbs)
-        @assert all(i -> 0 < i, cbs)
-        m = sum(rbs)
-        n = sum(cbs)
+        sumrbs = sum(rbs)
+        if rowblocksizes == colblocksizes
+            cbs = rbs
+            sumcbs = sumrbs
+        else
+            cbs = convert.(UInt8, colblocksizes)
+            @assert all(i -> 0 < i, cbs)
+            sumcbs = sum(cbs)
+        end
+        @assert size(indices) == (length(rbs), length(cbs))
+        return new(zeros(T, nnzvals), SparseArrays.sparse(indices), SparseArrays.sparse(indices'), rbs, cbs, sumrbs, sumcbs)
+    end
+
+    function BlockSparseMatrix{T}(pairs::Vector{SVector{2, U}}, rowblocksizes, colblocksizes) where {T, U}
         # Sort the indices for faster construction, and ensure unique
         pairs_ = sort(pairs)
         unique!(pairs_)
         # Compute the block pointers and length of data storage
         start = 1
-        indices = Vector{Int}(undef, length(pairs))
+        indices = Vector{Int}(undef, length(pairs_))
         for ind in eachindex(indices)
             indices[ind] = start
-            start += convert(UInt, rbs[pairs_[ind][1]]) * cbs[pairs_[ind][2]]
+            # Store the blocks rowwise
+            start += convert(Int, rowblocksizes[pairs_[ind][1]]) * convert(Int, colblocksizes[pairs_[ind][2]])
         end
-        # Construct the block matrix
-        nzvals = start - 1
-        sp = SparseArrays.sparse([p[1] for p in pairs_], [p[2] for p in pairs_], indices, length(rbs), length(cbs))
-        return new(zeros(T, nzvals), sp, rbs, cbs, m, n)
+        # Initialize the block pointer sparse matrix
+        indicestransposed = SparseArrays.sparse([p[2] for p in pairs_], [p[1] for p in pairs_], indices, length(colblocksizes), length(rowblocksizes))
+        # Construct the BlockSparseMatrix
+        return BlockSparseMatrix{T}(start - 1, indicestransposed', rowblocksizes, colblocksizes)
     end
 end
 
@@ -53,14 +65,11 @@ function uniformscaling!(M::BlockSparseMatrix, k)
     end
 end
 
-@inline zero!(bsm::BlockSparseMatrix) = fill!(bsm.data, 0)
-@inline block(bsm::BlockSparseMatrix, i, j, rows, cols) = SizedMatrix{rows, cols}(view(bsm.data, StaticArrays.SUnitRange(0, rows*cols-1).+bsm.indices[i,j]))
-function block(bsm::BlockSparseMatrix, i, j)
-    rows = bsm.rowblocksizes[i]
-    cols = bsm.columnblocksizes[j]
-    index = bsm.indices[i,j]
-    return reshape(view(bsm.data, index:index+rows*cols-1), (rows, cols))
-end
+zero!(bsm::BlockSparseMatrix) = fill!(bsm.data, 0)
+@inline block(bsm::BlockSparseMatrix, i, j, ::Val{rows}, ::Val{cols}) where {rows, cols} = SizedMatrix{rows, cols}(view(bsm.data, SR(0, rows*cols-1).+bsm.indicestransposed[j,i]))
+@inline block(bsm::BlockSparseMatrix, i, j, rows::Integer, cols::Integer) = reshape(view(bsm.data, SR(0, rows*cols-1).+bsm.indicestransposed[j,i]), (rows, cols))
+@inline block(bsm::BlockSparseMatrix, i, j, ::Val{rows}, cols::Integer) where rows = HybridArray{Tuple{rows, StaticArrays.Dynamic()}}(block(bsm, i, j, rows, cols))
+@inline block(bsm::BlockSparseMatrix, i, j) = block(bsm, i, j, bsm.rowblocksizes[i], bsm.columnblocksizes[j])
 Base.size(bsm::BlockSparseMatrix) = (bsm.m, bsm.n)
 Base.size(bsm::BlockSparseMatrix, dim) = dim == 1 ? bsm.m : (dim == 2 ? bsm.n : 1)
 Base.length(bsm::BlockSparseMatrix) = bsm.m * bsm.n
@@ -72,66 +81,66 @@ SparseArrays.nnz(bsm::BlockSparseMatrix) = length(bsm.data)
 @inline zero!(aa::AbstractArray) = fill!(aa, 0)
 SparseArrays.nnz(aa::AbstractArray) = length(aa)
 
-function makesparse(bsm::BlockSparseMatrix{T}, indices, nzvals) where T
+function makesparseindices(bsm::BlockSparseMatrix, symmetrify::Bool=false)
+    @assert !symmetrify || bsm.rowblocksizes == bsm.columnblocksizes
     # Preallocate arrays
+    nzvals = symmetrify ? length(bsm.data) * 2 - sum((Vector(diag(bsm.indices)) .!= 0) .* (bsm.rowblocksizes .^ 2)) : length(bsm.data)
     rows = Vector{Int}(undef, nzvals)
-    cols = Vector{Int}(undef, nzvals)
-    values = Vector{T}(undef, nzvals)
-    # Sparsify each block column
+    indices = Vector{Int}(undef, nzvals)
     startrow = cumsum(bsm.rowblocksizes) .+ 1
     pushfirst!(startrow, UInt(1))
-    startcol = cumsum(bsm.columnblocksizes) .+ 1
-    pushfirst!(startcol, UInt(1))
+    cols = Vector{Int}(undef, symmetrify ? startrow[end] : sum(bsm.columnblocksizes)+1)
+    # Sparsify each block column
     ind = 0
-    for col in eachindex(bsm.columnblocksizes)
-        sprows = indices.colptr[col]:indices.colptr[col+1]-1
-        if isempty(sprows)
-            continue
+    col = 1
+    @inbounds cols[1] = 1
+    for (col_, colblocksize) in enumerate(bsm.columnblocksizes)
+        sprows = bsm.indices.colptr[col_]:bsm.indices.colptr[col_+1]-1
+        if symmetrify
+            sprows_ = bsm.indicestransposed.colptr[col_]:bsm.indicestransposed.colptr[col_+1]-1-(!isempty(sprows) && bsm.indices.rowval[sprows[1]] == col_)
+            @assert isempty(sprows) || isempty(sprows_) || sprows[1] > sprows_[end] # BSM must be lower triangular for symmetrification
         end
-        block_indices = indices.nzval[sprows]
-        block_rows = indices.rowval[sprows]
-        transposed = block_indices .< 0
-        block_indices = abs.(block_indices)
-        rowstride = ones(UInt, length(block_indices))
-        rowstride[transposed] .= bsm.columnblocksizes[col]
-        colstride = bsm.rowblocksizes[block_rows]
-        colstride[transposed] .= 1
-        col_ = startcol[col]
-        for innercol in 1:bsm.columnblocksizes[col]
-            for (r, br) in enumerate(block_rows)
-                s = startrow[br]
-                c = bsm.rowblocksizes[br]
-                v = block_indices[r]
-                while c > 0
-                    ind += 1
-                    rows[ind] = s
-                    s += 1
-                    cols[ind] = col_
-                    values[ind] = bsm.data[v]
-                    v += rowstride[r]
-                    c -= 1
+        for innercol in 0:colblocksize-1
+            if symmetrify
+                # Above diagonal blocks (transposed)
+                for r in sprows_
+                    @inbounds row = bsm.indicestransposed.rowval[r]
+                    @inbounds s = startrow[row]
+                    @inbounds c = bsm.rowblocksizes[row]
+                    @inbounds v = bsm.indicestransposed.nzval[r] + innercol
+                    for i in 0:c-1
+                        ind += 1
+                        @inbounds rows[ind] = s + i
+                        @inbounds indices[ind] = v
+                        v += colblocksize
+                    end
                 end
             end
-            block_indices .+= colstride
-            col_ += 1
+            # Below diagonal blocks (if symmetrifying)
+            for r in sprows
+                @inbounds row = bsm.indices.rowval[r]
+                @inbounds s = startrow[row]
+                @inbounds c = bsm.rowblocksizes[row]
+                @inbounds v = bsm.indices.nzval[r] + innercol * c
+                for i in 0:c-1
+                    ind += 1
+                    @inbounds rows[ind] = s + i
+                    @inbounds indices[ind] = v + i
+                end
+            end
+            col += 1
+            @inbounds cols[col] = ind + 1
         end
     end
     # Construct the sparse matrix
-    return SparseArrays.sparse(rows, cols, values, startrow[end]-1, startcol[end]-1)
+    return SparseArrays.SparseMatrixCSC{Int, Int}(startrow[end]-1, col-1, cols, rows, indices)
 end
 
-function symmetrifysparse(bsm::BlockSparseMatrix{T}) where T
-    # Preallocate arrays
-    @assert bsm.rowblocksizes == bsm.columnblocksizes
-    indices = bsm.indices - bsm.indices'
-    @view(indices[diagind(indices)]) .= diag(bsm.indices)
-    nzvals = length(bsm.data) * 2 - sum((Vector(diag(bsm.indices)) .!= 0) .* (bsm.rowblocksizes .^ 2))
-    return makesparse(bsm, indices, nzvals)
+function SparseArrays.sparse(bsm::BlockSparseMatrix{T}, indices=makesparseindices(bsm)) where T
+    return SparseArrays.SparseMatrixCSC{T, Int}(indices.m, indices.n, indices.colptr, indices.rowval, bsm.data[indices.nzval])
 end
 
-function SparseArrays.sparse(bsm::BlockSparseMatrix{T}) where T
-    return makesparse(bsm, bsm.indices, length(bsm.data))
-end
+symmetrifysparse(bsm::BlockSparseMatrix{T}) where T = SparseArrays.sparse(bsm, makesparseindices(bsm, true))
 
 function symmetrifyfull(bsm::BlockSparseMatrix{T}) where T
     @assert bsm.rowblocksizes == bsm.columnblocksizes
@@ -159,7 +168,7 @@ function symmetrifyfull!(mat::Matrix{T}, bsm::BlockSparseMatrix{T}, blocks=nothi
     @assert size(mat) == (m, m)
     # Copy blocks into the output
     fill!(mat, 0)
-    for (r, c, index) in zip(SparseArrays.findnz(bsm.indices)...)
+    for (c, r, index) in zip(SparseArrays.findnz(bsm.indicestransposed)...)
         cs = starts[c]
         if cs == 0
             continue
@@ -171,9 +180,9 @@ function symmetrifyfull!(mat::Matrix{T}, bsm::BlockSparseMatrix{T}, blocks=nothi
         r_ = lengths[r]
         c_ = lengths[c]
         V = reshape(view(bsm.data, index:index+(r_*c_)-1), (r_, c_))
-        mat[rs:rs+r_-1,cs:cs+c_-1] .= V
+        @inbounds mat[rs:rs+r_-1,cs:cs+c_-1] .= V
         if r != c
-            mat[cs:cs+c_-1,rs:rs+r_-1] .= V'
+            @inbounds mat[cs:cs+c_-1,rs:rs+r_-1] .= V'
         end
     end
     return nothing
@@ -187,29 +196,15 @@ function Base.Matrix(bsm::BlockSparseMatrix{T}) where T
     pushfirst!(colstarts, UInt(0))
     output = zeros(T, rowstarts[end], colstarts[end])
     # Copy blocks into the output
-    for (r, c, index) in zip(SparseArrays.findnz(bsm.indices)...)
-        rs = rowstarts[r]
-        rf = rowstarts[r+1]
-        cs = colstarts[c]
-        cf = colstarts[c+1]
+    for (c, r, index) in zip(SparseArrays.findnz(bsm.indicestransposed)...)
+        @inbounds rs = rowstarts[r]
+        @inbounds rf = rowstarts[r+1]
+        @inbounds cs = colstarts[c]
+        @inbounds cf = colstarts[c+1]
         r_ = rf - rs
         c_ = cf - cs
-        output[rs+1:rf,cs+1:cf] .= reshape(view(bsm.data, index:index+r_*c_-1), (r_, c_))
+        @inbounds output[rs+1:rf,cs+1:cf] .= reshape(view(bsm.data, index:index+r_*c_-1), (r_, c_))
     end
     # Return the matrix
-    return output
-end
-
-function crop(bsm::BlockSparseMatrix{T}, rowblocks, colblocks) where T
-    # Create the output
-    (rows, cols, indices) = SparseArrays.findnz(view(bsm.indices, rowblocks, colblocks))
-    output = BlockSparseMatrix{T}(hcat(rows, cols), bsm.rowblocksizes[rowblocks], colblocksizes[colblocks])
-    # Copy all the blocks
-    for (r, c, indin) in zip(rows, cols, indices)
-        len = convert(UInt, output.rowblocksizes[r]) * output.colblocksizes[c] - 1
-        indout = output.indices[r,c]
-        view(output.data, indout:indout+len) .= view(bsm.data, indin:indin+len)
-    end
-    # Return the new matrix
     return output
 end

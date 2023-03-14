@@ -1,4 +1,4 @@
-export valuedispatch, SR
+export valuedispatch, SR, @objtype
 using StaticArrays
 
 function valuedispatch_expr(::Val{lower}, ::Val{upper}, fun, val) where {lower, upper}
@@ -26,3 +26,7 @@ end
 end
 
 const SR = StaticArrays.SUnitRange
+
+macro objtype(type)
+    esc(:(::Union{$type, Type{$type}}))
+end
