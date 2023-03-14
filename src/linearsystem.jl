@@ -44,6 +44,13 @@ struct UniVariateLS
     end
 end
 
+function computestartindices(blocksizes)
+    startind = circshift(blocksizes, -1)
+    startind[1] = 0
+    startind = cumsum(startind) .+ 1
+    return startind
+end
+
 # Multi-variate linear system
 struct MultiVariateLS
     A::BlockSparseMatrix{Float64}
@@ -53,19 +60,9 @@ struct MultiVariateLS
     soloffsets::Vector{UInt} # One for each unfixed variable
 
     function MultiVariateLS(A::BlockSparseMatrix, blockindices)
-        boffsets = cumsum(A.rowblocksizes)
-        blen = boffsets[end]
-        circshift(boffsets, -1)
-        boffsets[1] = 0
-        boffsets .+= 1
-        if A.rowblocksizes == A.columnblocksizes
-            soloffsets = boffsets
-        else
-            soloffsets = cumsum(A.columnblocksizes)
-            circshift(soloffsets, -1)
-            soloffsets[1] = 0
-            soloffsets .+= 1
-        end
+        boffsets = computestartindices(A.rowblocksizes)
+        blen = boffsets[end] + A.rowblocksizes[end] - 1
+        soloffsets = A.rowblocksizes == A.columnblocksizes ? boffsets : computestartindices(A.columnblocksizes)
         return new(A, zeros(Float64, blen), blockindices, boffsets, soloffsets)
     end
 end
