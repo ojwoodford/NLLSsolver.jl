@@ -52,5 +52,7 @@ The following examples of problem definition, creation and optimization are incl
 - **Allow residuals to dynamically change the variables they depend on** to broaden the types of problems that can be optimized.
 - **Add additional solvers**
 - **Add constraints**, such as equality and inequality constraints on variables.
+- **Improve code coverage of tests**
+- **Add separate docs pages** with much more detail
 
-Help is needed to improve both the functionality of the package, and also the documentation and test framework. If you wish to collaborate on this project, please raise an issue, stating what you would like to help with.
+Help is needed to improve both the functionality of the package, and also the documentation and test framework. If you wish to collaborate on this project, please raise an issue, indicating what you would like to help with.
