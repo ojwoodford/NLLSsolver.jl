@@ -46,9 +46,8 @@ end
 
 function computestartindices(blocksizes)
     startind = circshift(blocksizes, 1)
-    startind[1] = 0
-    startind = cumsum(startind) .+ 1
-    return startind
+    startind[1] = 1
+    return cumsum(startind)
 end
 
 # Multi-variate linear system
