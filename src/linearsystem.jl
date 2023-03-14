@@ -55,14 +55,14 @@ struct MultiVariateLS
     function MultiVariateLS(A::BlockSparseMatrix, blockindices)
         boffsets = cumsum(A.rowblocksizes)
         blen = boffsets[end]
-        circshift!(boffsets, -1)
+        circshift(boffsets, -1)
         boffsets[1] = 0
         boffsets .+= 1
         if A.rowblocksizes == A.columnblocksizes
             soloffsets = boffsets
         else
             soloffsets = cumsum(A.columnblocksizes)
-            circshift!(soloffsets, -1)
+            circshift(soloffsets, -1)
             soloffsets[1] = 0
             soloffsets .+= 1
         end
