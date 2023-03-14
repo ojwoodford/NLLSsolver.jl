@@ -40,7 +40,7 @@ Optimization is done as follows:
 ```
 Various optimizer `options` can be defined. During optimization, the optimizer updates variable blocks (stored in `problem`) in-place. Information about the optimization is retruned in `result`.
 
-## Examples to run:
+## Examples
 The following examples of problem definition, creation and optimization are included:
 - **Rosenbrock function** (examples/rosenbrock.jl): Visualizes optimization of the Rosenbrock function using some of the  available optimizers. Click on the parameter space to interactively select a new start point.
 - **Bundle adjustment** (examples/bundleadjustment.jl): Optimization of large scale [Bundle Adjustement in the Large](https://grail.cs.washington.edu/projects/bal/) problems, with non-Euclidean variables.
