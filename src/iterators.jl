@@ -145,7 +145,7 @@ function iterate!(levmardata::LevMarData, data::NLLSInternal, problem::NLLSProbl
             # Success (or convergence) - update lambda
             uniformscaling!(hessian, -lastlambda)
             step_quality = (cost_ - data.bestcost) / (((data.step' * hessian) * 0.5 + gradient') * data.step)
-            levmardata.lambda *= max(0.1, 1 - (step_quality - 1) ^ 3)
+            levmardata.lambda *= step_quality < 1.966 ? 1 - (step_quality - 1) ^ 3 : 0.1
             # Return the cost
             return cost_
         end
