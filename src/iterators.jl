@@ -1,8 +1,12 @@
 using LDLFactorizations
 export iterate!, NewtonData, DoglegData, LevMarData
 
-function symmetricsolve(A::AbstractMatrix, b::AbstractVector, options)
+function symmetricsolve(A::SparseMatrixCSC, b::AbstractVector, options)
     return ldl(A) \ b
+end
+
+function symmetricsolve(A::AbstractMatrix, b::AbstractVector, options)
+    return Symmetric(A) \ b
 end
 
 function linearsolve(A::AbstractMatrix, b::AbstractVector, options)
