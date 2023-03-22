@@ -12,8 +12,8 @@ include("problem.jl")
 
 # Variables
 include("variable.jl")
-include("camera.jl")
-include("geometry.jl")
+include("visualgeometry/camera.jl")
+include("visualgeometry/geometry.jl")
 
 # Types
 include("BlockSparseMatrix.jl")

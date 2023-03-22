@@ -82,11 +82,12 @@ function distorted2ideal(lens::EULensDistortion, x, W)
     t = 1 - 2 * lens.alpha.val
     n = x' * x
     u = lens.beta.val * n
-    v = 1 - u * (lens.alpha.val ^ 2)
+    v = 1 / (1 - u * (lens.alpha.val ^ 2))
     w = sqrt(t * u + 1)
-    z = (1 + lens.alpha.val * (w - 1)) / v
-    z_ = (lens.alpha.val * lens.beta.val) * ((t * v / w) + (2 * lens.alpha.val) * (lens.alpha.val * (w - 1) + 1)) / v
-    return x * z, W * (I / z - (x * x') * (z_ / (z * (z + n * z_))))
+    z = (1 + lens.alpha.val * (w - 1)) * v
+    zi = 1 / z
+    dzdn = zi * 2 * lens.alpha.val * lens.beta.val * v * (z * lens.alpha.val + t / (2 * w))
+    return x * z, (W - (W * (x * x')) * (dzdn / (1 + n * dzdn))) * zi
 end
 
 struct ExtendedUnifiedCamera{T<:Number}
@@ -145,13 +146,13 @@ end
 function barrel2eulens(k1, k2, halfimsz)
     # Create an optimization problem to convert the lens distortion
     problem = NLLSsolver.NLLSProblem{EULensDistortion}()
-    NLLSsolver.addvariable!(problem, EULensDistortion(0.01, 1000.))
+    NLLSsolver.addvariable!(problem, EULensDistortion(0.001, 1.))
     for x in range(0, halfimsz, 100)
         x2 = x ^ 2
         NLLSsolver.addresidual!(problem, LensDistortResidual(x, x * (1 + x2 * (k1 + x2 * k2))))
     end
     # Optimize
-    NLLSsolver.optimize!(problem, NLLSsolver.NLLSOptions(dcost=1.e-6, iterator=NLLSsolver.dogleg, storetrajectory=true))
+    NLLSsolver.optimize!(problem, NLLSsolver.NLLSOptions(dcost=1.e-6, iterator=NLLSsolver.levenbergmarquardt))
     # Return the lens
     return problem.variables[1]
 end

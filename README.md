@@ -16,6 +16,7 @@ Features not currently supported:
 Each NLLS problem is defined using two types of data structure:
 - **Variable blocks**, which contain the parameters to be optimized.
 - **Residual blocks**, which contain the data that defines the NLLS function to be minimized w.r.t. the variables.
+
 Each instance of these two types must implement a standard API, as follows.
 
 #### Variable blocks
