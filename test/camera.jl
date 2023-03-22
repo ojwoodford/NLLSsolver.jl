@@ -1,19 +1,15 @@
-using NLLSsolver, StaticArrays, Test
+using NLLSsolver, StaticArrays, ForwardDiff, Test
 
-function testcamera(cam)
-    x = @SVector randn(2)
-    err = (@SVector randn(2)) * 1.e-6
-    xe = x + err
-    W = @SMatrix randn(2, 2)
-
+function testcamera(cam, x)
     # Test image to ideal transformations
-    y, Wy = image2ideal(cam, x, W)
-    @test image2ideal(cam, x) == y
-    @test isapprox(ideal2image(cam, y), x)
+    y = ideal2image(cam, x)
+    x_ = image2ideal(cam, y)
+    @test isapprox(x, x_)
 
     # Test warping of the weight matrix
-    ye = image2ideal(cam, xe)
-    @test isapprox(Wy * (ye - y), W * err; rtol=1.e-3)
+    x__, W = image2ideal(cam, y, @SMatrix [1. 0.; 0. 1.])
+    @test x__ == x_
+    @test isapprox(W, ForwardDiff.jacobian(x -> ideal2image(cam, x), x))
 
     # Test the update of all zeros returns the same camera
     @test cam == update(cam, zeros(nvars(cam)))
@@ -21,26 +17,23 @@ end
 
 @testset "camera.jl" begin
     halfimsz = SA[640, 480]
-    x = @SVector randn(2)
-    x = x .* (0.3 * halfimsz)
-    err = (@SVector randn(2)) * 1.e-6
-    xe = x + err
-    W = @SMatrix randn(2, 2)
+    x = SVector(7.0/11., 2.0/3.)
+    xi = x .* (0.3 * halfimsz)
 
     # Test pixel to image transformations
-    y, Wy = pixel2image(halfimsz, x, W)
-    @test pixel2image(halfimsz, x) == y
-    @test isapprox(image2pixel(halfimsz, y), x)
+    y = pixel2image(halfimsz, xi)
+    @test isapprox(image2pixel(halfimsz, y), xi)
 
     # Test warping of the weight matrix
-    ye = pixel2image(halfimsz, xe)
-    @test isapprox(Wy * (ye - y), W * err; rtol=1.e-5)
+    y_, W = pixel2image(halfimsz, xi, @SMatrix [1. 0.; 0. 1.])
+    @test y_ == y
+    @test isapprox(W, ForwardDiff.jacobian(x -> image2pixel(halfimsz, x), y))
 
     # Test cameras
-    testcamera(SimpleCamera(abs(randn())))
-    f = abs.(@SVector randn(2))
-    c = (@SVector randn(2)) * 0.05
-    testcamera(NoDistortionCamera(f, c))
-    testcamera(ExtendedUnifiedCamera(f, c, 0.8, 0.001))
-    testcamera(ExtendedUnifiedCamera(f, c, 0.3, 0.01))
+    f = SVector(11.0/13., 17.0/13.)
+    c = SVector(3.0/5., 5.0/7.) * 0.05
+    testcamera(SimpleCamera(f[1]), x)
+    testcamera(NoDistortionCamera(f, c), x)
+    testcamera(ExtendedUnifiedCamera(f, c, 0.1, 0.1), x)
+    testcamera(ExtendedUnifiedCamera(f, c, 0.5, 0.2), x)
 end
