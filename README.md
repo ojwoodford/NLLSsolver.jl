@@ -1,6 +1,7 @@
 # NLLSsolver
 
 [![Build Status](https://github.com/ojwoodford/NLLSsolver.jl/actions/workflows/CI.yml/badge.svg?branch=main)](https://github.com/ojwoodford/NLLSsolver.jl/actions/workflows/CI.yml?query=branch%3Amain)
+[![codecov.io](https://codecov.io/github/ojwoodford/NLLSsolver.jl/branch/master/graph/badge.svg)](http://codecov.io/github/ojwoodford/NLLSsolver.jl/branch/master)
 
 A package for optimizing robustified Non-Linear Least Squares (NLLS) problems, with the following features:
 - **Simple interface**: Large scale problems can be defined with relatively little code. Derivatives are computed automatically (though can be user-provided if desired).
