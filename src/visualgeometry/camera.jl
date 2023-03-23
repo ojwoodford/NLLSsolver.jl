@@ -152,7 +152,7 @@ function barrel2eulens(k1, k2, halfimsz)
         NLLSsolver.addresidual!(problem, LensDistortResidual(x, x * (1 + x2 * (k1 + x2 * k2))))
     end
     # Optimize
-    NLLSsolver.optimize!(problem, NLLSsolver.NLLSOptions(dcost=1.e-15, dstep=0., iterator=NLLSsolver.dogleg))
+    NLLSsolver.optimize!(problem, NLLSsolver.NLLSOptions(iterator=NLLSsolver.dogleg))
     # Return the lens
     return problem.variables[1]
 end

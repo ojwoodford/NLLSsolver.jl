@@ -36,4 +36,17 @@ end
     testcamera(NoDistortionCamera(f, c), x)
     testcamera(ExtendedUnifiedCamera(f, c, 0.1, 0.1), x)
     testcamera(ExtendedUnifiedCamera(f, c, 0.5, 0.2), x)
+
+    # Test fitting Extended Unified lens distortion model from barrel distortion model
+    k1 = -1.e-5
+    k2 = -1.e-7
+    halfimsz = 1.
+    lens = barrel2eulens(k1, k2, halfimsz)
+    display(lens)
+    maxerror = 0.
+    for x in range(0, halfimsz, 100)
+        x2 = x ^ 2
+        maxerror = max(maxerror, abs(ideal2distorted(lens, x) - x * (1 + x2 * (k1 + x2 * k2))))
+    end
+    @test maxerror < 1.e-6
 end
