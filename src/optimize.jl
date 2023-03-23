@@ -58,7 +58,7 @@ function optimize!(problem::NLLSProblem{VarTypes}, options::NLLSOptions, data::N
                 push!(trajectory, copy(data.step))
             end
             # Check for convergence
-            if options.callback(problem, data, cost) || !(dcost >= data.bestcost * options.dcost) || (maximum(abs, data.step) < options.dstep) || (fails > options.maxfails) || data.iternum >= options.maxiters
+            if options.callback(problem, data, cost) || !(dcost >= data.bestcost * options.reldcost) || !(dcost >= options.absdcost) || (maximum(abs, data.step) < options.dstep) || (fails > options.maxfails) || data.iternum >= options.maxiters
                 break
             end
             # Update the variables
