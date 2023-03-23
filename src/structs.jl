@@ -1,4 +1,4 @@
-using SparseArrays, LinearSolve, Dates
+using SparseArrays, Dates
 import Printf.@printf
 export NLLSOptions, NLLSResult, NLLSIterator
 

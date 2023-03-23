@@ -1,4 +1,4 @@
-using LinearSolve, StaticArrays, HybridArrays
+using StaticArrays, HybridArrays
 export marginalize!, initcrop!, constructcrop
 
 function marginalize!(to::MultiVariateLS, from::MultiVariateLS, block::Integer, ::Val{blocksz}) where blocksz

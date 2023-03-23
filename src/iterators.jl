@@ -1,4 +1,4 @@
-using LDLFactorizations
+using LDLFactorizations, LinearSolve
 export iterate!, NewtonData, DoglegData, LevMarData
 
 function symmetricsolve(A::SparseMatrixCSC, b::AbstractVector, options)
