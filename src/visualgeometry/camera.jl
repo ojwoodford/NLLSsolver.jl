@@ -1,5 +1,5 @@
-export SimpleCamera, NoDistortionCamera, ExtendedUnifiedCamera, BarrelDistortion
-export ideal2image, image2ideal, pixel2image, image2pixel, update, nvars, nres, varindices, getvars, computeresidual, barrel2eulens
+export SimpleCamera, NoDistortionCamera, ExtendedUnifiedCamera, BarrelDistortion, EULensDistortion
+export ideal2image, image2ideal, pixel2image, image2pixel, ideal2distorted, distorted2ideal, update, nvars, nres, varindices, getvars, computeresidual, convertlens
 using StaticArrays, LinearAlgebra
 
 
@@ -135,7 +135,7 @@ struct LensDistortResidual{T} <: AbstractResidual
 end
 nvars(@objtype(LensDistortResidual)) = 1 # The residual depends on one variable
 nres(@objtype(LensDistortResidual)) = 1 # The residual vector has length one
-varindices(::LensDistortResidual) = [1]
+varindices(::LensDistortResidual) = SVector(1)
 function computeresidual(residual::LensDistortResidual, lens::EULensDistortion)
     return SVector(residual.rdistort - ideal2distorted(lens, residual.rlinear))
 end
@@ -143,16 +143,15 @@ function getvars(::LensDistortResidual{T}, vars::Vector) where T
     return (vars[1]::EULensDistortion{T},)
 end
 
-function barrel2eulens(k1, k2, halfimsz)
+function convertlens(tolens, fromlens, halfimsz)
     # Create an optimization problem to convert the lens distortion
-    problem = NLLSsolver.NLLSProblem{EULensDistortion}()
-    NLLSsolver.addvariable!(problem, EULensDistortion(0.001, 1.))
-    for x in range(0, halfimsz, 100)
-        x2 = x ^ 2
-        NLLSsolver.addresidual!(problem, LensDistortResidual(x, x * (1 + x2 * (k1 + x2 * k2))))
+    problem = NLLSsolver.NLLSProblem{typeof(tolens)}()
+    NLLSsolver.addvariable!(problem, tolens)
+    for x in LinRange(0., convert(Float64, halfimsz), 100)
+        NLLSsolver.addresidual!(problem, LensDistortResidual(x, ideal2distorted(fromlens, x)))
     end
     # Optimize
-    NLLSsolver.optimize!(problem, NLLSsolver.NLLSOptions(dcost=1.e-6, iterator=NLLSsolver.levenbergmarquardt))
+    NLLSsolver.optimize!(problem, NLLSsolver.NLLSOptions(iterator=NLLSsolver.dogleg))
     # Return the lens
     return problem.variables[1]
 end

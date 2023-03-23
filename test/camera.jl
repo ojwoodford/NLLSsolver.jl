@@ -36,4 +36,14 @@ end
     testcamera(NoDistortionCamera(f, c), x)
     testcamera(ExtendedUnifiedCamera(f, c, 0.1, 0.1), x)
     testcamera(ExtendedUnifiedCamera(f, c, 0.5, 0.2), x)
+
+    # Test lens distortion model conversion
+    halfimsz = 1.
+    fromlens = BarrelDistortion(-1.e-5, -1.e-7)
+    tolens = convertlens(EULensDistortion(0.1, 0.1), fromlens, halfimsz)
+    maxerror = 0.
+    for x in LinRange(0., halfimsz, 100)
+        maxerror = max(maxerror, abs(ideal2distorted(tolens, x) - ideal2distorted(fromlens, x)))
+    end
+    @test maxerror < 1.e-6
 end

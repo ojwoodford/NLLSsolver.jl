@@ -17,7 +17,8 @@ function Base.String(iterator::NLLSIterator)
 end
 
 struct NLLSOptions
-    dcost::Float64              # Minimum relative reduction in cost required to avoid termination
+    reldcost::Float64           # Minimum relative reduction in cost required to avoid termination
+    absdcost::Float64           # Minimum relative reduction in cost required to avoid termination
     dstep::Float64              # Minimum L-infinity norm of the update vector required to avoid termination
     maxfails::Int               # Maximum number of consecutive iterations that have a higher cost than the current best before termination
     maxiters::Int               # Maximum number of outer iterations
@@ -26,8 +27,8 @@ struct NLLSOptions
     storecosts::Bool            # Indicates whether the cost per outer iteration should be stored
     storetrajectory::Bool       # Indicates whether the step per outer iteration should be stored
 end
-function NLLSOptions(; maxiters=100, dcost=1.e-6, dstep=1.e-6, maxfails=3, iterator=gaussnewton, callback=(args...)->false, storecosts=false, storetrajectory=false)
-    NLLSOptions(dcost, dstep, maxfails, maxiters, iterator, callback, storecosts, storetrajectory)
+function NLLSOptions(; maxiters=100, reldcost=1.e-6, absdcost=1.e-15, dstep=1.e-6, maxfails=3, iterator=levenbergmarquardt, callback=(args...)->false, storecosts=false, storetrajectory=false)
+    NLLSOptions(reldcost, absdcost, dstep, maxfails, maxiters, iterator, callback, storecosts, storetrajectory)
 end
 
 struct NLLSResult
@@ -100,7 +101,7 @@ mutable struct NLLSInternal{VarTypes}
             end
             varlen = UInt(nvars(problem.variables[unfixed]))
             linsystem = UniVariateLS(unfixed, varlen, computehessian ? varlen : UInt(lengthresiduals(problem.residuals)))
-            return new(copy(problem.variables), copy(problem.variables), linsystem, Vector{Float64}(undef, varlen), 0., 0., 0., 0., 0, 0, 0, starttimens)
+            return new(copy(problem.variables), copy(problem.variables), linsystem, Vector{Float64}(undef, varlen), 0., 0., 0., 0., 0, 0, 0, 0, starttimens)
         end
 
         # Multiple variables. Use a block sparse matrix
