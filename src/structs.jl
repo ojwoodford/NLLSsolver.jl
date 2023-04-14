@@ -87,7 +87,6 @@ mutable struct NLLSInternal{VarTypes}
         if typeof(problem.unfixed) == UInt
             # Single variable block
             nblocks = UInt(1)
-            blockindices[problem.unfixed] = 1
             unfixed = UInt(problem.unfixed)
         else
             nblocks = UInt(sum(problem.unfixed))
