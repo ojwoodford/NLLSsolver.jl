@@ -39,7 +39,23 @@ function robustify(kernel::HuberKernel{T}, cost) where T
         return cost * kernel.height, kernel.height, T(0)
     end
     sqrtcost = sqrt(cost)
-    return (sqrtcost * (kernel.width * 2) - kernel.width_squared) * kernel.height, kernel.width * kernel.height / sqrtcost, T(0) #(-0.5 * kernel.width * kernel.height) / (cost * sqrtcost)
+    return (sqrtcost * (kernel.width * 2) - kernel.width_squared) * kernel.height, kernel.width * kernel.height / sqrtcost, T(0)
+end
+
+struct Huber2oKernel{T<:Real} <: Robustifier
+    width::T
+    width_squared::T
+    height::T
+end
+
+Huber2oKernel(w, h) = Huber2oKernel(w, w*w, h)
+
+function robustify(kernel::Huber2oKernel{T}, cost) where T
+    if cost < kernel.width_squared
+        return cost * kernel.height, kernel.height, T(0)
+    end
+    sqrtcost = sqrt(cost)
+    return (sqrtcost * (kernel.width * 2) - kernel.width_squared) * kernel.height, kernel.width * kernel.height / sqrtcost, (-0.5 * kernel.width * kernel.height) / (cost * sqrtcost)
 end
 
 
