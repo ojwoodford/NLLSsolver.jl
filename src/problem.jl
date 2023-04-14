@@ -1,27 +1,29 @@
 export NLLSProblem, addresidual!, addvariable!, fixvars!, unfixvars!, numresiduals, lengthresiduals
 
+ResidualStruct = Dict{DataType, Vector}
+
 struct NLLSProblem{VarTypes}
     # User provided
-    residuals::Dict{DataType, Vector}
+    residuals::ResidualStruct
     variables::Vector{VarTypes}
     unfixed::Union{UInt, BitVector} # Bit vector to store which variables are not fixed (same length as variables), or a single variable index
 
     # Constructor
     function NLLSProblem{VarTypes}(vars=Vector{VarTypes}(), unfixed=BitVector()) where VarTypes
         @assert (typeof(unfixed) == UInt ? (0 < unfixed <= length(vars)) : length(unfixed) == length(vars))
-        return new(IdDict{DataType, Any}(), vars, unfixed)
+        return new(ResidualStruct(), vars, unfixed)
     end
 end
 
-function selectresiduals!(outres::IdDict, inres::Vector{T}, unfixed::Integer) where T
-    vec = inres[map(r -> any(varindices(r) .== unfixed), inres)]
+function selectresiduals!(outres::ResidualStruct, inres::Vector{T}, unfixed::Integer) where T
+    vec = inres[map(r -> any(i -> i == unfixed, varindices(r)), inres)]
     if !isempty(vec)
         outres[T] = vec
     end
 end
 
-function selectresiduals!(outres::IdDict, inres::Vector{T}, unfixed::BitVector) where T
-    vec = inres[map(r -> any(unfixed[varindices(r)]), inres)]
+function selectresiduals!(outres::ResidualStruct, inres::Vector{T}, unfixed::BitVector) where T
+    vec = inres[map(r -> any(i -> unfixed[i], varindices(r)), inres)]
     if !isempty(vec)
         outres[T] = vec
     end
@@ -70,7 +72,7 @@ function addvariable!(problem::NLLSProblem, variable)
     return length(problem.variables)
 end
 
-function numresiduals(residuals::Dict{DataType, Vector})
+function numresiduals(residuals::ResidualStruct)
     num = 0
     @inbounds for vec in values(residuals)
         num += length(vec)
@@ -78,7 +80,7 @@ function numresiduals(residuals::Dict{DataType, Vector})
     return num
 end
 
-function lengthresiduals(residuals::Dict{DataType, Vector})
+function lengthresiduals(residuals::ResidualStruct)
     len = 0
     @inbounds for (key, vec) in residuals
         len += length(vec) * nres(key)
