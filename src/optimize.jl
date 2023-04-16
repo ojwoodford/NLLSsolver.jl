@@ -77,20 +77,6 @@ function optimize!(problem::NLLSProblem{VarTypes}, options::NLLSOptions, data::N
     return NLLSResult(startcost, data.bestcost, t, timeinit, data.timecost, data.timegradient, data.timesolver, data.iternum, data.costcomputations, data.gradientcomputations, data.linearsolvers, costs, trajectory)
 end
 
-function update!(to::Vector, from::Vector, linsystem::MultiVariateLS, step)
-    # Update each variable
-    @inbounds for (i, j) in enumerate(linsystem.blockindices)
-        if j != 0
-            to[i] = update(from[i], step, linsystem.soloffsets[j])
-        end
-    end
-end
-
-function update!(to::Vector, from::Vector, linsystem::UniVariateLS, step)
-    # Update one variable
-    to[linsystem.varindex] = update(from[linsystem.varindex], step)
-end
-
 function copy!(to::Vector, from::Vector, unfixed::UInt)
     to[unfixed] = from[unfixed]
 end

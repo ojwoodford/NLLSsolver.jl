@@ -13,6 +13,19 @@ function linearsolve(A::AbstractMatrix, b::AbstractVector, options)
     return solve(LinearProblem(A, b)).u
 end
 
+function update!(to::Vector, from::Vector, linsystem::MultiVariateLS, step)
+    # Update each variable
+    @inbounds for (i, j) in enumerate(linsystem.blockindices)
+        if j != 0
+            to[i] = update(from[i], step, linsystem.soloffsets[j])
+        end
+    end
+end
+
+function update!(to::Vector, from::Vector, linsystem::UniVariateLS, step)
+    # Update one variable
+    to[linsystem.varindex] = update(from[linsystem.varindex], step)
+end
 
 # Iterators assume that the linear problem has been constructed
 
