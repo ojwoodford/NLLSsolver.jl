@@ -1,11 +1,15 @@
 export optimize!
 
 function optimize!(problem::NLLSProblem{VarTypes}, options::NLLSOptions=NLLSOptions())::NLLSResult where VarTypes
-    # Pre-allocate the temporary data
     t = Base.time_ns()
+    # Pre-allocate the temporary data
     computehessian = in(options.iterator, [gaussnewton, levenbergmarquardt, dogleg])
-    data = NLLSInternal{VarTypes}(problem, computehessian)
     costgradient! = computehessian ? costgradhess! : costresjac!
+    data = NLLSInternal{VarTypes}(problem, computehessian)
+    # Copy the variables
+    if length(problem.variables) != length(problem.varnext)
+        problem.varnext = copy(problem.variables)
+    end
     # Call the optimizer with the required iterator struct
     if options.iterator == gaussnewton
         # Gauss-Newton or Newton
@@ -36,23 +40,33 @@ function optimize!(problem::NLLSProblem{VarTypes}, options::NLLSOptions, data::N
         trajectory = Vector{Vector{Float64}}()
         # Do the iterations
         fails = 0
+        cost = data.bestcost
         while true
             data.iternum += 1
             # Call the per iteration solver
-            cost = iterate!(iteratedata, data, problem, options)
+            cost = iterate!(iteratedata, data, problem, options)::Float64
             if options.storecosts
                 push!(costs, cost)
             end
-            # Store the best result
+            # Check for cost increase (only some iterators will do this)
             dcost = data.bestcost - cost
-            if dcost > 0
+            if dcost >= 0
                 data.bestcost = cost
-                copy!(data.bestvariables, data.variables, problem.unfixed)
                 fails = 0
             else
                 dcost = cost
                 fails += 1
+                if fails == 1
+                    # Store the current best variables
+                    if length(problem.variables) == length(problem.varbest)
+                        problem.varbest, problem.variables = problem.variables, problem.varbest
+                    else
+                        problem.varbest = copy(problem.variables)
+                    end
+                end
             end
+            # Update the variables
+            problem.varnext, problem.variables = problem.variables, problem.varnext
             if options.storetrajectory
                 # Store the variable trajectory (as update vectors)
                 push!(trajectory, copy(data.step))
@@ -61,8 +75,6 @@ function optimize!(problem::NLLSProblem{VarTypes}, options::NLLSOptions, data::N
             if options.callback(problem, data, cost) || !(dcost >= data.bestcost * options.reldcost) || !(dcost >= options.absdcost) || (maximum(abs, data.step) < options.dstep) || (fails > options.maxfails) || data.iternum >= options.maxiters
                 break
             end
-            # Update the variables
-            copy!(problem.variables, data.variables, problem.unfixed)
             # Construct the linear problem
             data.timegradient += @elapsed begin
                 zero!(data.linsystem)
@@ -70,22 +82,11 @@ function optimize!(problem::NLLSProblem{VarTypes}, options::NLLSOptions, data::N
             end
             data.gradientcomputations += 1
         end
-        # Update the problem variables
-        copy!(problem.variables, data.bestvariables, problem.unfixed)
+        if data.bestcost < cost
+            # Update the problem variables to the best ones found
+            problem.varbest, problem.variables = problem.variables, problem.varbest
+        end
     end
     # Return the result
     return NLLSResult(startcost, data.bestcost, t, timeinit, data.timecost, data.timegradient, data.timesolver, data.iternum, data.costcomputations, data.gradientcomputations, data.linearsolvers, costs, trajectory)
 end
-
-function copy!(to::Vector, from::Vector, unfixed::UInt)
-    to[unfixed] = from[unfixed]
-end
-
-function copy!(to::Vector, from::Vector, unfixed::BitVector)
-    for (index, unfixed_) in enumerate(unfixed)
-        if unfixed_
-            to[index] = from[index]
-        end
-    end
-end
-

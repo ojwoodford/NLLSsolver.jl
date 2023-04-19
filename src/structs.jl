@@ -65,8 +65,6 @@ function Base.show(io::IO, x::NLLSResult)
 end
 
 mutable struct NLLSInternal{VarTypes}
-    variables::Vector{VarTypes}
-    bestvariables::Vector{VarTypes}
     linsystem::Union{UniVariateLS, MultiVariateLS}
     step::Vector{Float64}
     bestcost::Float64
@@ -100,12 +98,12 @@ mutable struct NLLSInternal{VarTypes}
             end
             varlen = UInt(nvars(problem.variables[unfixed]))
             linsystem = UniVariateLS(unfixed, varlen, computehessian ? varlen : UInt(lengthresiduals(problem.residuals)))
-            return new(copy(problem.variables), copy(problem.variables), linsystem, Vector{Float64}(undef, varlen), 0., 0., 0., 0., 0, 0, 0, 0, starttimens)
+            return new(linsystem, Vector{Float64}(undef, varlen), 0., 0., 0., 0., 0, 0, 0, 0, starttimens)
         end
 
         # Multiple variables. Use a block sparse matrix
         mvls = computehessian ? makesymmvls(problem.variables, problem.residuals, problem.unfixed, nblocks) : makemvls(problem.variables, problem.residuals, problem.unfixed, nblocks)
-        return new(copy(problem.variables), copy(problem.variables), mvls, Vector{Float64}(undef, size(mvls.A, 2)), 0., 0., 0., 0., 0, 0, 0, 0, starttimens)
+        return new(mvls, Vector{Float64}(undef, size(mvls.A, 2)), 0., 0., 0., 0., 0, 0, 0, 0, starttimens)
     end
 end
 function NLLSInternal(problem::NLLSProblem{VarTypes}, computehessian) where VarTypes

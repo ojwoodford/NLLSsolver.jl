@@ -1,17 +1,19 @@
-export NLLSProblem, addresidual!, addvariable!, fixvars!, unfixvars!, numresiduals, lengthresiduals
+export NLLSProblem, subproblem, addresidual!, addvariable!, fixvars!, unfixvars!, numresiduals, lengthresiduals
 
 ResidualStruct = Dict{DataType, Vector}
 
-struct NLLSProblem{VarTypes}
+mutable struct NLLSProblem{VarTypes}
     # User provided
     residuals::ResidualStruct
     variables::Vector{VarTypes}
+    varnext::Vector{VarTypes}
+    varbest::Vector{VarTypes}
     unfixed::Union{UInt, BitVector} # Bit vector to store which variables are not fixed (same length as variables), or a single variable index
 
     # Constructor
-    function NLLSProblem{VarTypes}(vars=Vector{VarTypes}(), unfixed=BitVector()) where VarTypes
+    function NLLSProblem{VarTypes}(vars=Vector{VarTypes}(), unfixed=BitVector(), residuals=ResidualStruct(), varnext=Vector{VarTypes}(), varbest=Vector{VarTypes}()) where VarTypes
         @assert (typeof(unfixed) == UInt ? (0 < unfixed <= length(vars)) : length(unfixed) == length(vars))
-        return new(ResidualStruct(), vars, unfixed)
+        return new(residuals, vars, varnext, varbest, unfixed)
     end
 end
 
@@ -30,14 +32,14 @@ function selectresiduals!(outres::ResidualStruct, inres::Vector{T}, unfixed::Bit
 end
 
 # Produce a subproblem containing only the relevant residuals
-function NLLSProblem(problem::NLLSProblem{T}, unfixed) where T
-    # Create the new problem (note that variables are SHARED)
-    probout = NLLSProblem{T}(problem.variables, unfixed)
+function subproblem(problem::NLLSProblem{T}, unfixed) where T
     # Copy residuals that have unfixed inputs
-    for (type, residuals) in problem.residuals
-        selectresiduals!(probout.residuals, residuals, unfixed)
+    residualstruct = ResidualStruct()
+    for residuals in values(problem.residuals)
+        selectresiduals!(residualstruct, residuals, unfixed)
     end
-    return probout
+    # Create the new problem (note that variables are SHARED)
+    return NLLSProblem{T}(problem.variables, unfixed, residualstruct, problem.varnext, problem.varbest)
 end
 
 function fixvars!(problem::NLLSProblem, indices)
