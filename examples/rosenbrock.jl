@@ -44,7 +44,7 @@ function runoptimizers!(results, problem, start, iterators)
         problem.variables[1] = NLLSsolver.EuclideanVector(start[1], start[2])
 
         # Optimize the cost
-        options = NLLSsolver.NLLSOptions(dcost=1.e-6, iterator=iter, storetrajectory=true, storecosts=true)
+        options = NLLSsolver.NLLSOptions(reldcost=1.e-6, iterator=iter, storetrajectory=true, storecosts=true)
         result = NLLSsolver.optimize!(problem, options)
 
         # Construct the trajectory
