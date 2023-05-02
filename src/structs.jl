@@ -64,9 +64,15 @@ function Base.show(io::IO, x::NLLSResult)
             otherstuff, 100*otherstuff/timetotal)
 end
 
-mutable struct NLLSInternal{VarTypes}
-    linsystem::Union{UniVariateLS, MultiVariateLS}
-    step::Vector{Float64}
+mutable struct NLLSVals
+    
+    
+    function NLLSVals()
+        return new()
+    end
+end
+
+mutable struct NLLSInternalSingleVar
     bestcost::Float64
     timecost::Float64
     timegradient::Float64
@@ -75,37 +81,27 @@ mutable struct NLLSInternal{VarTypes}
     costcomputations::Int
     gradientcomputations::Int
     linearsolvers::Int
-    starttimens::UInt64
+    step::Vector{Float64}
+    linsystem::UniVariateLS
 
-    function NLLSInternal{VarTypes}(problem::NLLSProblem, computehessian::Bool) where VarTypes
-        starttimens = Base.time_ns()
-        @assert length(problem.variables) > 0
-        # Compute the block offsets
-        unfixed = UInt(0)
-        if typeof(problem.unfixed) == UInt
-            # Single variable block
-            nblocks = UInt(1)
-            unfixed = UInt(problem.unfixed)
-        else
-            nblocks = UInt(sum(problem.unfixed))
-            @assert nblocks > 0
-        end
-        # Construct the Hessian
-        if nblocks == 1
-            # One unfixed variable
-            if unfixed == 0
-                unfixed = UInt(findfirst(problem.unfixed))
-            end
-            varlen = UInt(nvars(problem.variables[unfixed]))
-            linsystem = UniVariateLS(unfixed, varlen, computehessian ? varlen : UInt(lengthresiduals(problem.residuals)))
-            return new(linsystem, Vector{Float64}(undef, varlen), 0., 0., 0., 0., 0, 0, 0, 0, starttimens)
-        end
-
-        # Multiple variables. Use a block sparse matrix
-        mvls = computehessian ? makesymmvls(problem.variables, problem.residuals, problem.unfixed, nblocks) : makemvls(problem.variables, problem.residuals, problem.unfixed, nblocks)
-        return new(mvls, Vector{Float64}(undef, size(mvls.A, 2)), 0., 0., 0., 0., 0, 0, 0, 0, starttimens)
+    function NLLSInternalSingleVar(unfixed::UInt, varlen::Integer, n::Integer)
+        return new(0., 0., 0., 0., 0, 0, 0, 0, Vector(undef, varlen), UniVariateLS(unfixed, varlen, n))
     end
 end
-function NLLSInternal(problem::NLLSProblem{VarTypes}, computehessian) where VarTypes
-    return NLLSInternal{VarTypes}(problem, computehessian)
+
+mutable struct NLLSInternalMultiVar
+    bestcost::Float64
+    timecost::Float64
+    timegradient::Float64
+    timesolver::Float64
+    iternum::Int
+    costcomputations::Int
+    gradientcomputations::Int
+    linearsolvers::Int
+    step::Vector{Float64}
+    linsystem::MultiVariateLS
+
+    function NLLSInternalMultiVar(mvls)
+        return new(0., 0., 0., 0., 0, 0, 0, 0, Vector{Float64}(undef, size(mvls.A, 2)), mvls)
+    end
 end

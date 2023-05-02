@@ -1,35 +1,48 @@
 export optimize!
 
-function optimize!(problem::NLLSProblem{VarTypes}, options::NLLSOptions=NLLSOptions())::NLLSResult where VarTypes
+function optimize!(problem::NLLSProblem{VarTypes}, options::NLLSOptions=NLLSOptions(), unfixed=0)::NLLSResult where VarTypes
     t = Base.time_ns()
-    # Pre-allocate the temporary data
+    @assert length(problem.variables) > 0
     computehessian = in(options.iterator, [gaussnewton, levenbergmarquardt, dogleg])
     costgradient! = computehessian ? costgradhess! : costresjac!
-    data = NLLSInternal{VarTypes}(problem, computehessian)
     # Copy the variables
     if length(problem.variables) != length(problem.varnext)
         problem.varnext = copy(problem.variables)
     end
+    # Compute the number of free variables (nblocks)
+    nblocks, unfixed = getnblocks(unfixed, problem.variables)
+    # Pre-allocate the temporary data
+    if nblocks == 1
+        # One unfixed variable
+        varlen = UInt(nvars(problem.variables[unfixed]))
+        return optimizeinternal!(problem, options, NLLSInternalSingleVar(unfixed, varlen, computehessian ? varlen : UInt(lengthresiduals(problem.residuals))), costgradient!, t)
+    end
+    # Multiple variables. Use a block sparse matrix
+    mvls = computehessian ? makesymmvls(problem.variables, problem.residuals, unfixed, nblocks) : makemvls(problem.variables, problem.residuals, unfixed, nblocks)
+    return optimizeinternal!(problem, options, NLLSInternalMultiVar(mvls), costgradient!, t)
+end
+
+function optimizeinternal!(problem::NLLSProblem{VarTypes}, options::NLLSOptions, data, costgradient!, starttimens)::NLLSResult where VarTypes
     # Call the optimizer with the required iterator struct
     if options.iterator == gaussnewton
         # Gauss-Newton or Newton
         newtondata = NewtonData()
-        return optimize!(problem, options, data, newtondata, costgradient!, (Base.time_ns() - t) * 1.e-9)
+        return optimizeinternal!(problem, options, data, newtondata, costgradient!, (Base.time_ns() - starttimens) * 1.e-9)
     end
     if options.iterator == levenbergmarquardt
         # Levenberg-Marquardt
         levmardata = LevMarData()
-        return optimize!(problem, options, data, levmardata, costgradient!, (Base.time_ns() - t) * 1.e-9)
+        return optimizeinternal!(problem, options, data, levmardata, costgradient!, (Base.time_ns() - starttimens) * 1.e-9)
     end
     if options.iterator == dogleg
         # Dogleg
         doglegdata = DoglegData()
-        return optimize!(problem, options, data, doglegdata, costgradient!, (Base.time_ns() - t) * 1.e-9)
+        return optimizeinternal!(problem, options, data, doglegdata, costgradient!, (Base.time_ns() - starttimens) * 1.e-9)
     end
     error("Iterator not recognized")
 end
 
-function optimize!(problem::NLLSProblem{VarTypes}, options::NLLSOptions, data::NLLSInternal{VarTypes}, iteratedata, costgradient!, timeinit)::NLLSResult where VarTypes
+function optimizeinternal!(problem::NLLSProblem{VarTypes}, options::NLLSOptions, data, iteratedata, costgradient!, timeinit)::NLLSResult where VarTypes
     t = @elapsed begin
         # Initialize the linear problem
         data.timegradient += @elapsed data.bestcost = costgradient!(data.linsystem, problem.residuals, problem.variables)
@@ -89,4 +102,36 @@ function optimize!(problem::NLLSProblem{VarTypes}, options::NLLSOptions, data::N
     end
     # Return the result
     return NLLSResult(startcost, data.bestcost, t, timeinit, data.timecost, data.timegradient, data.timesolver, data.iternum, data.costcomputations, data.gradientcomputations, data.linearsolvers, costs, trajectory)
+end
+
+function getnblocks(unfixed, variables)
+    # Compute the number of free variables (nblocks)
+    if isa(unfixed, DataType)
+        unfixed = typeof.(variables) .== unfixed
+    end
+    unfixed_ = UInt(0)
+    if isa(unfixed, Number)
+        unfixed_ = UInt(unfixed)
+        if unfixed_ > 0
+            nblocks = UInt(1)
+        else
+            nblocks = UInt(length(variables))
+            if nblocks == 1
+                unfixed_ = UInt(1)
+            else
+                unfixed = trues(nblocks)
+            end
+        end
+    else
+        @assert length(unfixed) == length(variables)
+        nblocks = UInt(sum(unfixed))
+        @assert nblocks > 0
+    end
+    if nblocks == 1
+        if unfixed_ == 0
+            unfixed_ = UInt(findfirst(unfixed))
+        end
+        return nblocks, unfixed_
+    end
+    return nblocks, unfixed
 end

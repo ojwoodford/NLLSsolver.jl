@@ -33,7 +33,7 @@ end
 struct NewtonData
 end
 
-function iterate!(::NewtonData, data::NLLSInternal, problem::NLLSProblem, options::NLLSOptions)::Float64
+function iterate!(::NewtonData, data, problem::NLLSProblem, options::NLLSOptions)::Float64
     # Compute the step
     data.timesolver += @elapsed begin
         hessian, gradient = gethessgrad(data.linsystem)
@@ -57,7 +57,7 @@ mutable struct DoglegData
     end
 end
 
-function iterate!(doglegdata::DoglegData, data::NLLSInternal, problem::NLLSProblem, options::NLLSOptions)::Float64
+function iterate!(doglegdata::DoglegData, data, problem::NLLSProblem, options::NLLSOptions)::Float64
     hessian, gradient = gethessgrad(data.linsystem)
     data.timesolver += @elapsed begin
         # Compute the Cauchy step
@@ -136,7 +136,7 @@ mutable struct LevMarData
     end
 end
 
-function iterate!(levmardata::LevMarData, data::NLLSInternal, problem::NLLSProblem, options::NLLSOptions)::Float64
+function iterate!(levmardata::LevMarData, data, problem::NLLSProblem, options::NLLSOptions)::Float64
     @assert levmardata.lambda >= 0.
     hessian, gradient = gethessgrad(data.linsystem)
     lastlambda = 0.
@@ -179,7 +179,7 @@ mutable struct LevMarSchurData
     end
 end
 
-function iterate!(levmardata::LevMarSchurData, data::NLLSInternal, problem::NLLSProblem, options::NLLSOptions)::Float64
+function iterate!(levmardata::LevMarSchurData, data, problem::NLLSProblem, options::NLLSOptions)::Float64
     lastlambda = 0.
     mu = 2.
     while true
@@ -225,7 +225,7 @@ mutable struct VarProData
     end
 end
 
-function iterate!(varprodata::VarProData, data::NLLSInternal, problem::NLLSProblem, options::NLLSOptions)::Float64
+function iterate!(varprodata::VarProData, data, problem::NLLSProblem, options::NLLSOptions)::Float64
     @assert varprodata.lambda >= 0.
     # Compute the reduced system
     hessian, gradient = gethessgrad(data.linsystem)
