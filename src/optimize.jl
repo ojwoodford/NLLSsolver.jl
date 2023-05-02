@@ -72,14 +72,14 @@ function optimizeinternal!(problem::NLLSProblem{VarTypes}, options::NLLSOptions,
                 if fails == 1
                     # Store the current best variables
                     if length(problem.variables) == length(problem.varbest)
-                        problem.varbest, problem.variables = problem.variables, problem.varbest
+                        updatetobest!(problem, data)
                     else
                         problem.varbest = copy(problem.variables)
                     end
                 end
             end
             # Update the variables
-            problem.varnext, problem.variables = problem.variables, problem.varnext
+            updatefromnext!(problem, data)
             if options.storetrajectory
                 # Store the variable trajectory (as update vectors)
                 push!(trajectory, copy(data.step))
@@ -97,11 +97,32 @@ function optimizeinternal!(problem::NLLSProblem{VarTypes}, options::NLLSOptions,
         end
         if data.bestcost < cost
             # Update the problem variables to the best ones found
-            problem.varbest, problem.variables = problem.variables, problem.varbest
+            updatefrombest!(problem, data)
         end
     end
     # Return the result
     return NLLSResult(startcost, data.bestcost, t, timeinit, data.timecost, data.timegradient, data.timesolver, data.iternum, data.costcomputations, data.gradientcomputations, data.linearsolvers, costs, trajectory)
+end
+
+function updatefromnext!(problem::NLLSProblem, ::NLLSInternalMultiVar)
+    problem.variables, problem.varnext = problem.varnext, problem.variables
+end
+
+function updatefrombest!(problem::NLLSProblem, ::NLLSInternalMultiVar)
+    problem.variables, problem.varbest = problem.varbest, problem.variables
+end
+updatetobest!(problem::NLLSProblem, data::NLLSInternalMultiVar) = updatefrombest!(problem::NLLSProblem, data::NLLSInternalMultiVar)
+
+function updatefromnext!(problem::NLLSProblem, data::NLLSInternalSingleVar)
+    problem.variables[data.linsystem.varindex] = problem.varnext[data.linsystem.varindex]
+end
+
+function updatefrombest!(problem::NLLSProblem, data::NLLSInternalSingleVar)
+    problem.variables[data.linsystem.varindex] = problem.varbest[data.linsystem.varindex]
+end
+
+function updatetobest!(problem::NLLSProblem, data::NLLSInternalSingleVar)
+    problem.varbest[data.linsystem.varindex] = problem.variables[data.linsystem.varindex]
 end
 
 function getnblocks(unfixed, variables)
