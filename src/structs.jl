@@ -1,6 +1,7 @@
 using SparseArrays, Dates
 import Printf.@printf
 export NLLSOptions, NLLSResult, NLLSIterator
+export updatevarresmap!
 
 @enum NLLSIterator gaussnewton levenbergmarquardt dogleg
 function Base.String(iterator::NLLSIterator) 
@@ -100,8 +101,38 @@ mutable struct NLLSInternalMultiVar
     linearsolvers::Int
     step::Vector{Float64}
     linsystem::MultiVariateLS
+    varresmap::SparseMatrixCSC{Bool, Int}
 
     function NLLSInternalMultiVar(mvls)
-        return new(0., 0., 0., 0., 0, 0, 0, 0, Vector{Float64}(undef, size(mvls.A, 2)), mvls)
+        return new(0., 0., 0., 0., 0, 0, 0, 0, Vector{Float64}(undef, size(mvls.A, 2)), mvls, spzeros(Bool, 0, 0))
     end
 end
+
+function updatevarresmap!(varresmap::SparseMatrixCSC{Bool, Int}, residuals::Vector{T}) where T
+    nvars_ = nvars(T)
+    numres = length(residuals)
+    colind = length(varresmap.colptr)
+    rowind = length(varresmap.rowval)
+    resize!(varresmap.colptr, colind+numres)
+    resize!(varresmap.rowval, rowind+numres*nvars_)
+    rowind += 1
+    srange = SR(0, nvars_-1)
+    @inbounds for res in residuals
+        varresmap.rowval[srange.+rowind] = varindices(res)
+        rowind += nvars_
+        colind += 1
+        varresmap.colptr[colind] = rowind
+    end
+end
+
+function updatevarresmap!(varresmap::SparseMatrixCSC{Bool, Int}, problem::NLLSProblem)
+    resize!(varresmap.colptr, 1)
+    varresmap.colptr[1] = 1
+    resize!(varresmap.rowval, 0)
+    @inbounds for res in values(problem.residuals)
+        updatevarresmap!(varresmap, res)
+    end
+    resize!(varresmap.nzval, length(varresmap.rowval))
+    return nothing
+end
+

@@ -15,17 +15,17 @@ mutable struct NLLSProblem{VarTypes}
     end
 end
 
-function selectresiduals!(outres::ResidualStruct, inres::Vector{T}, unfixed::Integer) where T
-    vec = inres[map(r -> any(i -> i == unfixed, varindices(r)), inres)]
-    if !isempty(vec)
-        outres[T] = vec
-    end
+function selectresiduals!(outres::ResidualStruct, inres::Vector, unfixed::Integer)
+    selectresiduals!(outres, inres, [i for (i, r) in enumerate(inres) if in(unfixed, varindices(r))])
 end
 
-function selectresiduals!(outres::ResidualStruct, inres::Vector{T}, unfixed::BitVector) where T
-    vec = inres[map(r -> any(i -> unfixed[i], varindices(r)), inres)]
+function selectresiduals!(outres::ResidualStruct, inres::Vector, unfixed::BitVector)
+    selectresiduals!(outres, inres, [i for (i, r) in enumerate(inres) if any(j -> unfixed[j], varindices(r))])
+end
+
+function selectresiduals!(outres::ResidualStruct, inres::Vector{T}, vec::Vector) where T
     if !isempty(vec)
-        outres[T] = vec
+        outres[T] = inres[vec]
     end
 end
 
@@ -35,6 +35,26 @@ function subproblem(problem::NLLSProblem{T}, unfixed) where T
     residualstruct = ResidualStruct()
     for residuals in values(problem.residuals)
         selectresiduals!(residualstruct, residuals, unfixed)
+    end
+    # Create the new problem (note that variables are SHARED)
+    return NLLSProblem{T}(problem.variables, residualstruct, problem.varnext, problem.varbest)
+end
+
+function subproblem(problem::NLLSProblem{T}, resind::Vector) where T
+    # Copy residuals that have unfixed inputs
+    residualstruct = ResidualStruct()
+    firstres = 0
+    firstind = 0
+    len = length(resind)
+    for residuals in values(problem.residuals)
+        lastres = firstres + length(residuals)
+        lastind = firstind
+        while lastind < len && resind[lastind+1] <= lastres
+            lastind += 1
+        end
+        selectresiduals!(residualstruct, residuals, resind[firstind+1:lastind].-firstind)
+        firstres = lastres
+        firstind = lastind
     end
     # Create the new problem (note that variables are SHARED)
     return NLLSProblem{T}(problem.variables, residualstruct, problem.varnext, problem.varbest)
