@@ -13,13 +13,14 @@ function cost(residuals, vars::Vector)::Float64
     return c
 end
 
-function cost_(residuals::Vector, vars::Vector)::Float64
+function cost(residuals::Vector, vars::Vector)::Float64
     # Compute the total cost of all residuals in a container
     c = 0.
     @floop for res in residuals
         c_ = cost(res, vars)
         @reduce c += c_
     end
+    return c
 end
 
 function cost(residual::Residual, vars::Vector)::Float64 where Residual <: AbstractResidual
