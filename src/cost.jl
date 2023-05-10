@@ -35,7 +35,7 @@ function cost(residual::Residual, vars::Vector)::Float64 where Residual <: Abstr
 end
 
 # Count the numbers of variables in the inputs
-@inline function countvars(vars::Tuple, ::Val{varflags}) where varflags
+@inline function countvars(vars, varflags)
     if isempty(vars)
         return 0
     end
@@ -44,7 +44,7 @@ end
 
 # Generate the updated variables
 @inline function updatevars(vars, varflags, advar)
-    return ntuple(i -> ((varflags >> (i - 1)) & 1) != 0 ? update(vars[i], advar, countvars(vars[1:i-1], Val(varflags))+1) : vars[i], length(vars))
+    return ntuple(i -> ((varflags >> (i - 1)) & 1) != 0 ? update(vars[i], advar, countvars(vars[1:i-1], varflags)+1) : vars[i], length(vars))
 end
 
 # Automatic Jacobian computation
@@ -55,7 +55,7 @@ function computeresjac(::Val{varflags}, residual::Residual, vars...) where {varf
     # Compute the Jacobian
     nres = length(res)
     type = eltype(res)
-    nvars = countvars(vars, Val(varflags))
+    nvars = countvars(vars, varflags)
     Z = zeros(SVector{nvars, type})
     jac = ForwardDiff.jacobian(z -> computeresidual(residual, updatevars(vars, varflags, z)...), Z)::SMatrix{nres, nvars, type, nres*nvars}
 

@@ -153,7 +153,7 @@ end
 end
 
 @inline function localoffsets(vars, varflags)
-    return ntuple(i -> SR(1, nvars(vars[i]) * ((varflags >> (i - 1)) & 1)) .+ countvars(vars[1:i-1], Val(varflags)), length(vars))
+    return ntuple(i -> SR(1, nvars(vars[i]) * ((varflags >> (i - 1)) & 1)) .+ countvars(vars[1:i-1], varflags), length(vars))
 end
 
 function updateb!(B, b, vars, ::Val{varflags}, goffsets, loffsets) where varflags
