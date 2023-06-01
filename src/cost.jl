@@ -108,7 +108,7 @@ end
 function costgradhess!(linsystem, residual::Residual, vars::Vector) where Residual <: AbstractResidual
     # Get the bitset for the input variables, as an integer
     blockind = getoffsets(residual, linsystem)
-    varflags = foldl((x, y) -> (x << 1) + (y != 0), reverse(blockind), init=UInt(0))
+    varflags = Int(foldl((x, y) -> (x << 1) + (y != 0), reverse(blockind), init=UInt(0)))
 
     # If there are no variables, just return the cost
     if varflags == 0
@@ -159,14 +159,14 @@ end
 function costresjac!(linsystem, residual::Residual, vars::Vector, ind) where Residual <: AbstractResidual
     # Get the bitset for the input variables, as an integer
     blockind = getoffsets(residual, linsystem)
-    varflags = foldl((x, y) -> (x << 1) + (y != 0), reverse(blockind), init=UInt(0))
+    varflags = Int(foldl((x, y) -> (x << 1) + (y != 0), reverse(blockind), init=UInt(0)))
 
     # If there are no variables, just return the cost
     if varflags == 0
         c = cost(residual, vars)
     else
         # Dispatch gradient computation based on the varflags, and return the cost
-        # c = jachelper!(linsystem, residual, vars, blockind, Val(varflags))
+        # c = resjachelper!(linsystem, residual, vars, blockind, ind, Val(varflags))
         c = valuedispatch(Val(1), Val((2^nvars(residual))-1), varflags, resjachelper!, (linsystem, residual, vars, blockind, ind))
     end
 
