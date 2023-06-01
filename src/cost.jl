@@ -145,8 +145,8 @@ function resjachelper!(linsystem, residual::Residual, vars::Vector, blockind, in
         if w1 != 1
             # IRLS reweighting
             w1 = sqrt(w1)
-            res .*= w1
-            jac .*= w1
+            res = res .* w1
+            jac = jac .* w1
         end
         # Update the blocks in the problem
         updatelinearsystem!(linsystem, res, jac, ind, v, Val(varflags), blockind)
