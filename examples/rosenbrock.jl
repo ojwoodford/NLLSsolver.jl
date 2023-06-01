@@ -1,4 +1,4 @@
-using StaticArrays, GLMakie
+using StaticArrays, GLMakie, LinearAlgebra
 import NLLSsolver
 
 # Define the Rosenbrock cost function
