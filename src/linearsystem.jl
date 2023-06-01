@@ -148,17 +148,17 @@ function updatesymA!(A, a, vars, ::Val{varflags}, blockindices, loffsets) where 
     end
 end
 
-@inline function blockoffsets(vars, varflags, blockoff)
-    return ntuple(i -> SR(1, nvars(vars[i]) * ((varflags >> (i - 1)) & 1)) .+ (blockoff[i] - 1), length(vars))
+@inline function blockoffsets(vars, varflags, boffsets, blockindices)
+    return ntuple(i -> SR(1, nvars(vars[i]) * ((varflags >> (i - 1)) & 1)) .+ (boffsets[blockindices[i]] - 1), length(vars))
 end
 
 @inline function localoffsets(vars, varflags)
     return ntuple(i -> SR(1, nvars(vars[i]) * ((varflags >> (i - 1)) & 1)) .+ countvars(vars[1:i-1], varflags), length(vars))
 end
 
-function updateb!(B, b, vars, ::Val{varflags}, goffsets, loffsets) where varflags
+function updateb!(B, b, vars, ::Val{varflags}, boffsets, blockindices, loffsets) where varflags
     # Update the blocks in the problem
-    goffsets = blockoffsets(vars, varflags, goffsets)
+    goffsets = blockoffsets(vars, varflags, boffsets, blockindices)
     @unroll for i in 1:10
         if ((varflags >> (i - 1)) & 1) == 1
             @inbounds view(B, goffsets[i]) .+= view(b, loffsets[i])
@@ -168,7 +168,7 @@ end
 
 function updatesymlinearsystem!(linsystem::MultiVariateLS, g, H, vars, ::Val{varflags}, blockindices) where varflags
     loffsets = localoffsets(vars, varflags)
-    updateb!(linsystem.b, g, vars, Val(varflags), linsystem.boffsets[blockindices], loffsets)
+    updateb!(linsystem.b, g, vars, Val(varflags), linsystem.boffsets, blockindices, loffsets)
     updatesymA!(linsystem.A, H, vars, Val(varflags), blockindices, loffsets)
 end
 
