@@ -71,7 +71,7 @@ function getoffsets(residual, linsystem::UniVariateLS)
     return convert.(UInt, SVector(varindices(residual)) .== linsystem.varindex)
 end
 
-function gradhesshelper!(linsystem, residual::Residual, vars::Vector, ::Val{varflags}, blockind)::Float64 where {varflags, Residual <: AbstractResidual}
+function gradhesshelper!(linsystem, residual::Residual, vars::Vector, blockind, ::Val{varflags})::Float64 where {varflags, Residual <: AbstractResidual}
     # Get the variables
     v = getvars(residual, vars)
 
@@ -116,8 +116,8 @@ function costgradhess!(linsystem, residual::Residual, vars::Vector) where Residu
     end
 
     # Dispatch gradient computation based on the varflags, and return the cost
-    # return gradhesshelper!(linsystem, residual, vars, Val(varflags), blockind)
-    return valuedispatch(Val(1), Val((2^nvars(residual))-1), v -> gradhesshelper!(linsystem, residual, vars, v, blockind), varflags)
+    # return gradhesshelper!(linsystem, residual, vars, blockind, Val(varflags))
+    return valuedispatch(Val(1), Val((2^nvars(residual))-1), varflags, gradhesshelper!, (linsystem, residual, vars, blockind))
 end
 
 function costgradhess!(linsystem, residuals, vars::Vector)::Float64
@@ -129,7 +129,7 @@ function costgradhess!(linsystem, residuals, vars::Vector)::Float64
     return c 
 end
 
-function resjachelper!(linsystem, residual::Residual, vars::Vector, ::Val{varflags}, blockind, ind)::Float64 where {varflags, Residual <: AbstractResidual}
+function resjachelper!(linsystem, residual::Residual, vars::Vector, blockind, ind, ::Val{varflags})::Float64 where {varflags, Residual <: AbstractResidual}
     # Get the variables
     v = getvars(residual, vars)
 
@@ -166,8 +166,8 @@ function costresjac!(linsystem, residual::Residual, vars::Vector, ind) where Res
         c = cost(residual, vars)
     else
         # Dispatch gradient computation based on the varflags, and return the cost
-        # c = jachelper!(linsystem, residual, vars, Val(varflags), blockind)
-        c = valuedispatch(Val(1), Val((2^nvars(residual))-1), v -> resjachelper!(linsystem, residual, vars, v, blockind, ind), varflags)
+        # c = jachelper!(linsystem, residual, vars, blockind, Val(varflags))
+        c = valuedispatch(Val(1), Val((2^nvars(residual))-1), varflags, resjachelper!, (linsystem, residual, vars, blockind, ind))
     end
 
     # Return the cost
