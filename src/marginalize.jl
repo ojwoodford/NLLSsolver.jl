@@ -48,6 +48,7 @@ function initcrop!(to::MultiVariateLS, from::MultiVariateLS, fromblock=length(to
     zero!(to)
     # Copy over all the cropped bits
     to.b .= view(from.b, 1:lastindex(to.b))
+    cacheindices(from.A)
     endind = from.A.indices.nzval[from.A.indices.colptr[fromblock]] - 1
     view(to.A.data, 1:endind) .= view(from.A.data, 1:endind)
 end
@@ -66,6 +67,7 @@ end
 function constructcrop(from::MultiVariateLS, fromblock)
     # Create a dense map of the reduced area
     toblock = fromblock - 1
+    cacheindices(from.A)
     indices = Matrix(view(from.A.indices, 1:toblock, 1:toblock))
     start = from.A.indices.nzval[from.A.indices.colptr[fromblock]]
     blocksizes = convert.(Int, from.A.rowblocksizes[1:toblock])
@@ -84,7 +86,7 @@ function constructcrop(from::MultiVariateLS, fromblock)
             start += nc * blocksizes[r]
         end
     end
-    A = BlockSparseMatrix{Float64}(start-1, indices, blocksizes, blocksizes)
+    A = BlockSparseMatrix{Float64}(start-1, indices', blocksizes, blocksizes)
     return MultiVariateLS(A, from.blockindices)
 end
 
