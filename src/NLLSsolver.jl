@@ -3,6 +3,9 @@ module NLLSsolver
 export AbstractResidual
 abstract type AbstractResidual end
 
+# Constants
+const MAX_ARGS = 10 # Maximum number of variables a residual can depend on
+
 # Helper functions
 include("utils.jl")
 include("unroll.jl")

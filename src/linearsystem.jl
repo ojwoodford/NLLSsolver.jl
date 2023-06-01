@@ -133,9 +133,9 @@ end
 
 function updatesymA!(A, a, vars, ::Val{varflags}, blockindices, loffsets) where varflags
     # Update the blocks in the problem
-    @unroll for i in 1:10
+    @unroll for i in 1:MAX_ARGS
         if ((varflags >> (i - 1)) & 1) == 1
-            @unroll for j in i:10
+            @unroll for j in i:MAX_ARGS
                 if ((varflags >> (j - 1)) & 1) == 1
                     if blockindices[i] >= blockindices[j] # Make sure the BSM is lower triangular
                         block(A, blockindices[i], blockindices[j], Val(nvars(vars[i])), Val(nvars(vars[j]))) .+= @inbounds view(a, loffsets[i], loffsets[j])
@@ -159,7 +159,7 @@ end
 function updateb!(B, b, vars, ::Val{varflags}, boffsets, blockindices, loffsets) where varflags
     # Update the blocks in the problem
     goffsets = blockoffsets(vars, varflags, boffsets, blockindices)
-    @unroll for i in 1:10
+    @unroll for i in 1:MAX_ARGS
         if ((varflags >> (i - 1)) & 1) == 1
             @inbounds view(B, goffsets[i]) .+= view(b, loffsets[i])
         end
@@ -177,7 +177,7 @@ function updateA!(A, a, ::Val{varflags}, blockindices, loffsets, ind) where varf
     rows = A.indicestransposed.colptr[ind]:A.indicestransposed.colptr[ind+1]-1
     @inbounds dataptr = view(A.indicestransposed.nzval, rows)
     @inbounds rows = view(A.indicestransposed.rowval, rows)
-    @unroll for i in 1:10
+    @unroll for i in 1:MAX_ARGS
         if ((varflags >> (i - 1)) & 1) == 1
             @inbounds view(A.data, SR(0, Size(a)[1]*Size(loffsets[i])[1]-1) .+ dataptr[findfirst(isequal(blockindices[i]), rows)]) .= reshape(view(a, :, loffsets[i]), :)
         end
