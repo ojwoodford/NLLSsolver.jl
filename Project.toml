@@ -23,7 +23,7 @@ HybridArrays = "0.4"
 LDLFactorizations = "0.10"
 LinearSolve = "1.41.1"
 StaticArrays = "1"
-VisualGeometryDatasets = "0.2"
+VisualGeometryDatasets = "0.2.1"
 julia = "1.6"
 
 [extras]
