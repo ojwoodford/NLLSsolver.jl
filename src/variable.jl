@@ -18,16 +18,14 @@ end
 struct ZeroToInfScalar{T}
     val::T
 end
-nvars(@objtype(ZeroToInfScalar)) = 1
-function update(var::ZeroToInfScalar, updatevec, start=1)
-    return ZeroToInfScalar((var.val > 0 ? var.val : floatmin(var.val)) * exp(updatevec[start]))
-end
+nvars(@objtype(ZeroToInfScalar{T})) where T = 1
+update(var::ZeroToInfScalar, updatevec, start=1) = ZeroToInfScalar((var.val > 0 ? var.val : floatmin(var.val)) * exp(updatevec[start]))
 
 # A scalar in the range zero to one
 struct ZeroToOneScalar{T}
     val::T
 end
-nvars(@objtype(ZeroToOneScalar)) = 1
+nvars(@objtype(ZeroToOneScalar{T})) where T = 1
 function update(var::ZeroToOneScalar, updatevec, start=1)
     val = (var.val > 0 ? var.val : floatmin(var.val)) * exp(updatevec[start])
     return ZeroToOneScalar(val < Inf ? val / (1 + (val - var.val)) : convert(typeof(val), 1))
