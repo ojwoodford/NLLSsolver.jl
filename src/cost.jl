@@ -39,12 +39,12 @@ end
     if isempty(vars)
         return 0
     end
-    return sum(ntuple(i -> ((varflags >> (i - 1)) & 1) != 0 ? nvars(vars[i]) : 0, length(vars)))
+    return sum(ntuple(i -> ((1 << (i - 1)) & varflags) != 0 ? nvars(vars[i]) : 0, length(vars)))
 end
 
 # Generate the updated variables
 @inline function updatevars(vars, varflags, advar)
-    return ntuple(i -> ((varflags >> (i - 1)) & 1) != 0 ? update(vars[i], advar, countvars(vars[1:i-1], varflags)+1) : vars[i], length(vars))
+    return ntuple(i -> ((1 << (i - 1)) & varflags) != 0 ? update(vars[i], advar, countvars(vars[1:i-1], varflags)+1) : vars[i], length(vars))
 end
 
 # Automatic Jacobian computation
@@ -53,11 +53,8 @@ function computeresjac(::Val{varflags}, residual::Residual, vars...) where {varf
     res = computeresidual(residual, vars...)
 
     # Compute the Jacobian
-    nres = length(res)
-    type = eltype(res)
-    nvars = countvars(vars, varflags)
-    Z = zeros(SVector{nvars, type})
-    jac = ForwardDiff.jacobian(z -> computeresidual(residual, updatevars(vars, varflags, z)...), Z)::SMatrix{nres, nvars, type, nres*nvars}
+    Z = zeros(SVector{countvars(vars, varflags), eltype(res)})
+    jac = ForwardDiff.jacobian(z -> computeresidual(residual, updatevars(vars, varflags, z)...), Z)
 
     # Return both
     return res, jac
