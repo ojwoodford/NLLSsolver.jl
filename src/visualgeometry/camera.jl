@@ -127,6 +127,7 @@ nres(@objtype(LensDistortResidual{T})) where T = 1 # The residual vector has len
 varindices(::LensDistortResidual) = SVector(1)
 computeresidual(residual::LensDistortResidual, lens::EULensDistortion) = SVector(residual.rdistort - ideal2distorted(lens, residual.rlinear))
 getvars(::LensDistortResidual{T}, vars::Vector) where T = (vars[1]::EULensDistortion{T},)
+Base.eltype(::LensDistortResidual{T}) where T = T
 
 function convertlens(tolens, fromlens, halfimsz)
     # Create an optimization problem to convert the lens distortion

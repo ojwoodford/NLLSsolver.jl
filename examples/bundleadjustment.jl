@@ -34,16 +34,11 @@ BALResidual(m, v) = BALResidual(SVector{2}(m[1], m[2]), SVector{2, Int}(v[1], v[
 NLLSsolver.nvars(NLLSsolver.@objtype(BALResidual)) = 2 # Residual depends on 2 variables
 NLLSsolver.nres(NLLSsolver.@objtype(BALResidual)) = 2 # Residual vector has length 2
 NLLSsolver.varindices(res::BALResidual) = res.varind
-function NLLSsolver.getvars(res::BALResidual{T}, vars::Vector) where T
-    return vars[res.varind[1]]::BALImage{T}, vars[res.varind[2]]::NLLSsolver.Point3D{T}
-end
-function NLLSsolver.computeresidual(res::BALResidual, im::BALImage, X::NLLSsolver.Point3D)
-    return transform(im, X) - res.measurement
-end
+NLLSsolver.getvars(res::BALResidual{T}, vars::Vector) where T = vars[res.varind[1]]::BALImage{T}, vars[res.varind[2]]::NLLSsolver.Point3D{T}
+NLLSsolver.computeresidual(res::BALResidual, im::BALImage, X::NLLSsolver.Point3D) = transform(im, X) - res.measurement
 const balrobustifier = NLLSsolver.HuberKernel(2., 4., 1.)
-function NLLSsolver.robustkernel(::BALResidual)
-    return balrobustifier
-end
+NLLSsolver.robustkernel(::BALResidual) = balrobustifier
+Base.eltype(::BALResidual{T}) where T = T
 
 # Function to create a NLLSsolver problem from a BAL dataset
 function makeBALproblem(data)

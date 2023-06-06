@@ -11,8 +11,9 @@ function NLLSsolver.getvars(::RosenbrockA, vars::Vector)
     return (vars[1]::Float64,)
 end
 function NLLSsolver.computeresidual(res::RosenbrockA, x)
-    return SVector(res.a - x)
+    return res.a - x
 end
+Base.eltype(::RosenbrockA) = Float64
 
 struct RosenbrockB <: NLLSsolver.AbstractResidual
     b::Float64
@@ -25,6 +26,7 @@ end
 function NLLSsolver.computeresidual(res::RosenbrockB, x, y)
     return SVector(res.b * (x ^ 2 - y))
 end
+Base.eltype(::RosenbrockB) = Float64
 
 @testset "functional.jl" begin
     # Create the problem

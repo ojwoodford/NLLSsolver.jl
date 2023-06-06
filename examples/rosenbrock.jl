@@ -7,6 +7,7 @@ struct Rosenbrock <: NLLSsolver.AbstractResidual
     b::Float64
 end
 Rosenbrock() = Rosenbrock(1.0, 10.0)
+Base.eltype(::Rosenbrock) = Float64
 NLLSsolver.nvars(NLLSsolver.@objtype(Rosenbrock)) = 1 # Residual depends on 1 variable
 NLLSsolver.nres(NLLSsolver.@objtype(Rosenbrock)) = 2 # Residual has length 2
 NLLSsolver.varindices(::Rosenbrock) = SVector(1) # There's only one variable
