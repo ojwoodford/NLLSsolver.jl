@@ -30,9 +30,8 @@ end
     jac = Expr(:tuple, [:(ForwardDiff.partials(T, dual[$i], $j)) for i in 1:M, j in 1:N]...)
     return :(SVector{M, T}($res), SMatrix{M, N, T, M*N}($jac))
 end
-@generated function extract_resjac(dual::ForwardDiff.Dual{T, T, N}) where {T, N}
-    jac = Expr(:tuple, [:(ForwardDiff.partials(T, dual, $i)) for i in 1:N]...)
-    return :(ForwardDiff.value(dual), SVector{N, T}($jac)')
+function extract_resjac(dual::ForwardDiff.Dual{T, T, N}) where {T, N}
+    return ForwardDiff.value(dual), SVector{N, T}(dual.partials.values...)'
 end
 
 # Automatic Jacobian computation
