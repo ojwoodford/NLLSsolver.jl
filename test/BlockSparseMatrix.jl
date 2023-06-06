@@ -17,10 +17,6 @@ using NLLSsolver, SparseArrays, StaticArrays, Test
     block(b, 1, 3, 3, 1) .= [10.; 11; 12]
     block(b, 3, 3) .= 13.
 
-    # Internal checks
-    @test all(b.indices.nzval != 0)
-    @test b.indices == b.indicestransposed'
-
     # Interface checks
     @test eltype(b) == Float64
     @test size(b) == (7, 6)
@@ -38,6 +34,10 @@ using NLLSsolver, SparseArrays, StaticArrays, Test
     @test size(s) == (7, 6)
     @test nnz(s) == 13
     @test Matrix(s) == out
+
+    # Internal checks
+    @test all(b.indices.nzval != 0)
+    @test b.indices == b.indicestransposed'
 
     # Construct a test matrix
     out2 = [0  0  0   0   0   0 ; 
