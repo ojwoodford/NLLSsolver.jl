@@ -50,14 +50,14 @@ NoDistortionCamera(f, c) = NoDistortionCamera(f[1], f[2], c[1], c[2])
 nvars(@objtype(NoDistortionCamera{T})) where T = 4
 update(var::NoDistortionCamera, updatevec, start=1) = NoDistortionCamera(update(var.fx, updatevec, start), update(var.fy, updatevec, start+1), update(var.c, updatevec, start+2))
 @inline cameracenter(camera::NoDistortionCamera) = camera.c
-@inline focallength(camera::NoDistortionCamera) = SVector(camera.fx.val, camera.fy.val)
+@inline focallength(camera::NoDistortionCamera{T}) where T = SVector{2, T}(camera.fx.val, camera.fy.val)
 
 
 struct EULensDistortion{T}
     alpha::ZeroToOneScalar{T}
     beta::ZeroToInfScalar{T}
 end
-EULensDistortion(alpha::T, beta::T) where T = EULensDistortion(ZeroToOneScalar(alpha), ZeroToInfScalar(beta))
+EULensDistortion(alpha::T, beta::T) where T = EULensDistortion{T}(ZeroToOneScalar{T}(alpha), ZeroToInfScalar{T}(beta))
 nvars(@objtype(EULensDistortion{T})) where T = 2
 update(var::EULensDistortion, updatevec, start=1) = EULensDistortion(update(var.alpha, updatevec, start), update(var.beta, updatevec, start+1))
 
