@@ -26,6 +26,7 @@ include("structs.jl")
 # Optimization
 include("marginalize.jl")
 include("robust.jl")
+include("autodiff.jl")
 include("cost.jl")
 include("iterators.jl")
 include("optimize.jl")
