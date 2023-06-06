@@ -5,7 +5,7 @@ using StaticArrays, LinearAlgebra
 function rodrigues(x::T, y::T, z::T) where T<:Number
     if x == 0 && y == 0 && z == 0
         # Short cut for derivatives at identity
-        return SMatrix{3, 3, T}(T(1), z, -y, -z, T(1), x, y, -x, T(1))
+        return SMatrix{3, 3, T, 9}(T(1), z, -y, -z, T(1), x, y, -x, T(1))
     end
     theta2 = x * x + y * y + z * z
     cosf = T(0.5)
@@ -23,9 +23,9 @@ function rodrigues(x::T, y::T, z::T) where T<:Number
     d = sinc * y
     e = y * z * cosf
     f = sinc * x
-    return SMatrix{3, 3, T}((x * x - theta2) * cosf + 1, a + b, c - d,
-                            a - b, (y * y - theta2) * cosf + 1, e + f,
-                            c + d, e - f, (z * z - theta2) * cosf + 1)
+    return SMatrix{3, 3, T, 9}((x * x - theta2) * cosf + 1, a + b, c - d,
+                                a - b, (y * y - theta2) * cosf + 1, e + f,
+                                c + d, e - f, (z * z - theta2) * cosf + 1)
 end
 
 function proj2orthonormal(M)
@@ -49,11 +49,11 @@ abstract type AbstractPoint3D end
 struct Point3D{T<:Real} <: AbstractPoint3D
     v::SVector{3, T}
 end
-Point3D(x, y, z) = Point3D(SVector{3}(x, y, z))
-Point3D() = Point3D(SVector{3}(0., 0., 0.))
+Point3D(x::T, y::T, z::T) where T = Point3D(SVector{3, T}(x, y, z))
+Point3D() = Point3D(SVector{3, Float64}(0., 0., 0.))
 nvars(@objtype(Point3D{T})) where T = 3
 update(var::Point3D, updatevec, start=1) = Point3D(var.v + updatevec[SR(0, 2) .+ start])
-project(x::Point3D) = SVector(x.v[1], x.v[2]) ./ x.v[3]
+project(x::Point3D{T}) where T = SVector{2, T}(x.v[1], x.v[2]) ./ x.v[3]
 
 
 abstract type AbstractRotation3D end
