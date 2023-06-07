@@ -8,7 +8,7 @@ struct BALImage{T}
     sensor::NLLSsolver.SimpleCamera{T}
     lens::NLLSsolver.BarrelDistortion{T}
 end
-NLLSsolver.nvars(NLLSsolver.@objtype(BALImage)) = 9
+NLLSsolver.nvars(NLLSsolver.@objtype(BALImage{T})) where T = 9
 function NLLSsolver.update(var::BALImage, updatevec, start=1)
     return BALImage(NLLSsolver.update(var.pose, updatevec, start),
                     NLLSsolver.update(var.sensor, updatevec, start+6),

@@ -1,4 +1,4 @@
-export valuedispatch, SR, @objtype
+export valuedispatch, SR, @objtype, @bitiset
 using StaticArrays
 
 function valuedispatch_expr(::Val{lower}, ::Val{upper}, val, fun, args) where {lower, upper}
@@ -8,7 +8,7 @@ function valuedispatch_expr(::Val{lower}, ::Val{upper}, val, fun, args) where {l
     midpoint = lower + div(upper - lower, 2)
     expr_a = valuedispatch_expr(Val(lower), Val(midpoint), val, fun, args)
     expr_b = valuedispatch_expr(Val(midpoint+1), Val(upper), val, fun, args)
-    quote
+    return quote
         if $val <= $midpoint
             $expr_a
         else
@@ -29,4 +29,8 @@ const SR = StaticArrays.SUnitRange
 
 macro objtype(type)
     esc(:(::Union{$type, Type{$type}}))
+end
+
+macro bitiset(flags, bit)
+    esc(:(((1 << ($bit - 1)) & $flags) != 0))
 end
