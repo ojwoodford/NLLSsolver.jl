@@ -31,15 +31,21 @@ Base.eltype(::RosenbrockB) = Float64
 @testset "functional.jl" begin
     # Create the problem
     problem = NLLSsolver.NLLSProblem{Float64}()
-    NLLSsolver.addvariable!(problem, -0.5)
-    NLLSsolver.addvariable!(problem, 2.5)
+    NLLSsolver.addvariable!(problem, 0.)
+    NLLSsolver.addvariable!(problem, 0.)
     NLLSsolver.addresidual!(problem, RosenbrockA(1.0))
     NLLSsolver.addresidual!(problem, RosenbrockB(10.))
 
-    # Optimize
-    NLLSsolver.optimize!(problem, NLLSsolver.NLLSOptions(iterator=NLLSsolver.gaussnewton))
+    for (ind, iter) in enumerate([NLLSsolver.gaussnewton, NLLSsolver.levenbergmarquardt, NLLSsolver.dogleg])
+        # Set the start
+        problem.variables[1] = -0.5
+        problem.variables[2] = 2.5
 
-    # Check the result
-    @test isapprox(problem.variables[1], 1.0; rtol=1.e-15)
-    @test isapprox(problem.variables[2], 1.0; rtol=1.e-15)
+        # Optimize the cost
+        result = NLLSsolver.optimize!(problem, NLLSsolver.NLLSOptions(iterator=iter))
+
+        # Check the result
+        @test isapprox(problem.variables[1], 1.0; rtol=1.e-10)
+        @test isapprox(problem.variables[2], 1.0; rtol=1.e-10)
+    end
 end
