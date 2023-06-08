@@ -39,7 +39,7 @@ end
 function marginalize!(to::MultiVariateLS, from::MultiVariateLS, fromblock=length(to.A.rowblocksizes)+1)
     for block in fromblock:length(from.A.rowblocksizes)
         # marginalize!(to, from, block, Val(Int(from.A.rowblocksizes[block])))
-        valuedispatch(Val(1), Val(32), Int(from.A.rowblocksizes[block]), marginalize!, (to, from, block))
+        valuedispatch_1_32(Int(from.A.rowblocksizes[block]), fixallbutlast(marginalize!, to, from, block))
     end
 end
 
@@ -89,4 +89,3 @@ function constructcrop(from::MultiVariateLS, fromblock)
     A = BlockSparseMatrix{Float64}(start-1, indices', blocksizes, blocksizes)
     return MultiVariateLS(A, from.blockindices)
 end
-

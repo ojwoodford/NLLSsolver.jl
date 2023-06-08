@@ -40,7 +40,7 @@ using NLLSsolver, SparseArrays, StaticArrays, Test
     hessian = view(hessian, 1:croplen, 1:croplen) - S * view(hessian, croplen+1:N, 1:croplen)
     gradient = view(from.b, 1:croplen) - S * view(from.b, croplen+1:N)
 
-    # # Check that the result is correct
+    # Check that the result is correct
     @test isapprox(hessian, symmetrifyfull(to.A); rtol=1.e-13)
     @test isapprox(gradient, to.b; rtol=1.e-13)
 end

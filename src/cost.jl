@@ -1,5 +1,5 @@
 using FLoops: @floop, @reduce
-import ForwardDiff, NLLSsolver.valuedispatch, NLLSsolver.NLLSProblem, NLLSsolver.AbstractResidual
+import ForwardDiff
 export cost, costgradhess!, costresjac!
 
 cost(problem::NLLSProblem) = cost(problem.residuals, problem.variables)
@@ -87,8 +87,28 @@ function costgradhess!(linsystem, residual::Residual, vars::Vector) where Residu
     end
 
     # Dispatch gradient computation based on the varflags, and return the cost
-    # return gradhesshelper!(linsystem, residual, vars, blockind, Val(varflags))
-    return valuedispatch(Val(1), Val((2^nvars(residual))-1), varflags, gradhesshelper!, (linsystem, residual, vars, blockind))
+    if nvars(Residual) == 1
+        return gradhesshelper!(linsystem, residual, vars, blockind, Val(1))
+    end
+    if nvars(Residual) == 2
+        return valuedispatch_1_3(varflags, fixallbutlast(gradhesshelper!, linsystem, residual, vars, blockind))
+    end
+    if nvars(Residual) == 3
+        return valuedispatch_1_7(varflags, fixallbutlast(gradhesshelper!, linsystem, residual, vars, blockind))
+    end
+    if nvars(Residual) == 4
+        return valuedispatch_1_15(varflags, fixallbutlast(gradhesshelper!, linsystem, residual, vars, blockind))
+    end
+    if nvars(Residual) == 5
+        return valuedispatch_1_32(varflags, fixallbutlast(gradhesshelper!, linsystem, residual, vars, blockind))
+    end
+    if nvars(Residual) == 6
+        return valuedispatch_1_63(varflags, fixallbutlast(gradhesshelper!, linsystem, residual, vars, blockind))
+    end
+    if nvars(Residual) == 7
+        return valuedispatch_1_127(varflags, fixallbutlast(gradhesshelper!, linsystem, residual, vars, blockind))
+    end
+    return gradhesshelper!(linsystem, residual, vars, blockind, Val(varflags))
 end
 
 function costgradhess!(linsystem, residuals, vars::Vector)::Float64
@@ -134,15 +154,32 @@ function costresjac!(linsystem, residual::Residual, vars::Vector, ind) where Res
 
     # If there are no variables, just return the cost
     if varflags == 0
-        c = cost(residual, vars)
-    else
-        # Dispatch gradient computation based on the varflags, and return the cost
-        # c = resjachelper!(linsystem, residual, vars, blockind, ind, Val(varflags))
-        c = valuedispatch(Val(1), Val((2^nvars(residual))-1), varflags, resjachelper!, (linsystem, residual, vars, blockind, ind))
+        return cost(residual, vars)
     end
 
-    # Return the cost
-    return c
+    # Dispatch gradient computation based on the varflags, and return the cost
+    if nvars(Residual) == 1
+        return resjachelper!(linsystem, residual, vars, blockind, ind, Val(1))
+    end
+    if nvars(Residual) == 2
+        return valuedispatch_1_3(varflags, fixallbutlast(resjachelper!, linsystem, residual, vars, blockind, ind))
+    end
+    if nvars(Residual) == 3
+        return valuedispatch_1_7(varflags, fixallbutlast(resjachelper!, linsystem, residual, vars, blockind, ind))
+    end
+    if nvars(Residual) == 4
+        return valuedispatch_1_15(varflags, fixallbutlast(resjachelper!, linsystem, residual, vars, blockind, ind))
+    end
+    if nvars(Residual) == 5
+        return valuedispatch_1_32(varflags, fixallbutlast(resjachelper!, linsystem, residual, vars, blockind, ind))
+    end
+    if nvars(Residual) == 6
+        return valuedispatch_1_63(varflags, fixallbutlast(resjachelper!, linsystem, residual, vars, blockind, ind))
+    end
+    if nvars(Residual) == 7
+        return valuedispatch_1_127(varflags, fixallbutlast(resjachelper!, linsystem, residual, vars, blockind, ind))
+    end
+    return resjachelper!(linsystem, residual, vars, blockind, ind, Val(varflags))
 end
 
 Base.length(::AbstractResidual) = 1
