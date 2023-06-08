@@ -6,8 +6,7 @@ export computeresjac
     return ForwardDiff.Partials{N, T}(tuple([T(i == j) for j in 1:N]...))
 end
 @generated function dualzeros(::Type{T}, ::Val{N}, ::Val{First}, ::Val{Last}) where {T, N, First, Last}
-    L::Int = Last - First + 1
-    return SVector{L, ForwardDiff.Dual{T, T, N}}(tuple([ForwardDiff.Dual{T, T, N}(zero(T), single_seed(T, Val(N), Val(First+i-1))) for i in 1:L]...))
+    return SVector{Last-First+1, ForwardDiff.Dual{T, T, N}}(tuple([ForwardDiff.Dual{T, T, N}(zero(T), single_seed(T, Val(N), Val(i))) for i in First:Last]...))
 end
 dualzeros(T, N) = dualzeros(T, N, Val(1), N)
 
