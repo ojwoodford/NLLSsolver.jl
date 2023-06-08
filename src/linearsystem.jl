@@ -148,9 +148,11 @@ function updatesymA!(A, a, vars, ::Val{varflags}, blockindices, loffsets) where 
     end
 end
 
-@generated function localoffsets(vars::NTuple{N, Any}, ::Val{varflags}) where {N, varflags}
-    counts = Expr(:tuple, 0, [@bitiset(varflags, i) ? :(nvars(fieldtypes($vars)[$i])) : 0 for i in 1:N]...)
-    cumul = :(cumsum($counts))
+@generated function localoffsets(::TP, ::Val{varflags}) where {TP, varflags}
+    N = fieldcount(TP)
+    FT = fieldtypes(TP)
+    counts = Expr(:tuple, [@bitiset(varflags, i) ? :(nvars($FT[$i])) : 0 for i = 1:N]...)
+    cumul = :(cumsum((0, $counts...)))
     return Expr(:tuple, [@bitiset(varflags, i) ? :(SR($cumul[$i]+1, $cumul[$i+1])) : :(SR(1, 0)) for i in 1:N]...)
 end
 
