@@ -3,19 +3,21 @@ export computeresjac
 
 # Construct a dual with zero values and one partial derivative set to 1
 @generated function single_seed(::Type{T}, ::Val{N}, ::Val{i}) where {T, N, i}
-    ex = Expr(:tuple, [:($T(i == $j)) for j in 1:N]...)
-    return :(ForwardDiff.Partials{$N, $T}($ex))
+    return ForwardDiff.Partials{N, T}(tuple([T(i == j) for j in 1:N]...))
 end
 @generated function dualzeros(::Type{T}, ::Val{N}, ::Val{First}, ::Val{Last}) where {T, N, First, Last}
-    dx = Expr(:tuple, [:(ForwardDiff.Dual{$T, $T, $N}(zero($T), single_seed($T, Val($N), Val($i)))) for i in First:Last]...)
-    return :(SVector{$Last-$First+1, ForwardDiff.Dual{$T, $T, $N}}($dx))
+    L::Int = Last - First + 1
+    return SVector{L, ForwardDiff.Dual{T, T, N}}(tuple([ForwardDiff.Dual{T, T, N}(zero(T), single_seed(T, Val(N), Val(First+i-1))) for i in 1:L]...))
 end
+dualzeros(T, N) = dualzeros(T, N, Val(1), N)
 
 # Generate the updated variables
-@generated function dualvars(vars::NTuple{N, Any}, ::Val{varflags}, ::Type{T}) where {N, varflags, T}
-    counts = Expr(:tuple, 0, [@bitiset(varflags, i) ? :(nvars(fieldtypes($vars)[$i])) : 0 for i in 1:N]...)
-    cumul = :(cumsum($counts))
-    return Expr(:tuple, [@bitiset(varflags, i) ? :(update(vars[$i], dualzeros($T, Val($cumul[$N+1]), Val($cumul[$i]+1), Val($cumul[$i+1])))) : :(vars[$i]) for i in 1:N]...)
+@generated function dualvars(vars::TP, ::Val{varflags}, ::Type{T}) where {TP, varflags, T}
+    N = fieldcount(TP)
+    # cumul = cumsum((0, [@bitiset(varflags, i) ? Base.invokelatest(NLLSsolver.nvars, fieldtypes(TP)[i]) : 0 for i = 1:N]...))
+    counts = Expr(:tuple, [@bitiset(varflags, i) ? :(nvars(fieldtypes(TP)[$i])) : 0 for i = 1:N]...)
+    cumul = :(cumsum((0, $counts...)))
+    return Expr(:tuple, [@bitiset(varflags, i) ? :(update(vars[$i], dualzeros($T, Val($cumul[$N+1]), Val($cumul[$i]+1), Val($cumul[$i+1])))) : :(vars[$i]) for i = 1:N]...)
 end
 
 # Extract the residual and jacobian to static arrays
