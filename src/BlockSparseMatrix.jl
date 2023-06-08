@@ -58,6 +58,9 @@ end
 function cacheindices(bsm)
     if isempty(bsm.indices.nzval)
         # Cache the untransposed indices
+        resize!(bsm.indices.nzval, length(bsm.indicestransposed.nzval))
+        resize!(bsm.indices.rowval, length(bsm.indicestransposed.nzval))
+        resize!(bsm.indices.colptr, size(bsm.indicestransposed, 2)+1)
         transpose!(bsm.indices, bsm.indicestransposed)
     end
 end
