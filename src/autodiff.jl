@@ -12,11 +12,10 @@ end
 dualzeros(T, N) = dualzeros(T, N, Val(1), N)
 
 # Generate the updated variables
-@generated function dualvars(vars::TP, ::Val{varflags}, ::Type{T}) where {TP, varflags, T}
-    N = fieldcount(TP)
-    FT = fieldtypes(TP)
+@generated function dualvars(vars::NTuple{N, Any}, ::Val{varflags}, ::Type{T}) where {N, varflags, T}
+    # FT = fieldtypes(vars)
     # cumul = cumsum((0, [@bitiset(varflags, i) ? Base.invokelatest(NLLSsolver.nvars, FT[i]) : 0 for i = 1:N]...))
-    counts = Expr(:tuple, [@bitiset(varflags, i) ? :(nvars($FT[$i])) : 0 for i = 1:N]...)
+    counts = Expr(:tuple, [@bitiset(varflags, i) ? :(nvars(vars[$i])) : 0 for i = 1:N]...)
     cumul = :(cumsum((0, $counts...)))
     return Expr(:tuple, [@bitiset(varflags, i) ? :(update(vars[$i], dualzeros($T, Val($cumul[$N+1]), Val($cumul[$i]+1), Val($cumul[$i+1])))) : :(vars[$i]) for i = 1:N]...)
 end
