@@ -15,8 +15,7 @@ function NLLSsolver.update(var::BALImage, updatevec, start=1)
                     NLLSsolver.update(var.lens, updatevec, start+7))
 end
 function BALImage(rx::T, ry::T, rz::T, tx::T, ty::T, tz::T, f::T, k1::T, k2::T) where T<:Real
-    R = NLLSsolver.Rotation3DL(rx, ry, rz)
-    return BALImage{T}(NLLSsolver.EffPose3D(R, NLLSsolver.Point3D(R.m' * -SVector(tx, ty, tz))), 
+    return BALImage{T}(NLLSsolver.EffPose3D(NLLSsolver.Pose3D(rx, ry, rz, tx, ty, tz)), 
                        NLLSsolver.SimpleCamera(f), 
                        NLLSsolver.BarrelDistortion(k1, k2))
 end
@@ -38,9 +37,9 @@ const balrobustifier = NLLSsolver.HuberKernel(2., 4., 1.)
 NLLSsolver.robustkernel(::BALResidual) = balrobustifier
 Base.eltype(::BALResidual{T}) where T = T
 
-function NLLSsolver.computeresjac(::Val{3}, residual::BALResidual{T}, vars...) where T
+function NLLSsolver.computeresjac(::Val{3}, residual::BALResidual, im, point)
     # Exploit the parameterization to make the jacobian computation more efficient
-    res, jac = NLLSsolver.extract_resjac(NLLSsolver.computeresidual(residual, NLLSsolver.dualvars(vars, Val(1), T)...))
+    res, jac = NLLSsolver.computeresjac(Val(1), residual, im, point)
     return res, hcat(jac, -view(jac, :, NLLSsolver.SR(4, 6)))
 end
 
