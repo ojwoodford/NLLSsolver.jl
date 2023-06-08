@@ -40,6 +40,12 @@ const balrobustifier = NLLSsolver.HuberKernel(2., 4., 1.)
 NLLSsolver.robustkernel(::BALResidual) = balrobustifier
 Base.eltype(::BALResidual{T}) where T = T
 
+function NLLSsolver.computeresjac(::Val{3}, residual::BALResidual{T}, vars...) where T
+    # Exploit the parameterization to make the jacobian computation more efficient
+    res, jac = NLLSsolver.extract_resjac(NLLSsolver.computeresidual(residual, NLLSsolver.dualvars(vars, Val(1), T)...))
+    return res, hcat(jac, -view(jac, :, NLLSsolver.SR(4, 6)))
+end
+
 # Function to create a NLLSsolver problem from a BAL dataset
 function makeBALproblem(data)
     # Create the problem
