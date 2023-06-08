@@ -1,18 +1,3 @@
-using LDLFactorizations, LinearSolve
-export iterate!, NewtonData, DoglegData, LevMarData
-
-function symmetricsolve(A::SparseMatrixCSC, b::AbstractVector, options)
-    return ldl(A) \ b
-end
-
-function symmetricsolve(A::AbstractMatrix, b::AbstractVector, options)
-    return Symmetric(A) \ b
-end
-
-function linearsolve(A::AbstractMatrix, b::AbstractVector, options)
-    return solve(LinearProblem(A, b)).u
-end
-
 function update!(to::Vector, from::Vector, linsystem::MultiVariateLS, step)
     # Update each variable
     @inbounds for (i, j) in enumerate(linsystem.blockindices)

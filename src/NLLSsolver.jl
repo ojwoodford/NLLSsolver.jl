@@ -28,6 +28,7 @@ include("marginalize.jl")
 include("robust.jl")
 include("autodiff.jl")
 include("cost.jl")
+include("linearsolver.jl")
 include("iterators.jl")
 include("optimize.jl")
 end
