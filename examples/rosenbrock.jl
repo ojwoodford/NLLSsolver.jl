@@ -83,6 +83,7 @@ function optimizeRosenbrock(start=[-0.5, 2.5], iterators=[NLLSsolver.gaussnewton
     grid = computeCostGrid(x -> log1p(norm(NLLSsolver.computeresidual(residual, x))), X, Y)
 
     # Create the plot
+    GLMakie.activate!(inline=false)
     fig = Figure()
     ax1 = Axis(fig[1, 1]; limits=(X[1], X[end], Y[1], Y[end]), title="Trajectories")
     ax2 = Axis(fig[1, 2]; title="Costs", xlabel="Iteration", yscale=log10)
