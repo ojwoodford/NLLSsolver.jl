@@ -17,7 +17,7 @@ end
 
 struct NLLSOptions
     reldcost::Float64           # Minimum relative reduction in cost required to avoid termination
-    absdcost::Float64           # Minimum relative reduction in cost required to avoid termination
+    absdcost::Float64           # Minimum absolute reduction in cost required to avoid termination
     dstep::Float64              # Minimum L-infinity norm of the update vector required to avoid termination
     maxfails::Int               # Maximum number of consecutive iterations that have a higher cost than the current best before termination
     maxiters::Int               # Maximum number of outer iterations
@@ -61,14 +61,6 @@ function Base.show(io::IO, x::NLLSResult)
             x.linearsolvers, x.timesolver, 100*x.timesolver/timetotal,
             x.timeinit, 100*x.timeinit/timetotal,
             otherstuff, 100*otherstuff/timetotal)
-end
-
-mutable struct NLLSVals
-    
-    
-    function NLLSVals()
-        return new()
-    end
 end
 
 mutable struct NLLSInternalSingleVar
