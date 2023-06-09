@@ -18,19 +18,12 @@ function valuedispatch_expr(::Val{lower}, ::Val{upper}, val, fun) where {lower, 
 end
 
 macro valuedispatch_macro(lower::Int, upper::Int, val, fun)
-    ex = valuedispatch_expr(Val(lower), Val(upper), esc(val), esc(fun))
-    return quote
-        @nospecialize
-        $ex
-    end
+    return valuedispatch_expr(Val(lower), Val(upper), esc(val), esc(fun))
 end
 
-@eval valuedispatch_1_3(val, fun) = @valuedispatch_macro(1, 3, val, fun)
-@eval valuedispatch_1_7(val, fun) = @valuedispatch_macro(1, 7, val, fun)
-@eval valuedispatch_1_15(val, fun) = @valuedispatch_macro(1, 15, val, fun)
-@eval valuedispatch_1_32(val, fun) = @valuedispatch_macro(1, 32, val, fun)
-@eval valuedispatch_1_63(val, fun) = @valuedispatch_macro(1, 63, val, fun)
-@eval valuedispatch_1_127(val, fun) = @valuedispatch_macro(1, 127, val, fun)
+@generated function valuedispatch(::Val{lower}, ::Val{upper}, val, fun) where {lower, upper}
+    return :( @valuedispatch_macro($lower, $upper, val, fun) )
+end
 
 expandfunc(args, v) = args[1](args[2:end]..., v)
 fixallbutlast(func, args...) = Base.Fix1(expandfunc, (func, args...))
