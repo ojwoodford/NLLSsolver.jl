@@ -14,8 +14,6 @@
 # LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR 
 # IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
-export @unroll
-
 copy_and_substitute_tree(e, varname, newtext, mod) = e
 
 copy_and_substitute_tree(e::Symbol, varname, newtext, mod) =

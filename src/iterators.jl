@@ -1,18 +1,16 @@
-using LDLFactorizations
-export iterate!, NewtonData, DoglegData, LevMarData
-
-function symmetricsolve(A::SparseMatrixCSC, b::AbstractVector, options)
-    return ldl(A) \ b
+function update!(to::Vector, from::Vector, linsystem::MultiVariateLS, step)
+    # Update each variable
+    @inbounds for (i, j) in enumerate(linsystem.blockindices)
+        if j != 0
+            to[i] = update(from[i], step, linsystem.soloffsets[j])
+        end
+    end
 end
 
-function symmetricsolve(A::AbstractMatrix, b::AbstractVector, options)
-    return Symmetric(A) \ b
+function update!(to::Vector, from::Vector, linsystem::UniVariateLS, step)
+    # Update one variable
+    to[linsystem.varindex] = update(from[linsystem.varindex], step)
 end
-
-function linearsolve(A::AbstractMatrix, b::AbstractVector, options)
-    return solve(LinearProblem(A, b)).u
-end
-
 
 # Iterators assume that the linear problem has been constructed
 
@@ -20,7 +18,7 @@ end
 struct NewtonData
 end
 
-function iterate!(::NewtonData, data::NLLSInternal, problem::NLLSProblem, options::NLLSOptions)::Float64
+function iterate!(::NewtonData, data, problem::NLLSProblem, options::NLLSOptions)::Float64
     # Compute the step
     data.timesolver += @elapsed begin
         hessian, gradient = gethessgrad(data.linsystem)
@@ -28,9 +26,9 @@ function iterate!(::NewtonData, data::NLLSInternal, problem::NLLSProblem, option
     end
     data.linearsolvers += 1
     # Update the new variables
-    update!(data.variables, problem.variables, data.linsystem, data.step)
+    update!(problem.varnext, problem.variables, data.linsystem, data.step)
     # Return the cost
-    data.timecost += @elapsed cost_ = cost(problem.residuals, data.variables)
+    data.timecost += @elapsed cost_ = cost(problem.residuals, problem.varnext)
     data.costcomputations += 1
     return cost_
 end
@@ -44,7 +42,7 @@ mutable struct DoglegData
     end
 end
 
-function iterate!(doglegdata::DoglegData, data::NLLSInternal, problem::NLLSProblem, options::NLLSOptions)::Float64
+function iterate!(doglegdata::DoglegData, data, problem::NLLSProblem, options::NLLSOptions)::Float64
     hessian, gradient = gethessgrad(data.linsystem)
     data.timesolver += @elapsed begin
         # Compute the Cauchy step
@@ -95,9 +93,9 @@ function iterate!(doglegdata::DoglegData, data::NLLSInternal, problem::NLLSProbl
             end
         end
         # Update the new variables
-        update!(data.variables, problem.variables, data.linsystem, data.step)
+        update!(problem.varnext, problem.variables, data.linsystem, data.step)
         # Compute the cost
-        data.timecost += @elapsed cost_ = cost(problem.residuals, data.variables)
+        data.timecost += @elapsed cost_ = cost(problem.residuals, problem.varnext)
         data.costcomputations += 1
         # Update trust region radius
         mu = (data.bestcost - cost_) / linear_approx
@@ -123,7 +121,7 @@ mutable struct LevMarData
     end
 end
 
-function iterate!(levmardata::LevMarData, data::NLLSInternal, problem::NLLSProblem, options::NLLSOptions)::Float64
+function iterate!(levmardata::LevMarData, data, problem::NLLSProblem, options::NLLSOptions)::Float64
     @assert levmardata.lambda >= 0.
     hessian, gradient = gethessgrad(data.linsystem)
     lastlambda = 0.
@@ -136,9 +134,9 @@ function iterate!(levmardata::LevMarData, data::NLLSInternal, problem::NLLSProbl
         data.timesolver += @elapsed data.step .= -symmetricsolve(hessian, gradient, options)
         data.linearsolvers += 1
         # Update the new variables
-        update!(data.variables, problem.variables, data.linsystem, data.step)
+        update!(problem.varnext, problem.variables, data.linsystem, data.step)
         # Compute the cost
-        data.timecost += @elapsed cost_ = cost(problem.residuals, data.variables)
+        data.timecost += @elapsed cost_ = cost(problem.residuals, problem.varnext)
         data.costcomputations += 1
         # Check for exit
         if !(cost_ > data.bestcost) || (maximum(abs, data.step) < options.dstep)
@@ -151,6 +149,95 @@ function iterate!(levmardata::LevMarData, data::NLLSInternal, problem::NLLSProbl
         end
         # Failure - increase lambda
         levmardata.lambda *= mu;
+        mu *= 2.;
+    end
+end
+
+
+
+# Levenberg-Marquardt optimization with Schur complement
+mutable struct LevMarSchurData
+    lambda::Float64
+
+    function LevMarSchurData()
+        return new(1.0)
+    end
+end
+
+function iterate!(levmardata::LevMarSchurData, data, problem::NLLSProblem, options::NLLSOptions)::Float64
+    lastlambda = 0.
+    mu = 2.
+    while true
+        # Dampen the Hessian
+        uniformscaling!(data.linsystem.a, levmardata.lambda - lastlambda)
+        lastlambda = levmardata.lambda
+        # Solve the linear system
+        data.timesolver += @elapsed begin
+            # Compute the reduced system
+            # Solve the reduced system
+            data.step .= -symmetricsolve(hessian, gradient, options)
+            # Back substitute to find the other variables
+
+        end
+        data.linearsolvers += 1
+        # Update the new variables
+        update!(problem.varnext, problem.variables, data.linsystem, data.step)
+        # Compute the cost
+        data.timecost += @elapsed cost_ = cost(problem.residuals, problem.varnext)
+        data.costcomputations += 1
+        # Check for exit
+        if !(cost_ > data.bestcost) || (maximum(abs, data.step) < options.dstep)
+            # Success (or convergence) - update lambda
+            uniformscaling!(hessian, -lastlambda)
+            step_quality = (cost_ - data.bestcost) / (((data.step' * hessian) * 0.5 + gradient') * data.step)
+            levmardata.lambda *= step_quality < 1.966 ? 1 - (step_quality - 1) ^ 3 : 0.1
+            # Return the cost
+            return cost_
+        end
+        # Failure - increase lambda
+        levmardata.lambda *= mu;
+        mu *= 2.;
+    end
+end
+
+
+# Levenberg-Marquardt optimization
+mutable struct VarProData
+    lambda::Float64
+
+    function VarProData()
+        return new(1.0)
+    end
+end
+
+function iterate!(varprodata::VarProData, data, problem::NLLSProblem, options::NLLSOptions)::Float64
+    @assert varprodata.lambda >= 0.
+    # Compute the reduced system
+    hessian, gradient = gethessgrad(data.linsystem)
+    lastlambda = 0.
+    mu = 2.
+    while true
+        # Dampen the Hessian
+        uniformscaling!(hessian, varprodata.lambda - lastlambda)
+        lastlambda = varprodata.lambda
+        # Solve the linear system
+        data.timesolver += @elapsed data.step .= -symmetricsolve(hessian, gradient, options)
+        data.linearsolvers += 1
+        # Update the reduced variables
+        update!(problem.varnext, problem.variables, data.linsystem, data.step)
+        # Optimize the other variables
+        # Compute the cost
+        data.timecost += @elapsed cost_ = cost(problem.residuals, problem.varnext)
+        data.costcomputations += 1
+        # Check for exit
+        if !(cost_ > data.bestcost) || (maximum(abs, data.step) < options.dstep)
+            # Success (or convergence) - update lambda
+            varprodata.lambda *= 0.333
+            # Return the cost
+            return cost_
+        end
+        # Failure - increase lambda
+        varprodata.lambda *= mu;
         mu *= 2.;
     end
 end

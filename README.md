@@ -8,6 +8,8 @@ A package for optimizing robustified Non-Linear Least Squares (NLLS) problems, w
 - **Robust**: Residual blocks can be robustified easily.
 - **Non-Euclidean variables**: Variables do not need to exist in a Euclidean space. For example, 3D rotations can be represented as a 9 parameter SO(3) matrix, yet retain a minimal 3DoF update parameterization.
 
+The package is heavily inspired by, and very similar to, the [Ceres-Solver C++ library](http://ceres-solver.org/), in terms of interface and functionality. Ceres is used to optimize a large number of academic and commercial [problems](http://ceres-solver.org/users.html), mostly in the field of multi-view geometry.
+
 Features not currently supported:
 - **Constraints**: Bounds on variables are not explicitly supported. However, bounded variables can be implemented using special, non-Euclidean parameterizations.
 
@@ -15,8 +17,8 @@ Features not currently supported:
 
 ### Problem definition
 Each NLLS problem is defined using two types of data structure:
-- **Variable blocks**, which contain the parameters to be optimized.
-- **Residual blocks**, which contain the data that defines the NLLS function to be minimized w.r.t. the variables.
+- **Variable blocks**, which contain the parameters to be optimized. A single variable block contains a fixed (at compile-time) number of parameters, currently up to 32.
+- **Residual blocks**, which contain the data that defines the NLLS function to be minimized w.r.t. the variables. A single residual block generates residuals as a function of a fixed (at compile-time) number of variable blocks, currently up to 10.
 
 Each instance of these two types must implement a standard API, as follows.
 
@@ -25,7 +27,7 @@ Each instance of these two types must implement a standard API, as follows.
 - **`newvar::MyVar = update(oldvar::MyVar, updatevec)`** updates a variable, given an update vector of length N.
 
 #### Residual blocks
-- **`N::Int = nvars(::MyRes)`** returns the number of variable blocks the residual block depends on.
+- **`N::Int = ndeps(::MyRes)`** returns the number of variable blocks the residual block depends on.
 - **`M::Int = nres(::MyRes)`** returns the number of scalar residuals in the block.
 - **`varind::SVector{N, Int} = varindices(res::MyRes)`** returns the indices of the variable blocks (stored in problem) that this residual block depends on. These values are assumed to remain fixed for the duration of an optimization.
 - **`resvars::Tuple = getvars(res::MyRes, allvars::Vector)`** returns a tuple containing the variables the residual block depends on.
@@ -52,6 +54,7 @@ The following examples of problem definition, creation and optimization are incl
 - **Add Variable Projection method** for solving bipartite problems.
 - **Implement reduced memory Variable Projection** for solving very large scale bipartite problems.
 - **Allow residuals to dynamically change the variables they depend on** to broaden the types of problems that can be optimized.
+- **Allow variable blocks to have a large and dynamically set number of parameters** to also broaden the types of problems that can be optimized.
 - **Add additional solvers**
 - **Add constraints**, such as equality and inequality constraints on variables.
 - **Improve code coverage of tests**

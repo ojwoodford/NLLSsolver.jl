@@ -11,15 +11,11 @@ using NLLSsolver, SparseArrays, StaticArrays, Test
            0  0  7  8  9  13]
 
     # Construct a matching BSM
-    b = BlockSparseMatrix{Float64}([SVector(2, 1), SVector(3, 2), SVector(1, 3), SVector(3, 3)], [3,3,1], [2,3,1])
-    block(b, 2, 1) .= reshape(1.:6., (3, 2))
-    block(b, 3, 2, 1, 3) .= SMatrix{1, 3, Float64, 3}(7:9)
-    block(b, 1, 3, 3, 1) .= [10.; 11; 12]
-    block(b, 3, 3) .= 13.
-
-    # Internal checks
-    @test all(b.indices.nzval != 0)
-    @test b.indices == b.indicestransposed'
+    b = NLLSsolver.BlockSparseMatrix{Float64}([SVector(2, 1), SVector(3, 2), SVector(1, 3), SVector(3, 3)], [3,3,1], [2,3,1])
+    NLLSsolver.block(b, 2, 1) .= reshape(1.:6., (3, 2))
+    NLLSsolver.block(b, 3, 2, 1, 3) .= SMatrix{1, 3, Float64, 3}(7:9)
+    NLLSsolver.block(b, 1, 3, 3, 1) .= [10.; 11; 12]
+    NLLSsolver.block(b, 3, 3) .= 13.
 
     # Interface checks
     @test eltype(b) == Float64
@@ -39,6 +35,10 @@ using NLLSsolver, SparseArrays, StaticArrays, Test
     @test nnz(s) == 13
     @test Matrix(s) == out
 
+    # Internal checks
+    @test all(b.indices.nzval != 0)
+    @test b.indices == b.indicestransposed'
+
     # Construct a test matrix
     out2 = [0  0  0   0   0   0 ; 
             0  0  0   0   0   0 ;
@@ -49,11 +49,11 @@ using NLLSsolver, SparseArrays, StaticArrays, Test
     outsym = max.(out2, out2')
 
     # Construct a matching BSM
-    bs = BlockSparseMatrix{Int64}([SVector(2, 1), SVector(3, 2), SVector(2, 2), SVector(3, 3)], [2,3,1], [2,3,1])
-    block(bs, 2, 1) .= reshape(1:6, (3, 2))
-    block(bs, 3, 2, 1, 3) .= SVector{3, Int64}(13:15)'
-    block(bs, 2, 2, 3, 3) .= [7 8 9; 8 10 11; 9 11 12]
-    block(bs, 3, 3) .= 16
+    bs = NLLSsolver.BlockSparseMatrix{Int64}([SVector(2, 1), SVector(3, 2), SVector(2, 2), SVector(3, 3)], [2,3,1], [2,3,1])
+    NLLSsolver.block(bs, 2, 1) .= reshape(1:6, (3, 2))
+    NLLSsolver.block(bs, 3, 2, 1, 3) .= SVector{3, Int64}(13:15)'
+    NLLSsolver.block(bs, 2, 2, 3, 3) .= [7 8 9; 8 10 11; 9 11 12]
+    NLLSsolver.block(bs, 3, 3) .= 16
 
     @test eltype(bs) == Int64
     @test size(bs) == (6, 6)
@@ -72,12 +72,12 @@ using NLLSsolver, SparseArrays, StaticArrays, Test
     @test nnz(s2) == 19
     @test Matrix(s2) == out2
 
-    m3 = symmetrifyfull(bs)
+    m3 = NLLSsolver.symmetrifyfull(bs)
     @test typeof(m3) == Matrix{Int64}
     @test size(m3) == (6, 6)
     @test m3 == outsym
 
-    s3 = symmetrifysparse(bs)
+    s3 = NLLSsolver.symmetrifysparse(bs)
     @test issparse(s3)
     @test typeof(s3) == SparseMatrixCSC{Int64, Int64}
     @test size(s3) == (6, 6)

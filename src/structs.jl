@@ -1,6 +1,5 @@
-using SparseArrays, LinearSolve, Dates
+using SparseArrays, Dates
 import Printf.@printf
-export NLLSOptions, NLLSResult, NLLSIterator
 
 @enum NLLSIterator gaussnewton levenbergmarquardt dogleg
 function Base.String(iterator::NLLSIterator) 
@@ -18,7 +17,7 @@ end
 
 struct NLLSOptions
     reldcost::Float64           # Minimum relative reduction in cost required to avoid termination
-    absdcost::Float64           # Minimum relative reduction in cost required to avoid termination
+    absdcost::Float64           # Minimum absolute reduction in cost required to avoid termination
     dstep::Float64              # Minimum L-infinity norm of the update vector required to avoid termination
     maxfails::Int               # Maximum number of consecutive iterations that have a higher cost than the current best before termination
     maxiters::Int               # Maximum number of outer iterations
@@ -64,11 +63,7 @@ function Base.show(io::IO, x::NLLSResult)
             otherstuff, 100*otherstuff/timetotal)
 end
 
-mutable struct NLLSInternal{VarTypes}
-    variables::Vector{VarTypes}
-    bestvariables::Vector{VarTypes}
-    linsystem::Union{UniVariateLS, MultiVariateLS}
-    step::Vector{Float64}
+mutable struct NLLSInternalSingleVar
     bestcost::Float64
     timecost::Float64
     timegradient::Float64
@@ -77,38 +72,60 @@ mutable struct NLLSInternal{VarTypes}
     costcomputations::Int
     gradientcomputations::Int
     linearsolvers::Int
-    starttimens::UInt64
+    step::Vector{Float64}
+    linsystem::UniVariateLS
 
-    function NLLSInternal{VarTypes}(problem::NLLSProblem, computehessian::Bool) where VarTypes
-        starttimens = Base.time_ns()
-        @assert length(problem.variables) > 0
-        # Compute the block offsets
-        unfixed = UInt(0)
-        if typeof(problem.unfixed) == UInt
-            # Single variable block
-            nblocks = UInt(1)
-            blockindices[problem.unfixed] = 1
-            unfixed = UInt(problem.unfixed)
-        else
-            nblocks = UInt(sum(problem.unfixed))
-            @assert nblocks > 0
-        end
-        # Construct the Hessian
-        if nblocks == 1
-            # One unfixed variable
-            if unfixed == 0
-                unfixed = UInt(findfirst(problem.unfixed))
-            end
-            varlen = UInt(nvars(problem.variables[unfixed]))
-            linsystem = UniVariateLS(unfixed, varlen, computehessian ? varlen : UInt(lengthresiduals(problem.residuals)))
-            return new(copy(problem.variables), copy(problem.variables), linsystem, Vector{Float64}(undef, varlen), 0., 0., 0., 0., 0, 0, 0, 0, starttimens)
-        end
-
-        # Multiple variables. Use a block sparse matrix
-        mvls = computehessian ? makesymmvls(problem.variables, problem.residuals, problem.unfixed, nblocks) : makemvls(problem.variables, problem.residuals, problem.unfixed, nblocks)
-        return new(copy(problem.variables), copy(problem.variables), mvls, Vector{Float64}(undef, size(mvls.A, 2)), 0., 0., 0., 0., 0, 0, 0, 0, starttimens)
+    function NLLSInternalSingleVar(unfixed::UInt, varlen::Integer, n::Integer)
+        return new(0., 0., 0., 0., 0, 0, 0, 0, Vector(undef, varlen), UniVariateLS(unfixed, varlen, n))
     end
 end
-function NLLSInternal(problem::NLLSProblem{VarTypes}, computehessian) where VarTypes
-    return NLLSInternal{VarTypes}(problem, computehessian)
+
+mutable struct NLLSInternalMultiVar
+    bestcost::Float64
+    timecost::Float64
+    timegradient::Float64
+    timesolver::Float64
+    iternum::Int
+    costcomputations::Int
+    gradientcomputations::Int
+    linearsolvers::Int
+    step::Vector{Float64}
+    linsystem::MultiVariateLS
+    varresmap::SparseMatrixCSC{Bool, Int}
+
+    function NLLSInternalMultiVar(mvls)
+        return new(0., 0., 0., 0., 0, 0, 0, 0, Vector{Float64}(undef, size(mvls.A, 2)), mvls, spzeros(Bool, 0, 0))
+    end
 end
+
+function updatevarresmap!(varresmap::SparseMatrixCSC{Bool, Int}, residuals::Vector)
+    numres = length(residuals)
+    if numres == 0
+        return
+    end
+    ndeps_ = ndeps(residuals[1])
+    colind = length(varresmap.colptr)
+    rowind = length(varresmap.rowval)
+    resize!(varresmap.colptr, colind+numres)
+    resize!(varresmap.rowval, rowind+numres*ndeps_)
+    rowind += 1
+    srange = SR(0, ndeps_-1)
+    @inbounds for res in residuals
+        varresmap.rowval[srange.+rowind] = varindices(res)
+        rowind += ndeps_
+        colind += 1
+        varresmap.colptr[colind] = rowind
+    end
+end
+
+function updatevarresmap!(varresmap::SparseMatrixCSC{Bool, Int}, problem::NLLSProblem)
+    resize!(varresmap.colptr, 1)
+    varresmap.colptr[1] = 1
+    resize!(varresmap.rowval, 0)
+    @inbounds for res in values(problem.residuals)
+        updatevarresmap!(varresmap, res)
+    end
+    resize!(varresmap.nzval, length(varresmap.rowval))
+    return nothing
+end
+

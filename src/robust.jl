@@ -1,10 +1,7 @@
-export Robustifier, NoRobust, HuberKernel, GemanMcclureKernel
-export robustify, robustkernel
 # import Plots.plot
 
 # Robustification
-abstract type Robustifier end
-struct NoRobust <: Robustifier
+struct NoRobust <: AbstractRobustifier
 end
 
 function robustify(::NoRobust, cost::T) where T
@@ -15,7 +12,7 @@ function robustkernel(::AbstractResidual)
     return NoRobust()
 end
 
-struct ScaledNoRobust{T<:Real} <: Robustifier
+struct ScaledNoRobust{T<:Real} <: AbstractRobustifier
     height::T
     height_sqrt::T
 end
@@ -26,7 +23,7 @@ function robustify(kernel::ScaledNoRobust{T}, cost) where T
     return cost * kernel.height, kernel.height_sqrt, T(0)
 end
 
-struct HuberKernel{T<:Real} <: Robustifier
+struct HuberKernel{T<:Real} <: AbstractRobustifier
     width::T
     width_squared::T
     height::T
@@ -39,11 +36,27 @@ function robustify(kernel::HuberKernel{T}, cost) where T
         return cost * kernel.height, kernel.height, T(0)
     end
     sqrtcost = sqrt(cost)
-    return (sqrtcost * (kernel.width * 2) - kernel.width_squared) * kernel.height, kernel.width * kernel.height / sqrtcost, T(0) #(-0.5 * kernel.width * kernel.height) / (cost * sqrtcost)
+    return (sqrtcost * (kernel.width * 2) - kernel.width_squared) * kernel.height, kernel.width * kernel.height / sqrtcost, T(0)
+end
+
+struct Huber2oKernel{T<:Real} <: AbstractRobustifier
+    width::T
+    width_squared::T
+    height::T
+end
+
+Huber2oKernel(w, h) = Huber2oKernel(w, w*w, h)
+
+function robustify(kernel::Huber2oKernel{T}, cost) where T
+    if cost < kernel.width_squared
+        return cost * kernel.height, kernel.height, T(0)
+    end
+    sqrtcost = sqrt(cost)
+    return (sqrtcost * (kernel.width * 2) - kernel.width_squared) * kernel.height, kernel.width * kernel.height / sqrtcost, (-0.5 * kernel.width * kernel.height) / (cost * sqrtcost)
 end
 
 
-struct GemanMcclureKernel{T<:Real} <: Robustifier
+struct GemanMcclureKernel{T<:Real} <: AbstractRobustifier
     width_squared::T
     height::T
     height_sqrt::T

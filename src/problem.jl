@@ -1,59 +1,71 @@
-export NLLSProblem, addresidual!, addvariable!, fixvars!, unfixvars!, numresiduals, lengthresiduals
+ResidualStruct = Dict{DataType, Vector}
 
-struct NLLSProblem{VarTypes}
+mutable struct NLLSProblem{VarTypes}
     # User provided
-    residuals::Dict{DataType, Vector}
+    residuals::ResidualStruct
     variables::Vector{VarTypes}
-    unfixed::Union{UInt, BitVector} # Bit vector to store which variables are not fixed (same length as variables), or a single variable index
+    varnext::Vector{VarTypes}
+    varbest::Vector{VarTypes}
 
     # Constructor
-    function NLLSProblem{VarTypes}(vars=Vector{VarTypes}(), unfixed=BitVector()) where VarTypes
-        @assert (typeof(unfixed) == UInt ? (0 < unfixed <= length(vars)) : length(unfixed) == length(vars))
-        return new(IdDict{DataType, Any}(), vars, unfixed)
+    function NLLSProblem{VarTypes}(vars=Vector{VarTypes}(), residuals=ResidualStruct(), varnext=Vector{VarTypes}(), varbest=Vector{VarTypes}()) where VarTypes
+        return new(residuals, vars, varnext, varbest)
     end
 end
 
-function selectresiduals!(outres::IdDict, inres::Vector{T}, unfixed::Integer) where T
-    vec = inres[map(r -> any(varindices(r) .== unfixed), inres)]
-    if !isempty(vec)
-        outres[T] = vec
-    end
+function selectresiduals!(outres::ResidualStruct, inres::Vector, unfixed::Integer)
+    selectresiduals!(outres, inres, [i for (i, r) in enumerate(inres) if in(unfixed, varindices(r))])
 end
 
-function selectresiduals!(outres::IdDict, inres::Vector{T}, unfixed::BitVector) where T
-    vec = inres[map(r -> any(unfixed[varindices(r)]), inres)]
+function selectresiduals!(outres::ResidualStruct, inres::Vector, unfixed::BitVector)
+    selectresiduals!(outres, inres, [i for (i, r) in enumerate(inres) if any(j -> unfixed[j], varindices(r))])
+end
+
+function selectresiduals!(outres::ResidualStruct, inres::Vector{T}, vec::Vector) where T
     if !isempty(vec)
-        outres[T] = vec
+        outres[T] = inres[vec]
     end
 end
 
 # Produce a subproblem containing only the relevant residuals
-function NLLSProblem(problem::NLLSProblem{T}, unfixed) where T
-    # Create the new problem (note that variables are SHARED)
-    probout = NLLSProblem{T}(problem.variables, unfixed)
+function subproblem(problem::NLLSProblem{T}, unfixed) where T
     # Copy residuals that have unfixed inputs
-    for (type, residuals) in problem.residuals
-        selectresiduals!(probout.residuals, residuals, unfixed)
+    residualstruct = ResidualStruct()
+    for residuals in values(problem.residuals)
+        selectresiduals!(residualstruct, residuals, unfixed)
     end
-    return probout
+    # Create the new problem (note that variables are SHARED)
+    return NLLSProblem{T}(problem.variables, residualstruct, problem.varnext, problem.varbest)
 end
 
-function fixvars!(problem::NLLSProblem, indices)
-    problem.unfixed[indices] .= false
-end
-
-function unfixvars!(problem::NLLSProblem, indices)
-    problem.unfixed[indices] .= true
+function subproblem(problem::NLLSProblem{T}, resind::Vector) where T
+    # Copy residuals that have unfixed inputs
+    residualstruct = ResidualStruct()
+    firstres = 0
+    firstind = 0
+    len = length(resind)
+    for residuals in values(problem.residuals)
+        lastres = firstres + length(residuals)
+        lastind = firstind
+        while lastind < len && resind[lastind+1] <= lastres
+            lastind += 1
+        end
+        selectresiduals!(residualstruct, residuals, resind[firstind+1:lastind].-firstind)
+        firstres = lastres
+        firstind = lastind
+    end
+    # Create the new problem (note that variables are SHARED)
+    return NLLSProblem{T}(problem.variables, residualstruct, problem.varnext, problem.varbest)
 end
 
 function addresidual!(problem::NLLSProblem, residual::T) where T
     # Sanity checks
-    N = nvars(residual)
-    @assert N>0 "Problem with nvars()"
+    N = ndeps(residual)
+    @assert isa(N, Integer) && N>0 && N<=MAX_ARGS "Problem with ndeps()"
+    M = nres(residual)
+    @assert isa(M, Integer) && M>0 && M<=MAX_BLOCK_SZ "Problem with nres()"
     @assert length(varindices(residual))==N "Problem with varindices()"
     @assert length(getvars(residual, problem.variables))==N "Problem with getvars()"
-    # Set the used variables to be unfixed
-    unfixvars!(problem, varindices(residual))
     # Add to the problem
     push!(get!(problem.residuals, T, Vector{T}()), residual)
     return nothing
@@ -61,16 +73,15 @@ end
 
 function addvariable!(problem::NLLSProblem, variable)
     # Sanity checks
-    @assert nvars(variable)>0 "Problem with nvars()"
+    N = nvars(variable)
+    @assert isa(N, Integer) && N>0 && N<=MAX_BLOCK_SZ "Problem with nvars()"
     # Add the variable
     push!(problem.variables, variable)
-    # Set fixed to start with
-    push!(problem.unfixed, false)
     # Return the index
     return length(problem.variables)
 end
 
-function numresiduals(residuals::Dict{DataType, Vector})
+function numresiduals(residuals::ResidualStruct)
     num = 0
     @inbounds for vec in values(residuals)
         num += length(vec)
@@ -78,10 +89,13 @@ function numresiduals(residuals::Dict{DataType, Vector})
     return num
 end
 
-function lengthresiduals(residuals::Dict{DataType, Vector})
+function lengthresiduals(residuals::ResidualStruct)
     len = 0
-    @inbounds for (key, vec) in residuals
-        len += length(vec) * nres(key)
+    @inbounds for vec in values(residuals)
+        n = length(vec)
+        if n != 0
+            len += n * nres(vec[1])
+        end
     end
     return len
 end

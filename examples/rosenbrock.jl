@@ -1,4 +1,4 @@
-using StaticArrays, GLMakie
+using StaticArrays, GLMakie, LinearAlgebra
 import NLLSsolver
 
 # Define the Rosenbrock cost function
@@ -7,8 +7,9 @@ struct Rosenbrock <: NLLSsolver.AbstractResidual
     b::Float64
 end
 Rosenbrock() = Rosenbrock(1.0, 10.0)
-NLLSsolver.nvars(NLLSsolver.@objtype(Rosenbrock)) = 1 # Residual depends on 1 variable
-NLLSsolver.nres(NLLSsolver.@objtype(Rosenbrock)) = 2 # Residual has length 2
+Base.eltype(::Rosenbrock) = Float64
+NLLSsolver.ndeps(::Rosenbrock) = 1 # Residual depends on 1 variable
+NLLSsolver.nres(::Rosenbrock) = 2 # Residual has length 2
 NLLSsolver.varindices(::Rosenbrock) = SVector(1) # There's only one variable
 function NLLSsolver.getvars(::Rosenbrock, vars::Vector)
     return (vars[1]::NLLSsolver.EuclideanVector{2, Float64},)
@@ -44,7 +45,7 @@ function runoptimizers!(results, problem, start, iterators)
         problem.variables[1] = NLLSsolver.EuclideanVector(start[1], start[2])
 
         # Optimize the cost
-        options = NLLSsolver.NLLSOptions(dcost=1.e-6, iterator=iter, storetrajectory=true, storecosts=true)
+        options = NLLSsolver.NLLSOptions(reldcost=1.e-6, iterator=iter, storetrajectory=true, storecosts=true)
         result = NLLSsolver.optimize!(problem, options)
 
         # Construct the trajectory
@@ -82,6 +83,7 @@ function optimizeRosenbrock(start=[-0.5, 2.5], iterators=[NLLSsolver.gaussnewton
     grid = computeCostGrid(x -> log1p(norm(NLLSsolver.computeresidual(residual, x))), X, Y)
 
     # Create the plot
+    GLMakie.activate!(inline=false)
     fig = Figure()
     ax1 = Axis(fig[1, 1]; limits=(X[1], X[end], Y[1], Y[end]), title="Trajectories")
     ax2 = Axis(fig[1, 2]; title="Costs", xlabel="Iteration", yscale=log10)
