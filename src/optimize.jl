@@ -1,5 +1,3 @@
-export optimize!
-
 function optimize!(problem::NLLSProblem{VarTypes}, options::NLLSOptions=NLLSOptions(), unfixed=0)::NLLSResult where VarTypes
     t = Base.time_ns()
     @assert length(problem.variables) > 0

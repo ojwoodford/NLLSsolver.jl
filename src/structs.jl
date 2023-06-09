@@ -1,7 +1,5 @@
 using SparseArrays, Dates
 import Printf.@printf
-export NLLSOptions, NLLSResult, NLLSIterator
-export updatevarresmap!
 
 @enum NLLSIterator gaussnewton levenbergmarquardt dogleg
 function Base.String(iterator::NLLSIterator) 
@@ -113,16 +111,16 @@ function updatevarresmap!(varresmap::SparseMatrixCSC{Bool, Int}, residuals::Vect
     if numres == 0
         return
     end
-    nvars_ = nvars(residuals[1])
+    ndeps_ = ndeps(residuals[1])
     colind = length(varresmap.colptr)
     rowind = length(varresmap.rowval)
     resize!(varresmap.colptr, colind+numres)
-    resize!(varresmap.rowval, rowind+numres*nvars_)
+    resize!(varresmap.rowval, rowind+numres*ndeps_)
     rowind += 1
-    srange = SR(0, nvars_-1)
+    srange = SR(0, ndeps_-1)
     @inbounds for res in residuals
         varresmap.rowval[srange.+rowind] = varindices(res)
-        rowind += nvars_
+        rowind += ndeps_
         colind += 1
         varresmap.colptr[colind] = rowind
     end

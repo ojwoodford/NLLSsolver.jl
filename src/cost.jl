@@ -1,6 +1,5 @@
 using FLoops: @floop, @reduce
 import ForwardDiff
-export cost, costgradhess!, costresjac!
 
 cost(problem::NLLSProblem) = cost(problem.residuals, problem.variables)
 
@@ -87,8 +86,8 @@ function costgradhess!(linsystem, residual::Residual, vars::Vector) where Residu
     end
 
     # Dispatch gradient computation based on the varflags, and return the cost
-    if nvars(residual) <= 5
-        return valuedispatch(Val(1), Val((2^nvars(residual))-1), varflags, fixallbutlast(gradhesshelper!, linsystem, residual, vars, blockind))
+    if ndeps(residual) <= 5
+        return valuedispatch(Val(1), Val((2^ndeps(residual))-1), varflags, fixallbutlast(gradhesshelper!, linsystem, residual, vars, blockind))
     end
     return gradhesshelper!(linsystem, residual, vars, blockind, Val(varflags))
 end
@@ -140,8 +139,8 @@ function costresjac!(linsystem, residual::Residual, vars::Vector, ind) where Res
     end
 
     # Dispatch gradient computation based on the varflags, and return the cost
-    if nvars(residual) <= 5
-        return valuedispatch(Val(1), Val((2^nvars(residual))-1), varflags, fixallbutlast(resjachelper!, linsystem, residual, vars, blockind, ind))
+    if ndeps(residual) <= 5
+        return valuedispatch(Val(1), Val((2^ndeps(residual))-1), varflags, fixallbutlast(resjachelper!, linsystem, residual, vars, blockind, ind))
     end
     return resjachelper!(linsystem, residual, vars, blockind, ind, Val(varflags))
 end

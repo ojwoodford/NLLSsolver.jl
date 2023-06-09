@@ -1,5 +1,4 @@
 using SparseArrays
-export UniVariateLS, MultiVariateLS, makemvls, makesymmvls, gethessgrad, getjacres, zero!, uniformscaling!
 
 function addvarvarpairs!(pairs, residuals::Vector, blockindices)
     for res in residuals

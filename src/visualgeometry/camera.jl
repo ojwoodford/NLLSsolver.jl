@@ -1,5 +1,3 @@
-export SimpleCamera, NoDistortionCamera, ExtendedUnifiedCamera, BarrelDistortion, EULensDistortion
-export ideal2image, image2ideal, pixel2image, image2pixel, ideal2distorted, distorted2ideal, update, nvars, nres, varindices, getvars, computeresidual, convertlens
 using StaticArrays, LinearAlgebra
 
 
@@ -122,7 +120,7 @@ struct LensDistortResidual{T} <: AbstractResidual
     rlinear::T
     rdistort::T
 end
-nvars(::LensDistortResidual) = 1 # The residual depends on one variable
+ndeps(::LensDistortResidual) = 1 # The residual depends on one variable
 nres(::LensDistortResidual) = 1 # The residual vector has length one
 varindices(::LensDistortResidual) = SVector(1)
 computeresidual(residual::LensDistortResidual, lens::EULensDistortion) = SVector(residual.rdistort - ideal2distorted(lens, residual.rlinear))

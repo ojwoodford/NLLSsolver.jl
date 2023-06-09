@@ -1,5 +1,3 @@
-export rodrigues, project, epipolarerror, proj2orthonormal
-export Rotation3DR, Rotation3DL, Point3D, Pose3D, EffPose3D, UnitPose3D
 using StaticArrays, LinearAlgebra
 
 function rodrigues(x::T, y::T, z::T) where T<:Number

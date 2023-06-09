@@ -1,5 +1,3 @@
-export NLLSProblem, subproblem, addresidual!, addvariable!, fixvars!, unfixvars!, numresiduals, lengthresiduals
-
 ResidualStruct = Dict{DataType, Vector}
 
 mutable struct NLLSProblem{VarTypes}
@@ -62,8 +60,10 @@ end
 
 function addresidual!(problem::NLLSProblem, residual::T) where T
     # Sanity checks
-    N = nvars(residual)
-    @assert N>0 "Problem with nvars()"
+    N = ndeps(residual)
+    @assert isa(N, Integer) && N>0 && N<=MAX_ARGS "Problem with ndeps()"
+    M = nres(residual)
+    @assert isa(M, Integer) && M>0 && M<=MAX_BLOCK_SZ "Problem with nres()"
     @assert length(varindices(residual))==N "Problem with varindices()"
     @assert length(getvars(residual, problem.variables))==N "Problem with getvars()"
     # Add to the problem
@@ -73,7 +73,8 @@ end
 
 function addvariable!(problem::NLLSProblem, variable)
     # Sanity checks
-    @assert nvars(variable)>0 "Problem with nvars()"
+    N = nvars(variable)
+    @assert isa(N, Integer) && N>0 && N<=MAX_BLOCK_SZ "Problem with nvars()"
     # Add the variable
     push!(problem.variables, variable)
     # Return the index

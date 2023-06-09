@@ -5,7 +5,8 @@ import NLLSsolver
 struct RosenbrockA <: NLLSsolver.AbstractResidual
     a::Float64
 end
-NLLSsolver.nvars(::RosenbrockA) = 1
+NLLSsolver.ndeps(::RosenbrockA) = 1
+NLLSsolver.nres(::RosenbrockA) = 1
 NLLSsolver.varindices(::RosenbrockA) = SVector(1)
 function NLLSsolver.getvars(::RosenbrockA, vars::Vector)
     return (vars[1]::Float64,)
@@ -18,7 +19,8 @@ Base.eltype(::RosenbrockA) = Float64
 struct RosenbrockB <: NLLSsolver.AbstractResidual
     b::Float64
 end
-NLLSsolver.nvars(::RosenbrockB) = 2
+NLLSsolver.ndeps(::RosenbrockB) = 2
+NLLSsolver.nres(::RosenbrockB) = 1
 NLLSsolver.varindices(::RosenbrockB) = SVector(1, 2)
 function NLLSsolver.getvars(::RosenbrockB, vars::Vector)
     return (vars[1]::Float64, vars[2]::Float64)

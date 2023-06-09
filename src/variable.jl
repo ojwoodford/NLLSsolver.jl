@@ -1,5 +1,4 @@
 using StaticArrays
-export EuclideanVector, ZeroToInfScalar, ZeroToOneScalar
 
 # Scalar
 nvars(::Number) = 1

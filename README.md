@@ -27,7 +27,7 @@ Each instance of these two types must implement a standard API, as follows.
 - **`newvar::MyVar = update(oldvar::MyVar, updatevec)`** updates a variable, given an update vector of length N.
 
 #### Residual blocks
-- **`N::Int = nvars(::MyRes)`** returns the number of variable blocks the residual block depends on.
+- **`N::Int = ndeps(::MyRes)`** returns the number of variable blocks the residual block depends on.
 - **`M::Int = nres(::MyRes)`** returns the number of scalar residuals in the block.
 - **`varind::SVector{N, Int} = varindices(res::MyRes)`** returns the indices of the variable blocks (stored in problem) that this residual block depends on. These values are assumed to remain fixed for the duration of an optimization.
 - **`resvars::Tuple = getvars(res::MyRes, allvars::Vector)`** returns a tuple containing the variables the residual block depends on.

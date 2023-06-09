@@ -1,6 +1,5 @@
 using StaticArrays, HybridArrays, LinearAlgebra
 import SparseArrays
-export BlockSparseMatrix, makesparseindices, symmetrifysparse, symmetrifyfull, block, uniformscaling!
 
 struct BlockSparseMatrix{T}
     data::Vector{T}                                   # Storage for all the matrix data

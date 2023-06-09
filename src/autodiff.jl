@@ -1,5 +1,4 @@
 import ForwardDiff
-export computeresjac 
 
 # Construct a vector of duals with zero values and one partial derivative set to 1
 @generated function single_seed(::Type{T}, ::Val{N}, ::Val{i}) where {T, N, i}
