@@ -51,7 +51,7 @@ struct Point3D{T<:Real} <: AbstractPoint3D
 end
 Point3D(x::T, y::T, z::T) where T = Point3D(SVector{3, T}(x, y, z))
 Point3D() = Point3D(SVector{3, Float64}(0., 0., 0.))
-nvars(@objtype(Point3D{T})) where T = 3
+nvars(::Point3D) = 3
 update(var::Point3D, updatevec, start=1) = Point3D(var.v + updatevec[SR(0, 2) .+ start])
 project(x::Point3D{T}) where T = SVector{2, T}(x.v[1], x.v[2]) ./ x.v[3]
 
@@ -62,7 +62,7 @@ struct Rotation3DR{T<:Real} <: AbstractRotation3D
 end
 Rotation3DR(x, y, z) = Rotation3DR(rodrigues(x, y, z))
 Rotation3DR() = Rotation3DR(SMatrix{3, 3, Float64}(1., 0., 0., 0., 1., 0., 0., 0., 1.))
-nvars(@objtype(Rotation3DR{T})) where T = 3
+nvars(::Rotation3DR) = 3
 update(var::Rotation3DR, updatevec, start=1) = var * Rotation3DR(updatevec[start], updatevec[start+1], updatevec[start+2])
 transform(rota::Rotation3DR, rotb::Rotation3DR) = Rotation3DR(rota.m * rotb.m)
 transform(rot::Rotation3DR, point::Point3D) = Point3D(rot.m * point.v)
@@ -72,7 +72,7 @@ struct Rotation3DL{T<:Real} <: AbstractRotation3D
 end
 Rotation3DL(x, y, z) = Rotation3DL(rodrigues(x, y, z))
 Rotation3DL() = Rotation3DL(SMatrix{3, 3, Float64}(1., 0., 0., 0., 1., 0., 0., 0., 1.))
-nvars(@objtype(Rotation3DL{T})) where T = 3
+nvars(::Rotation3DL) = 3
 update(var::Rotation3DL, updatevec, start=1) = Rotation3DL(updatevec[start], updatevec[start+1], updatevec[start+2]) * var
 transform(rota::Rotation3DL, rotb::Rotation3DL) = Rotation3DL(rota.m * rotb.m)
 transform(rot::Rotation3DL, point::Point3D) = Point3D(rot.m * point.v)
@@ -85,7 +85,7 @@ struct Pose3D{T<:Real} <: AbstractPose3D
 end
 Pose3D(rx, ry, rz, tx, ty, tz) = Pose3D(Rotation3DR(rx, ry, rz), Point3D(tx, ty, tz))
 Pose3D() = Pose3D(Rotation3DR(), Point3D())
-nvars(@objtype(Pose3D{T})) where T = 6
+nvars(::Pose3D) = 6
 update(var::Pose3D, updatevec, start=1) = Pose3D(update(var.rot, updatevec, start), update(var.trans, updatevec, start+3))
 inverse(var::Pose3D) = Pose3D(var.rot', var.rot' * -var.trans)
 transform(pose::Pose3D, point::Point3D) = Point3D(pose.rot.m * point.v + pose.trans.v)
@@ -97,7 +97,7 @@ end
 EffPose3D(rx, ry, rz, cx, cy, cz) = EffPose3D(Rotation3DL(rx, ry, rz), Point3D(cx, cy, cz))
 EffPose3D(pose::Pose3D) = EffPose3D(Rotation3DL(pose.rot.m), NLLSsolver.Point3D(pose.rot.m' * -pose.trans.v))
 EffPose3D() = EffPose3D(Rotation3DL(), Point3D())
-nvars(@objtype(EffPose3D{T})) where T = 6
+nvars(::EffPose3D) = 6
 update(var::EffPose3D, updatevec, start=1) = EffPose3D(update(var.rot, updatevec, start), update(var.camcenter, updatevec, start+3))
 inverse(var::EffPose3D) = EffPose3D(var.rot', var.rot * -var.camcenter)
 transform(pose::EffPose3D, point::Point3D) = Point3D(pose.rot.m * (point.v - pose.camcenter.v))
@@ -109,7 +109,7 @@ struct UnitPose3D{T<:Real}
 end
 UnitPose3D() = Pose3D(Rotation3DR(), Rotation3DR())
 UnitPose3D((rx, ry, rz, tx, ty, tz)) = Pose3D(Rotation3DR(rx, ry, rz), Rotation3DR()) # Normalize translation and initialize y & z axes
-nvars(@objtype(UnitPose3D{T})) where T = 5
+nvars(::UnitPose3D) = 5
 update(var::UnitPose3D, updatevec, start=1) = UnitPose3D(update(var.rot, updatevec, start), update(var.trans, SVector(0, updatevec[start+3], updatevec[start+4])))
 inverse(var::UnitPose3D) = Pose3D(var.rot', var.rot' * -var.trans.m[:,1])
 transform(pose::UnitPose3D, point::Point3D) = Point3D(pose.rot.m * point.v + pose.trans.m[:,1])

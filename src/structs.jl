@@ -108,9 +108,12 @@ mutable struct NLLSInternalMultiVar
     end
 end
 
-function updatevarresmap!(varresmap::SparseMatrixCSC{Bool, Int}, residuals::Vector{T}) where T
-    nvars_ = nvars(T)
+function updatevarresmap!(varresmap::SparseMatrixCSC{Bool, Int}, residuals::Vector)
     numres = length(residuals)
+    if numres == 0
+        return
+    end
+    nvars_ = nvars(residuals[1])
     colind = length(varresmap.colptr)
     rowind = length(varresmap.rowval)
     resize!(varresmap.colptr, colind+numres)

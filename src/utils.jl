@@ -1,4 +1,3 @@
-export SR, @objtype, @bitiset
 using StaticArrays
 
 function valuedispatch_expr(::Val{lower}, ::Val{upper}, val, fun) where {lower, upper}
@@ -29,10 +28,6 @@ expandfunc(args, v) = args[1](args[2:end]..., v)
 fixallbutlast(func, args...) = Base.Fix1(expandfunc, (func, args...))
 
 const SR = StaticArrays.SUnitRange
-
-macro objtype(type)
-    esc(:(::Union{$type, Type{$type}}))
-end
 
 macro bitiset(flags, bit)
     esc(:(((1 << ($bit - 1)) & $flags) != 0))

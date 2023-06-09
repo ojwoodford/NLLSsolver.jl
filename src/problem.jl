@@ -90,8 +90,11 @@ end
 
 function lengthresiduals(residuals::ResidualStruct)
     len = 0
-    @inbounds for (key, vec) in residuals
-        len += length(vec) * nres(key)
+    @inbounds for vec in values(residuals)
+        n = length(vec)
+        if n != 0
+            len += n * nres(vec[1])
+        end
     end
     return len
 end
