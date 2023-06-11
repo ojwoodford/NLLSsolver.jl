@@ -1,4 +1,4 @@
-using Test, StaticArrays
+using Test, StaticArrays, SparseArrays
 import NLLSsolver
 
 # Define the Rosenbrock cost function
@@ -42,6 +42,10 @@ Base.eltype(::RosenbrockB) = Float64
     @test NLLSsolver.lengthresiduals(problem.residuals) == 2
     @test NLLSsolver.numresiduals(problem.residuals) == 2
     @test NLLSsolver.cost(problem) == 1.
+    varresmap = spzeros(Bool, 2, 2)
+    NLLSsolver.updatevarresmap!(varresmap, problem)
+    fill!(varresmap.nzval, true)
+    @test vec(sum(Matrix(varresmap); dims=2)) == [2; 1]
 
     # Create a subproblem
     @test NLLSsolver.numresiduals(NLLSsolver.subproblem(problem, trues(2)).residuals) == 2
