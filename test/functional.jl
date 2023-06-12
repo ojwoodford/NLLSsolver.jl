@@ -15,8 +15,6 @@ function NLLSsolver.computeresidual(res::RosenbrockA, x)
     return res.a - x
 end
 Base.eltype(::RosenbrockA) = Float64
-const rosenbrockrobustifier = NLLSsolver.Huber2oKernel(2., 4., 1.)
-NLLSsolver.robustkernel(::RosenbrockA) = rosenbrockrobustifier
 
 struct RosenbrockB <: NLLSsolver.AbstractResidual
     b::Float64
@@ -31,6 +29,8 @@ function NLLSsolver.computeresidual(res::RosenbrockB, x, y)
     return SVector(res.b * (x ^ 2 - y))
 end
 Base.eltype(::RosenbrockB) = Float64
+const rosenbrockrobustifier = NLLSsolver.Huber2oKernel(2.0, 1.)
+NLLSsolver.robustkernel(::RosenbrockB) = rosenbrockrobustifier
 
 @testset "functional.jl" begin
     # Create the problem
