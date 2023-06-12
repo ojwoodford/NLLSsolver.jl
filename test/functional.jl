@@ -1,4 +1,4 @@
-using Test, StaticArrays
+using Test, StaticArrays, SparseArrays
 import NLLSsolver
 
 # Define the Rosenbrock cost function
@@ -29,15 +29,33 @@ function NLLSsolver.computeresidual(res::RosenbrockB, x, y)
     return SVector(res.b * (x ^ 2 - y))
 end
 Base.eltype(::RosenbrockB) = Float64
+const rosenbrockrobustifier = NLLSsolver.Huber2oKernel(2.0, 1.)
+NLLSsolver.robustkernel(::RosenbrockB) = rosenbrockrobustifier
 
 @testset "functional.jl" begin
     # Create the problem
     problem = NLLSsolver.NLLSProblem{Float64}()
-    NLLSsolver.addvariable!(problem, 0.)
-    NLLSsolver.addvariable!(problem, 0.)
+    @test NLLSsolver.addvariable!(problem, 0.) == 1
+    @test NLLSsolver.addvariable!(problem, 0.) == 2
     NLLSsolver.addresidual!(problem, RosenbrockA(1.0))
+    @test NLLSsolver.lengthresiduals(problem.residuals) == 1
+    @test NLLSsolver.numresiduals(problem.residuals) == 1
     NLLSsolver.addresidual!(problem, RosenbrockB(10.))
+    @test NLLSsolver.lengthresiduals(problem.residuals) == 2
+    @test NLLSsolver.numresiduals(problem.residuals) == 2
+    @test NLLSsolver.cost(problem) == 1.
+    varresmap = spzeros(Bool, 2, 2)
+    NLLSsolver.updatevarresmap!(varresmap, problem)
+    fill!(varresmap.nzval, true)
+    @test vec(sum(Matrix(varresmap); dims=2)) == [2; 1]
 
+    # Create a subproblem
+    @test NLLSsolver.numresiduals(NLLSsolver.subproblem(problem, trues(2)).residuals) == 2
+    subprob = NLLSsolver.subproblem(problem, 2)
+    @test NLLSsolver.numresiduals(subprob.residuals) == 1
+    @test NLLSsolver.cost(subprob) == 0.
+
+    # Test optimization
     for (ind, iter) in enumerate([NLLSsolver.gaussnewton, NLLSsolver.levenbergmarquardt, NLLSsolver.dogleg])
         # Set the start
         problem.variables[1] = -0.5
@@ -50,4 +68,5 @@ Base.eltype(::RosenbrockB) = Float64
         @test isapprox(problem.variables[1], 1.0; rtol=1.e-10)
         @test isapprox(problem.variables[2], 1.0; rtol=1.e-10)
     end
+    
 end

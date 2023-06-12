@@ -21,8 +21,8 @@ end
 function iterate!(::NewtonData, data, problem::NLLSProblem, options::NLLSOptions)::Float64
     # Compute the step
     data.timesolver += @elapsed begin
-        hessian, gradient = gethessgrad(data.linsystem)
-        data.step .= -symmetricsolve(hessian, gradient, options)
+        jacobian, residual = getjacres(data.linsystem)
+        data.step .= -linearsolve(jacobian, residual, options)
     end
     data.linearsolvers += 1
     # Update the new variables

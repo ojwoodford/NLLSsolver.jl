@@ -181,7 +181,7 @@ function updateA!(A, a, ::Val{varflags}, blockindices, loffsets, ind) where varf
 end
 
 function updatelinearsystem!(linsystem::MultiVariateLS, res, jac, ind, vars, ::Val{varflags}, blockindices) where varflags
-    view(linsystem.b, SR(0, Size(res)[1]-1) .+ linsystem.boffsets[ind]) .= res
+    view(linsystem.b, SR(0, length(res)-1) .+ linsystem.boffsets[ind]) .= res
     updateA!(linsystem.A, jac, Val(varflags), blockindices, localoffsets(vars, Val(varflags)), ind)
 end
 
