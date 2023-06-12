@@ -15,6 +15,8 @@ function NLLSsolver.computeresidual(res::RosenbrockA, x)
     return res.a - x
 end
 Base.eltype(::RosenbrockA) = Float64
+const rosenbrockrobustifier = NLLSsolver.Huber2oKernel(2., 4., 1.)
+NLLSsolver.robustkernel(::RosenbrockA) = rosenbrockrobustifier
 
 struct RosenbrockB <: NLLSsolver.AbstractResidual
     b::Float64
