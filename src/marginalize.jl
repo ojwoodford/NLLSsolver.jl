@@ -1,30 +1,57 @@
 using StaticArrays, HybridArrays
 
+function marginalize!(to::MultiVariateLS, from::MultiVariateLS, block::Integer, blocksz::Integer)
+    # Get the list of blocks to marginalize out
+    ind = from.A.indicestransposed.colptr[block]:from.A.indicestransposed.colptr[block+1]-1
+    blocks = view(from.A.indicestransposed.rowval, ind)
+    @assert blocks[end] == block && from.A.rowblocksizes[block] == blocksz && all(view(blocks, 1:lastindex(blocks)-1) .<= length(to.A.rowblocksizes))
+    N = length(blocks) - 1
+    dataindices = view(from.A.indicestransposed.nzval, ind)
+    # Compute inverse for the diagonal block (to be marginalized)
+    inverseblock = inv(reshape(view(from.A.data, (0:blocksz*blocksz-1) .+ dataindices[end]), blocksz, blocksz))
+    # For each non-marginalized block
+    blockgrad = view(from.b, (0:blocksz-1) .+ from.boffsets[block])
+    for a in 1:N
+        # Multiply inverse by first block
+        blocka = blocks[a]
+        lena = from.A.rowblocksizes[blocka]
+        S = reshape(view(from.A.data, (0:blocksz*lena-1) .+ dataindices[a]), blocksz, lena)' * inverseblock
+        # Update gradient
+        view(to.b, (0:lena-1) .+ to.boffsets[blocka]) .-= S * blockgrad
+        # Update Hessian blocks
+        for b in 1:a
+            blockb = blocks[b]
+            lenb = from.A.rowblocksizes[blockb]
+            B = reshape(view(from.A.data, (0:blocksz*lenb-1) .+ dataindices[b]), blocksz, lenb)
+            reshape(view(to.A.data, (0:lena*lenb-1) .+ to.A.indicestransposed[blockb,blocka]), lena, lenb) .-= S * B
+        end
+    end
+end
+
 function marginalize!(to::MultiVariateLS, from::MultiVariateLS, block::Integer, ::Val{blocksz}) where blocksz
     # Get the list of blocks to marginalize out
     ind = from.A.indicestransposed.colptr[block]:from.A.indicestransposed.colptr[block+1]-1
-    blocks = from.A.indicestransposed.rowval[ind]
-    @assert blocks[end] == block && all(view(blocks, 1:lastindex(blocks)-1) .<= length(to.A.rowblocksizes))
+    blocks = view(from.A.indicestransposed.rowval, ind)
+    @assert blocks[end] == block && from.A.rowblocksizes[block] == blocksz && all(view(blocks, 1:lastindex(blocks)-1) .<= length(to.A.rowblocksizes))
     N = length(blocks) - 1
-    dataindices = from.A.indicestransposed.nzval[ind]
-    blocksizes = from.A.rowblocksizes[blocks]
-    @assert blocksizes[end] == blocksz
+    dataindices = view(from.A.indicestransposed.nzval, ind)
     # Compute inverse for the diagonal block (to be marginalized)
     inverseblock = inv(SizedMatrix{blocksz, blocksz}(view(from.A.data, SR(0, blocksz*blocksz-1).+dataindices[end])))
     # For each non-marginalized block
     blockgrad = SizedVector{blocksz}(view(from.b, SR(0, blocksz-1) .+ from.boffsets[block]))
     for a in 1:N
         # Multiply inverse by first block
-        lena = blocksizes[a]
         blocka = blocks[a]
+        lena = from.A.rowblocksizes[blocka]
         S = HybridArray{Tuple{blocksz, StaticArrays.Dynamic()}}(reshape(view(from.A.data, (0:blocksz*lena-1) .+ dataindices[a]), blocksz, lena))' * inverseblock
         # Update gradient
         view(to.b, SR(0, lena-1) .+ to.boffsets[blocka]) .-= S * blockgrad
         # Update Hessian blocks
         for b in 1:a
-            lenb = blocksizes[b]
+            blockb = blocks[b]
+            lenb = from.A.rowblocksizes[blockb]
             B = HybridArray{Tuple{blocksz, StaticArrays.Dynamic()}}(reshape(view(from.A.data, (0:blocksz*lenb-1) .+ dataindices[b]), blocksz, lenb))
-            reshape(view(to.A.data, (0:lena*lenb-1) .+ to.A.indicestransposed[blocks[b],blocka]), lena, lenb) .-= S * B
+            reshape(view(to.A.data, (0:lena*lenb-1) .+ to.A.indicestransposed[blockb,blocka]), lena, lenb) .-= S * B
         end
     end
 end
@@ -37,8 +64,13 @@ end
 
 function marginalize!(to::MultiVariateLS, from::MultiVariateLS, fromblock=length(to.A.rowblocksizes)+1)
     for block in fromblock:length(from.A.rowblocksizes)
-        # marginalize!(to, from, block, Val(Int(from.A.rowblocksizes[block])))
-        valuedispatch(Val(1), Val(MAX_BLOCK_SZ), Int(from.A.rowblocksizes[block]), fixallbutlast(marginalize!, to, from, block))
+        blocksz = Int(from.A.rowblocksizes[block])
+        if blocksz <= MAX_BLOCK_SZ
+            # marginalize!(to, from, block, Val(blocksz))
+            valuedispatch(Val(1), Val(MAX_BLOCK_SZ), blocksz, fixallbutlast(marginalize!, to, from, block))
+        else
+            marginalize!(to, from, block, blocksz)
+        end
     end
 end
 
