@@ -37,8 +37,17 @@ using NLLSsolver, SparseArrays, StaticArrays, Test
     hessian = view(hessian, 1:croplen, 1:croplen) - S * view(hessian, croplen+1:N, 1:croplen)
     gradient = view(from.b, 1:croplen) - S * view(from.b, croplen+1:N)
 
-    # Copy the to system
-    tocopy = deepcopy(to)
+    # Compute the marginalized system using dynamic block sizes
+    for block in fromblock:length(from.A.rowblocksizes)
+        NLLSsolver.marginalize!(to, from, block, Int(from.A.rowblocksizes[block]))
+    end
+
+    # Check that the result is correct
+    @test isapprox(hessian, NLLSsolver.symmetrifyfull(to.A); rtol=1.e-13)
+    @test isapprox(gradient, to.b; rtol=1.e-13)
+
+    # Reset the 'to' system
+    NLLSsolver.initcrop!(to, from)
 
     # Compute the marginalized system using fixed block sizes
     NLLSsolver.marginalize!(to, from)
@@ -46,13 +55,4 @@ using NLLSsolver, SparseArrays, StaticArrays, Test
     # Check that the result is correct
     @test isapprox(hessian, NLLSsolver.symmetrifyfull(to.A); rtol=1.e-13)
     @test isapprox(gradient, to.b; rtol=1.e-13)
-
-    # Compute the marginalized system using dynamic block sizes
-    for block in fromblock:length(from.A.rowblocksizes)
-        NLLSsolver.marginalize!(tocopy, from, block, Int(from.A.rowblocksizes[block]))
-    end
-
-    # Check that the result is correct
-    @test isapprox(hessian, NLLSsolver.symmetrifyfull(tocopy.A); rtol=1.e-13)
-    @test isapprox(gradient, tocopy.b; rtol=1.e-13)
 end
