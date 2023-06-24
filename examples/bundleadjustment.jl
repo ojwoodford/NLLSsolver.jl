@@ -1,4 +1,4 @@
-using VisualGeometryDatasets, StaticArrays
+using VisualGeometryDatasets, StaticArrays, Static
 import NLLSsolver
 export optimizeBALproblem
 
@@ -37,9 +37,9 @@ const balrobustifier = NLLSsolver.HuberKernel(2., 4., 1.)
 NLLSsolver.robustkernel(::BALResidual) = balrobustifier
 Base.eltype(::BALResidual{T}) where T = T
 
-function NLLSsolver.computeresjac(::Val{3}, residual::BALResidual, im, point)
+function NLLSsolver.computeresjac(::StaticInt{3}, residual::BALResidual, im, point)
     # Exploit the parameterization to make the jacobian computation more efficient
-    res, jac = NLLSsolver.computeresjac(Val(1), residual, im, point)
+    res, jac = NLLSsolver.computeresjac(static(1), residual, im, point)
     return res, hcat(jac, -view(jac, :, NLLSsolver.SR(4, 6)))
 end
 

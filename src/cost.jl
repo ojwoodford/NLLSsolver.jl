@@ -47,7 +47,7 @@ function gradhesshelper!(linsystem, residual::Residual, vars::Vector, blockind, 
     v = getvars(residual, vars)
 
     # Compute the residual
-    res, jac = computeresjac(Val(varflags), residual, v...)
+    res, jac = computeresjac(varflags, residual, v...)
 
     # Compute the robustified cost and the IRLS weight
     c, w1, w2 = robustify(robustkernel(residual), res' * res)
@@ -107,7 +107,7 @@ function resjachelper!(linsystem, residual::Residual, vars::Vector, blockind, in
     v = getvars(residual, vars)
 
     # Compute the residual
-    res, jac = computeresjac(Val(varflags), residual, v...)
+    res, jac = computeresjac(varflags, residual, v...)
 
     # Compute the robustified cost and the IRLS weight
     c, w1, unused = robustify(robustkernel(residual), res' * res)

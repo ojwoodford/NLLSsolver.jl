@@ -19,3 +19,5 @@ const SR = StaticArrays.SUnitRange
 macro bitiset(flags, bit)
     esc(:(((1 << ($bit - 1)) & $flags) != 0))
 end
+
+bitiset(flags::StaticInt, bit) = (static(1 << (bit - 1)) & flags) != static(0)

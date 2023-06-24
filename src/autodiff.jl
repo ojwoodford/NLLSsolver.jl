@@ -10,7 +10,7 @@ end
 dualzeros(T, N) = dualzeros(T, N, Val(1), N)
 
 # Generate the updated (dualized) variables
-@generated function dualvars(vars::NTuple{N, Any}, ::Val{varflags}, ::Type{T}) where {N, varflags, T}
+@generated function dualvars(vars::NTuple{N, Any}, ::StaticInt{varflags}, ::Type{T}) where {N, varflags, T}
     # FT = fieldtypes(vars)
     # cumul = cumsum((0, [@bitiset(varflags, i) ? Base.invokelatest(NLLSsolver.nvars, FT[i]) : 0 for i = 1:N]...))
     counts = Expr(:tuple, [@bitiset(varflags, i) ? :(nvars(vars[$i])) : 0 for i = 1:N]...)
@@ -29,11 +29,11 @@ function extract_resjac(dual::ForwardDiff.Dual{T, T, N}) where {T, N}
 end
 
 # Automatic Jacobian computation
-function computeresjac(::Val{varflags}, residual::Residual, vars...) where {varflags, Residual <: AbstractResidual}
+function computeresjac(varflags, residual::Residual, vars...) where Residual <: AbstractResidual
     @assert eltype(residual)!=Any "Define Base.eltype() for your residual type"
     
     # Construct ForwardDiff Dual arguments for the unfixed variables
-    xdual = dualvars(vars, Val(varflags), eltype(residual))
+    xdual = dualvars(vars, varflags, eltype(residual))
     
     # Compute the residual with ForwardDiff Duals
     ydual = computeresidual(residual, xdual...)
