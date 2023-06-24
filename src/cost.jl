@@ -1,4 +1,5 @@
 using FLoops: @floop, @reduce
+using Static
 import ForwardDiff
 
 cost(problem::NLLSProblem) = cost(problem.residuals, problem.variables)
@@ -41,7 +42,7 @@ function getoffsets(residual, linsystem::UniVariateLS)
     return convert.(UInt, SVector(varindices(residual)) .== linsystem.varindex)
 end
 
-function gradhesshelper!(linsystem, residual::Residual, vars::Vector, blockind, ::Val{varflags})::Float64 where {varflags, Residual <: AbstractResidual}
+function gradhesshelper!(linsystem, residual::Residual, vars::Vector, blockind, varflags)::Float64 where Residual <: AbstractResidual
     # Get the variables
     v = getvars(residual, vars)
 
@@ -68,7 +69,7 @@ function gradhesshelper!(linsystem, residual::Residual, vars::Vector, blockind, 
             g *= w1
         end
         # Update the blocks in the problem
-        updatesymlinearsystem!(linsystem, g, H, v, Val(varflags), blockind)
+        updatesymlinearsystem!(linsystem, g, H, v, varflags, blockind)
     end
 
     # Return the cost
@@ -87,9 +88,9 @@ function costgradhess!(linsystem, residual::Residual, vars::Vector) where Residu
 
     # Dispatch gradient computation based on the varflags, and return the cost
     if ndeps(residual) <= 5
-        return valuedispatch(Val(1), Val((2^ndeps(residual))-1), varflags, fixallbutlast(gradhesshelper!, linsystem, residual, vars, blockind))
+        return valuedispatch(static(1), static((2^ndeps(residual))-1), varflags, fixallbutlast(gradhesshelper!, linsystem, residual, vars, blockind))
     end
-    return gradhesshelper!(linsystem, residual, vars, blockind, Val(varflags))
+    return gradhesshelper!(linsystem, residual, vars, blockind, static(varflags))
 end
 
 function costgradhess!(linsystem, residuals, vars::Vector)::Float64
@@ -101,7 +102,7 @@ function costgradhess!(linsystem, residuals, vars::Vector)::Float64
     return c 
 end
 
-function resjachelper!(linsystem, residual::Residual, vars::Vector, blockind, ind, ::Val{varflags})::Float64 where {varflags, Residual <: AbstractResidual}
+function resjachelper!(linsystem, residual::Residual, vars::Vector, blockind, ind, varflags)::Float64 where Residual <: AbstractResidual
     # Get the variables
     v = getvars(residual, vars)
 
@@ -121,7 +122,7 @@ function resjachelper!(linsystem, residual::Residual, vars::Vector, blockind, in
             jac = jac .* w1
         end
         # Update the blocks in the problem
-        updatelinearsystem!(linsystem, res, jac, ind, v, Val(varflags), blockind)
+        updatelinearsystem!(linsystem, res, jac, ind, v, varflags, blockind)
     end
 
     # Return the cost
@@ -140,9 +141,9 @@ function costresjac!(linsystem, residual::Residual, vars::Vector, ind) where Res
 
     # Dispatch gradient computation based on the varflags, and return the cost
     if ndeps(residual) <= 5
-        return valuedispatch(Val(1), Val((2^ndeps(residual))-1), varflags, fixallbutlast(resjachelper!, linsystem, residual, vars, blockind, ind))
+        return valuedispatch(static(1), static((2^ndeps(residual))-1), varflags, fixallbutlast(resjachelper!, linsystem, residual, vars, blockind, ind))
     end
-    return resjachelper!(linsystem, residual, vars, blockind, ind, Val(varflags))
+    return resjachelper!(linsystem, residual, vars, blockind, ind, static(varflags))
 end
 
 Base.length(::AbstractResidual) = 1

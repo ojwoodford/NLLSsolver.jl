@@ -1,4 +1,4 @@
-using StaticArrays, HybridArrays
+using StaticArrays, HybridArrays, Static
 
 function marginalize!(to::MultiVariateLS, from::MultiVariateLS, block::Int, blocksz::Int)
     # Get the list of blocks to marginalize out
@@ -28,7 +28,7 @@ function marginalize!(to::MultiVariateLS, from::MultiVariateLS, block::Int, bloc
     end
 end
 
-function marginalize!(to::MultiVariateLS, from::MultiVariateLS, block::Int, ::Val{blocksz}) where blocksz
+function marginalize!(to::MultiVariateLS, from::MultiVariateLS, block::Int, ::StaticInt{blocksz}) where blocksz
     # Get the list of blocks to marginalize out
     ind = from.A.indicestransposed.colptr[block]:from.A.indicestransposed.colptr[block+1]-1
     blocks = view(from.A.indicestransposed.rowval, ind)
@@ -77,7 +77,7 @@ function marginalize!(to::MultiVariateLS, from::MultiVariateLS, fromblock=length
         range = first:last-1
         if blocksz <= MAX_BLOCK_SZ
             # marginalize!(to, from, first:last, Val(blocksz))
-            valuedispatch(Val(1), Val(MAX_BLOCK_SZ), blocksz, fixallbutlast(marginalize!, to, from, range))
+            valuedispatch(static(1), static(MAX_BLOCK_SZ), blocksz, fixallbutlast(marginalize!, to, from, range))
         else
             marginalize!(to, from, range, blocksz)
         end

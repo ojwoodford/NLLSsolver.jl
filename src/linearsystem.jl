@@ -1,4 +1,4 @@
-using SparseArrays
+using SparseArrays, Static
 
 function addvarvarpairs!(pairs, residuals::Vector, blockindices)
     for res in residuals
@@ -162,7 +162,7 @@ function updateb!(B, b, vars, ::Val{varflags}, boffsets, blockindices, loffsets)
     end
 end
 
-function updatesymlinearsystem!(linsystem::MultiVariateLS, g, H, vars, ::Val{varflags}, blockindices) where varflags
+function updatesymlinearsystem!(linsystem::MultiVariateLS, g, H, vars, ::StaticInt{varflags}, blockindices) where varflags
     loffsets = localoffsets(vars, Val(varflags))
     updateb!(linsystem.b, g, vars, Val(varflags), linsystem.boffsets, blockindices, loffsets)
     updatesymA!(linsystem.A, H, vars, Val(varflags), blockindices, loffsets)
@@ -180,7 +180,7 @@ function updateA!(A, a, ::Val{varflags}, blockindices, loffsets, ind) where varf
     end
 end
 
-function updatelinearsystem!(linsystem::MultiVariateLS, res, jac, ind, vars, ::Val{varflags}, blockindices) where varflags
+function updatelinearsystem!(linsystem::MultiVariateLS, res, jac, ind, vars, ::StaticInt{varflags}, blockindices) where varflags
     view(linsystem.b, SR(0, length(res)-1) .+ linsystem.boffsets[ind]) .= res
     updateA!(linsystem.A, jac, Val(varflags), blockindices, localoffsets(vars, Val(varflags)), ind)
 end
