@@ -1,6 +1,6 @@
 using StaticArrays, HybridArrays
 
-function marginalize!(to::MultiVariateLS, from::MultiVariateLS, block::Integer, blocksz::Integer)
+function marginalize!(to::MultiVariateLS, from::MultiVariateLS, block::Int, blocksz::Int)
     # Get the list of blocks to marginalize out
     ind = from.A.indicestransposed.colptr[block]:from.A.indicestransposed.colptr[block+1]-1
     blocks = view(from.A.indicestransposed.rowval, ind)
@@ -14,21 +14,21 @@ function marginalize!(to::MultiVariateLS, from::MultiVariateLS, block::Integer, 
     for a in 1:N
         # Multiply inverse by first block
         blocka = blocks[a]
-        lena = from.A.rowblocksizes[blocka]
+        lena = Int(from.A.rowblocksizes[blocka])
         S = reshape(view(from.A.data, (0:blocksz*lena-1) .+ dataindices[a]), blocksz, lena)' * inverseblock
         # Update gradient
         view(to.b, (0:lena-1) .+ to.boffsets[blocka]) .-= S * blockgrad
         # Update Hessian blocks
         for b in 1:a
             blockb = blocks[b]
-            lenb = from.A.rowblocksizes[blockb]
+            lenb = Int(from.A.rowblocksizes[blockb])
             B = reshape(view(from.A.data, (0:blocksz*lenb-1) .+ dataindices[b]), blocksz, lenb)
             reshape(view(to.A.data, (0:lena*lenb-1) .+ to.A.indicestransposed[blockb,blocka]), lena, lenb) .-= S * B
         end
     end
 end
 
-function marginalize!(to::MultiVariateLS, from::MultiVariateLS, block::Integer, ::Val{blocksz}) where blocksz
+function marginalize!(to::MultiVariateLS, from::MultiVariateLS, block::Int, ::Val{blocksz}) where blocksz
     # Get the list of blocks to marginalize out
     ind = from.A.indicestransposed.colptr[block]:from.A.indicestransposed.colptr[block+1]-1
     blocks = view(from.A.indicestransposed.rowval, ind)
@@ -42,34 +42,44 @@ function marginalize!(to::MultiVariateLS, from::MultiVariateLS, block::Integer, 
     for a in 1:N
         # Multiply inverse by first block
         blocka = blocks[a]
-        lena = from.A.rowblocksizes[blocka]
+        lena = Int(from.A.rowblocksizes[blocka])
         S = HybridArray{Tuple{blocksz, StaticArrays.Dynamic()}}(reshape(view(from.A.data, (0:blocksz*lena-1) .+ dataindices[a]), blocksz, lena))' * inverseblock
         # Update gradient
         view(to.b, SR(0, lena-1) .+ to.boffsets[blocka]) .-= S * blockgrad
         # Update Hessian blocks
         for b in 1:a
             blockb = blocks[b]
-            lenb = from.A.rowblocksizes[blockb]
+            lenb = Int(from.A.rowblocksizes[blockb])
             B = HybridArray{Tuple{blocksz, StaticArrays.Dynamic()}}(reshape(view(from.A.data, (0:blocksz*lenb-1) .+ dataindices[b]), blocksz, lenb))
             reshape(view(to.A.data, (0:lena*lenb-1) .+ to.A.indicestransposed[blockb,blocka]), lena, lenb) .-= S * B
         end
     end
 end
 
-function marginalize!(to::MultiVariateLS, from::MultiVariateLS, blocks::AbstractRange, ::Val{blocksz}) where blocksz
+function marginalize!(to::MultiVariateLS, from::MultiVariateLS, blocks::AbstractRange, blocksz)
     for block in blocks
-        marginalize!(to, from, block, Val(blocksz))
+        marginalize!(to, from, block, blocksz)
     end
 end
 
 function marginalize!(to::MultiVariateLS, from::MultiVariateLS, fromblock=length(to.A.rowblocksizes)+1)
-    for block in fromblock:length(from.A.rowblocksizes)
-        blocksz = Int(from.A.rowblocksizes[block])
+    last = fromblock
+    finish = length(from.A.rowblocksizes)
+    while last <= finish
+        first = last
+        blocksz = Int(from.A.rowblocksizes[last])
+        while true
+            last += 1
+            if last > finish || blocksz != Int(from.A.rowblocksizes[last])
+                break
+            end
+        end
+        range = first:last-1
         if blocksz <= MAX_BLOCK_SZ
-            # marginalize!(to, from, block, Val(blocksz))
-            valuedispatch(Val(1), Val(MAX_BLOCK_SZ), blocksz, fixallbutlast(marginalize!, to, from, block))
+            # marginalize!(to, from, first:last, Val(blocksz))
+            valuedispatch(Val(1), Val(MAX_BLOCK_SZ), blocksz, fixallbutlast(marginalize!, to, from, range))
         else
-            marginalize!(to, from, block, blocksz)
+            marginalize!(to, from, range, blocksz)
         end
     end
 end
