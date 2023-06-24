@@ -1,3 +1,5 @@
+using Static
+
 ResidualStruct = Dict{DataType, Vector}
 
 mutable struct NLLSProblem{VarTypes}
@@ -61,7 +63,7 @@ end
 function addresidual!(problem::NLLSProblem, residual::T) where T
     # Sanity checks
     N = ndeps(residual)
-    @assert isa(N, Integer) && N>0 && N<=MAX_ARGS "Problem with ndeps()"
+    @assert isa(N, StaticInt) && N>0 && N<=MAX_ARGS "Problem with ndeps()"
     M = nres(residual)
     @assert isa(M, Integer) && M>0 && M<=MAX_BLOCK_SZ "Problem with nres()"
     @assert length(varindices(residual))==N "Problem with varindices()"

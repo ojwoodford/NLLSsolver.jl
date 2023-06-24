@@ -1,4 +1,4 @@
-using StaticArrays, LinearAlgebra
+using StaticArrays, LinearAlgebra, Static
 
 
 function image2pixel(halfimsz, x)
@@ -120,7 +120,7 @@ struct LensDistortResidual{T} <: AbstractResidual
     rlinear::T
     rdistort::T
 end
-ndeps(::LensDistortResidual) = 1 # The residual depends on one variable
+ndeps(::LensDistortResidual) = static(1) # The residual depends on one variable
 nres(::LensDistortResidual) = 1 # The residual vector has length one
 varindices(::LensDistortResidual) = SVector(1)
 computeresidual(residual::LensDistortResidual, lens::EULensDistortion) = SVector(residual.rdistort - ideal2distorted(lens, residual.rlinear))

@@ -28,7 +28,7 @@ struct BALResidual{T} <: NLLSsolver.AbstractResidual
     varind::SVector{2, Int} # Variable indices for the residual (image, landmark)
 end
 BALResidual(m, v) = BALResidual(SVector{2}(m[1], m[2]), SVector{2, Int}(v[1], v[2]))
-NLLSsolver.ndeps(::BALResidual) = 2 # Residual depends on 2 variables
+NLLSsolver.ndeps(::BALResidual) = static(2) # Residual depends on 2 variables
 NLLSsolver.nres(::BALResidual) = 2 # Residual vector has length 2
 NLLSsolver.varindices(res::BALResidual) = res.varind
 NLLSsolver.getvars(res::BALResidual{T}, vars::Vector) where T = vars[res.varind[1]]::BALImage{T}, vars[res.varind[2]]::NLLSsolver.Point3D{T}

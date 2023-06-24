@@ -1,11 +1,11 @@
-using Test, StaticArrays, SparseArrays
+using Test, StaticArrays, SparseArrays, Static
 import NLLSsolver
 
 # Define the Rosenbrock cost function
 struct RosenbrockA <: NLLSsolver.AbstractResidual
     a::Float64
 end
-NLLSsolver.ndeps(::RosenbrockA) = 1
+NLLSsolver.ndeps(::RosenbrockA) = static(1)
 NLLSsolver.nres(::RosenbrockA) = 1
 NLLSsolver.varindices(::RosenbrockA) = SVector(1)
 function NLLSsolver.getvars(::RosenbrockA, vars::Vector)
@@ -19,7 +19,7 @@ Base.eltype(::RosenbrockA) = Float64
 struct RosenbrockB <: NLLSsolver.AbstractResidual
     b::Float64
 end
-NLLSsolver.ndeps(::RosenbrockB) = 2
+NLLSsolver.ndeps(::RosenbrockB) = static(2)
 NLLSsolver.nres(::RosenbrockB) = 1
 NLLSsolver.varindices(::RosenbrockB) = SVector(1, 2)
 function NLLSsolver.getvars(::RosenbrockB, vars::Vector)

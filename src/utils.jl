@@ -1,6 +1,6 @@
 using StaticArrays, Static
 
-function valuedispatch(lower::StaticInt, upper::StaticInt, val::Int, fun)
+@inline function valuedispatch(lower::StaticInt, upper::StaticInt, val::Int, fun)
     if lower >= upper
         return fun(upper)
     end

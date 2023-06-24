@@ -1,4 +1,4 @@
-using SparseArrays, Dates
+using SparseArrays, Dates, Static
 import Printf.@printf
 
 @enum NLLSIterator gaussnewton levenbergmarquardt dogleg
@@ -103,7 +103,7 @@ function updatevarresmap!(varresmap::SparseMatrixCSC{Bool, Int}, residuals::Vect
     if numres == 0
         return
     end
-    ndeps_ = ndeps(residuals[1])
+    ndeps_ = known(ndeps(residuals[1]))
     colind = length(varresmap.colptr)
     rowind = length(varresmap.rowval)
     resize!(varresmap.colptr, colind+numres)

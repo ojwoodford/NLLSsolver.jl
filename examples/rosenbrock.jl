@@ -1,4 +1,4 @@
-using StaticArrays, GLMakie, LinearAlgebra
+using StaticArrays, GLMakie, LinearAlgebra, Static
 import NLLSsolver
 
 # Define the Rosenbrock cost function
@@ -8,7 +8,7 @@ struct Rosenbrock <: NLLSsolver.AbstractResidual
 end
 Rosenbrock() = Rosenbrock(1.0, 10.0)
 Base.eltype(::Rosenbrock) = Float64
-NLLSsolver.ndeps(::Rosenbrock) = 1 # Residual depends on 1 variable
+NLLSsolver.ndeps(::Rosenbrock) = static(1) # Residual depends on 1 variable
 NLLSsolver.nres(::Rosenbrock) = 2 # Residual has length 2
 NLLSsolver.varindices(::Rosenbrock) = SVector(1) # There's only one variable
 function NLLSsolver.getvars(::Rosenbrock, vars::Vector)

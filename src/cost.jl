@@ -76,21 +76,30 @@ function gradhesshelper!(linsystem, residual::Residual, vars::Vector, blockind, 
     return c
 end
 
+@inline computevarflags(blockind) = Int(foldl((x, y) -> (x << 1) + (y != 0), reverse(blockind), init=zero(eltype(blockind))))
+
 function costgradhess!(linsystem, residual::Residual, vars::Vector) where Residual <: AbstractResidual
     # Get the bitset for the input variables, as an integer
     blockind = getoffsets(residual, linsystem)
-    varflags = Int(foldl((x, y) -> (x << 1) + (y != 0), reverse(blockind), init=UInt(0)))
+    varflags = computevarflags(blockind)
 
-    # If there are no variables, just return the cost
-    if varflags == 0
-        return cost(residual, vars)
+    # Common case - all unfixed
+    maxflags = static(2 ^ known(ndeps(residual)) - 1)
+    if varflags == maxflags
+        return gradhesshelper!(linsystem, residual, vars, blockind, maxflags)
     end
 
-    # Dispatch gradient computation based on the varflags, and return the cost
-    if ndeps(residual) <= 5
-        return valuedispatch(static(1), static((2^ndeps(residual))-1), varflags, fixallbutlast(gradhesshelper!, linsystem, residual, vars, blockind))
+    # Check that there are some unfixed variables
+    if varflags > 0
+        # Dispatch gradient computation based on the varflags, and return the cost
+        if ndeps(residual) <= 5
+            return valuedispatch(static(1), maxflags-static(1), varflags, fixallbutlast(gradhesshelper!, linsystem, residual, vars, blockind))
+        end
+        return gradhesshelper!(linsystem, residual, vars, blockind, static(varflags))
     end
-    return gradhesshelper!(linsystem, residual, vars, blockind, static(varflags))
+    
+    # No unfixed variables, so just return the cost
+    return cost(residual, vars)
 end
 
 function costgradhess!(linsystem, residuals, vars::Vector)::Float64
@@ -132,18 +141,25 @@ end
 function costresjac!(linsystem, residual::Residual, vars::Vector, ind) where Residual <: AbstractResidual
     # Get the bitset for the input variables, as an integer
     blockind = getoffsets(residual, linsystem)
-    varflags = Int(foldl((x, y) -> (x << 1) + (y != 0), reverse(blockind), init=UInt(0)))
+    varflags = computevarflags(blockind)
 
-    # If there are no variables, just return the cost
-    if varflags == 0
-        return cost(residual, vars)
+    # Common case - all unfixed
+    maxflags = static(2 ^ known(ndeps(residual)) - 1)
+    if varflags == maxflags
+        return resjachelper!(linsystem, residual, vars, blockind, ind, maxflags)
     end
 
-    # Dispatch gradient computation based on the varflags, and return the cost
-    if ndeps(residual) <= 5
-        return valuedispatch(static(1), static((2^ndeps(residual))-1), varflags, fixallbutlast(resjachelper!, linsystem, residual, vars, blockind, ind))
+    # Check that there are some unfixed variables
+    if varflags > 0
+        # Dispatch gradient computation based on the varflags, and return the cost
+        if ndeps(residual) <= 5
+            return valuedispatch(static(1), maxflags-static(1), varflags, fixallbutlast(resjachelper!, linsystem, residual, vars, blockind, ind))
+        end
+        return resjachelper!(linsystem, residual, vars, blockind, ind, static(varflags))
     end
-    return resjachelper!(linsystem, residual, vars, blockind, ind, static(varflags))
+    
+    # No unfixed variables, so just return the cost
+    return cost(residual, vars)
 end
 
 Base.length(::AbstractResidual) = 1
