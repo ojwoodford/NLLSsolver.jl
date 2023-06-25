@@ -19,7 +19,11 @@ dualzeros(T, N) = dualzeros(T, N, Val(1), N)
 end
 
 # Extract the residual and jacobian from duals to static arrays
-extract_resjac(dual::SVector{M, ForwardDiff.Dual{T, T, N}}) where {T, M, N} = SVector{M, T}(ntuple(i -> ForwardDiff.value(dual[i]), Val(M))), SMatrix{M, N, T, M*N}(ntuple(i -> ForwardDiff.partials(T, dual[rem(i-1, M)+1], div(i-1, M)+1), Val(M*N)))
+@generated function extract_resjac(dual::SVector{M, ForwardDiff.Dual{T, T, N}}) where {T, M, N}
+    res = Expr(:tuple, [:(ForwardDiff.value(dual[$i])) for i in 1:M]...)
+    jac = Expr(:tuple, [:(ForwardDiff.partials($T, dual[$i], $j)) for i in 1:M, j in 1:N]...)
+    return :(SVector{$M, $T}($res), SMatrix{$M, $N, $T, $M*$N}($jac))
+end
 extract_resjac(dual::ForwardDiff.Dual{T, T, N}) where {T, N} = ForwardDiff.value(dual), SVector{N, T}(dual.partials.values...)'
 
 # Automatic Jacobian computation

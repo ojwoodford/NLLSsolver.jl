@@ -5,8 +5,10 @@ using StaticArrays, Static
         return fun(upper)
     end
     midpoint = lower + div(upper - lower, static(2))
-    return val <= midpoint ? valuedispatch(lower, midpoint, val, fun) : 
-                             valuedispatch(midpoint + static(1), upper, val, fun)
+    if val <= midpoint
+        return valuedispatch(lower, midpoint, val, fun)
+    end
+    return valuedispatch(midpoint + static(1), upper, val, fun)
 end
 
 expandfunc(args, v) = args[1](args[2:end]..., v)
