@@ -14,10 +14,11 @@ end
 expandfunc(args, v) = args[1](args[2:end]..., v)
 fixallbutlast(func, args...) = Base.Fix1(expandfunc, (func, args...))
 
-const SR = StaticArrays.SUnitRange
+SR(first, last) = StaticArrays.SUnitRange(dynamic(first), dynamic(last))
 
 macro bitiset(flags, bit)
     esc(:(((1 << ($bit - 1)) & $flags) != 0))
 end
 
 bitiset(flags::StaticInt, bit) = (static(1 << (bit - 1)) & flags) != static(0)
+bitiset(flags, bit) = (1 << (bit - 1)) & flags != 0

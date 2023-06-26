@@ -20,7 +20,7 @@ struct RosenbrockB <: NLLSsolver.AbstractResidual
     b::Float64
 end
 NLLSsolver.ndeps(::RosenbrockB) = static(2)
-NLLSsolver.nres(::RosenbrockB) = 1
+NLLSsolver.nres(::RosenbrockB) = static(1)
 NLLSsolver.varindices(::RosenbrockB) = SVector(1, 2)
 function NLLSsolver.getvars(::RosenbrockB, vars::Vector)
     return (vars[1]::Float64, vars[2]::Float64)

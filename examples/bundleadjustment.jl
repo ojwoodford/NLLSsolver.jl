@@ -8,7 +8,7 @@ struct BALImage{T}
     sensor::NLLSsolver.SimpleCamera{T} # Intrinsic sensor parameters (just a single focal length)
     lens::NLLSsolver.BarrelDistortion{T} # Intrinsic lens parameters (k1 & k2 barrel distortion)
 end
-NLLSsolver.nvars(::BALImage) = 9 # 9 DoF in total for the image (6 extrinsic, 3 intrinsic)
+NLLSsolver.nvars(::BALImage) = static(9) # 9 DoF in total for the image (6 extrinsic, 3 intrinsic)
 function NLLSsolver.update(var::BALImage, updatevec, start=1)
     return BALImage(NLLSsolver.update(var.pose, updatevec, start),
                     NLLSsolver.update(var.sensor, updatevec, start+6),
@@ -29,7 +29,7 @@ struct BALResidual{T} <: NLLSsolver.AbstractResidual
 end
 BALResidual(m, v) = BALResidual(SVector{2}(m[1], m[2]), SVector{2, Int}(v[1], v[2]))
 NLLSsolver.ndeps(::BALResidual) = static(2) # Residual depends on 2 variables
-NLLSsolver.nres(::BALResidual) = 2 # Residual vector has length 2
+NLLSsolver.nres(::BALResidual) = static(2) # Residual vector has length 2
 NLLSsolver.varindices(res::BALResidual) = res.varind
 NLLSsolver.getvars(res::BALResidual{T}, vars::Vector) where T = vars[res.varind[1]]::BALImage{T}, vars[res.varind[2]]::NLLSsolver.Point3D{T}
 NLLSsolver.computeresidual(res::BALResidual, im::BALImage, X::NLLSsolver.Point3D) = transform(im, X) - res.measurement

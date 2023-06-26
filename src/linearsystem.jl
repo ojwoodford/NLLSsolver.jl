@@ -130,16 +130,26 @@ function updatelinearsystem!(linsystem::UniVariateLS, res, jac, ind, unusedargs.
     view(linsystem.A, SR(1, Size(res)[1]).+(ind-1), :) .= jac
 end
 
-function updatesymA!(A, a, vars, varflags::StaticInt, blockindices, loffsets)
+function updatesymA!(A, a, vars, varflags, blockindices)
     # Update the blocks in the problem
+    loffseti = static(0)
     @unroll for i in 1:MAX_ARGS
         if bitiset(varflags, i)
-            @unroll for j in i:MAX_ARGS
+            nvi = nvars(vars[i])
+            rangei = SR(1, nvi) .+ loffseti
+            loffseti += nvi
+            block(A, blockindices[i], blockindices[i], nvi, nvi) .+= @inbounds view(a, rangei, rangei)
+
+            loffsetj = static(0)
+            @unroll for j in 1:i-1
                 if bitiset(varflags, j)
+                    nvj = nvars(vars[j])
+                    rangej = SR(1, nvj) .+ loffsetj
+                    loffsetj += nvj
                     if blockindices[i] >= blockindices[j] # Make sure the BSM is lower triangular
-                        block(A, blockindices[i], blockindices[j], Val(nvars(vars[i])), Val(nvars(vars[j]))) .+= @inbounds view(a, loffsets[i], loffsets[j])
+                        block(A, blockindices[i], blockindices[j], nvi, nvj) .+= @inbounds view(a, rangei, rangej)
                     else
-                        block(A, blockindices[j], blockindices[i], Val(nvars(vars[j])), Val(nvars(vars[i]))) .+= @inbounds view(a, loffsets[j], loffsets[i])
+                        block(A, blockindices[j], blockindices[i], nvj, nvi) .+= @inbounds view(a, rangej, rangei)
                     end
                 end
             end
@@ -147,42 +157,46 @@ function updatesymA!(A, a, vars, varflags::StaticInt, blockindices, loffsets)
     end
 end
 
-@generated function localoffsets(vars::NTuple{N, Any}, ::Val{varflags}) where {N, varflags}
-    counts = Expr(:tuple, [@bitiset(varflags, i) ? :(nvars(vars[$i])) : 0 for i = 1:N]...)
-    cumul = :(cumsum((0, $counts...)))
-    return Expr(:tuple, [@bitiset(varflags, i) ? :(SR($cumul[$i]+1, $cumul[$i+1])) : :(SR(1, 0)) for i in 1:N]...)
-end
-
-function updateb!(B, b, vars, varflags::StaticInt, boffsets, blockindices, loffsets) 
+function updateb!(B, b, vars, varflags, boffsets, blockindices) 
     # Update the blocks in the problem
+    loffset = static(1)
     @unroll for i in 1:MAX_ARGS
         if bitiset(varflags, i)
-            @inbounds view(B, SR(0, nvars(vars[i])-1) .+ boffsets[blockindices[i]]) .+= view(b, loffsets[i])
+            nv = nvars(vars[i])
+            range = SR(0, nv-1)
+            @inbounds view(B, range .+ boffsets[blockindices[i]]) .+= view(b, range .+ loffset)
+            loffset += nv
         end
     end
 end
 
-function updatesymlinearsystem!(linsystem::MultiVariateLS, g, H, vars, varflags::StaticInt, blockindices)
-    loffsets = localoffsets(vars, Val(known(varflags)))
-    updateb!(linsystem.b, g, vars, varflags, linsystem.boffsets, blockindices, loffsets)
-    updatesymA!(linsystem.A, H, vars, varflags, blockindices, loffsets)
+localoffsets(vars, varflags) = cumsum((0, ntuple(i -> ifelse(bitiset(varflags, i), nvars(vars[i]), 0), length(vars))...))
+localranges(vars, offsets) = ntuple(i -> SR(1, nvars(vars[i])).+offsets[i], length(vars))
+
+function updatesymlinearsystem!(linsystem::MultiVariateLS, g, H, vars, varflags, blockindices)
+    updateb!(linsystem.b, g, vars, varflags, linsystem.boffsets, blockindices)
+    updatesymA!(linsystem.A, H, vars, varflags, blockindices)
 end
 
-function updateA!(A, a, varflags::StaticInt, blockindices, loffsets, ind)
+function updateA!(A, a, vars, varflags, blockindices, ind)
     # Update the blocks in the problem
     rows = A.indicestransposed.colptr[ind]:A.indicestransposed.colptr[ind+1]-1
     @inbounds dataptr = view(A.indicestransposed.nzval, rows)
     @inbounds rows = view(A.indicestransposed.rowval, rows)
+    nres = Size(a)[1]
+    loffset = static(0)
     @unroll for i in 1:MAX_ARGS
         if bitiset(varflags, i)
-            @inbounds view(A.data, SR(0, Size(a)[1]*Size(loffsets[i])[1]-1) .+ dataptr[findfirst(isequal(blockindices[i]), rows)]) .= reshape(view(a, :, loffsets[i]), :)
+            nv = nvars(vars[i])
+            @inbounds view(A.data, SR(0, nres*nv-1) .+ dataptr[findfirst(isequal(blockindices[i]), rows)]) .= reshape(view(a, :, SR(1, nv).+loffset), :)
+            loffset += nv
         end
     end
 end
 
-function updatelinearsystem!(linsystem::MultiVariateLS, res, jac, ind, vars, varflags::StaticInt, blockindices)
+function updatelinearsystem!(linsystem::MultiVariateLS, res, jac, ind, vars, varflags, blockindices)
     view(linsystem.b, SR(0, length(res)-1) .+ linsystem.boffsets[ind]) .= res
-    updateA!(linsystem.A, jac, varflags, blockindices, localoffsets(vars, Val(varflags)), ind)
+    updateA!(linsystem.A, jac, vars, varflags, blockindices, ind)
 end
 
 function uniformscaling!(linsystem, k)
