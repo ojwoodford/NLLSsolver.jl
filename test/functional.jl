@@ -29,7 +29,7 @@ function NLLSsolver.computeresidual(res::RosenbrockB, x, y)
     return SVector(res.b * (x ^ 2 - y))
 end
 Base.eltype(::RosenbrockB) = Float64
-const rosenbrockrobustifier = NLLSsolver.Huber2oKernel(2.0, 1.)
+const rosenbrockrobustifier = NLLSsolver.Scaled(NLLSsolver.Huber2oKernel(2.0), 1.0)
 NLLSsolver.robustkernel(::RosenbrockB) = rosenbrockrobustifier
 
 @testset "functional.jl" begin

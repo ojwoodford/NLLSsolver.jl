@@ -12,61 +12,60 @@ function robustkernel(::AbstractResidual)
     return NoRobust()
 end
 
-struct ScaledNoRobust{T<:Real} <: AbstractRobustifier
+
+struct Scaled{T<:Real,Robustifier<:AbstractRobustifier} <: AbstractRobustifier
+    robust::Robustifier
     height::T
-    height_sqrt::T
+end
+robustify(kernel::Scaled{T, NoRobust}, cost) where T = cost * kernel.height, kernel.height, T(0)
+
+function robustify(kernel::Scaled, cost)
+    c, d1, d2 = robustify(kernel.robust, cost)
+    return c * kernel.height, d1 * kernel.height, d2 * kernel.height
 end
 
-ScaledNoRobust(h) = ScaledNoRobust(h, sqrt(h))
-
-function robustify(kernel::ScaledNoRobust{T}, cost) where T
-    return cost * kernel.height, kernel.height_sqrt, T(0)
-end
 
 struct HuberKernel{T<:Real} <: AbstractRobustifier
     width::T
     width_squared::T
-    height::T
 end
-
-HuberKernel(w, h=1.0) = HuberKernel(w, w*w, h)
+HuberKernel(w) = HuberKernel(w, w*w)
 
 function robustify(kernel::HuberKernel{T}, cost) where T
     if cost < kernel.width_squared
-        return cost * kernel.height, kernel.height, T(0)
+        return cost, T(1), T(0)
     end
     sqrtcost = sqrt(cost)
-    return (sqrtcost * (kernel.width * 2) - kernel.width_squared) * kernel.height, kernel.width * kernel.height / sqrtcost, T(0)
+    return sqrtcost * (kernel.width * 2) - kernel.width_squared, kernel.width / sqrtcost, T(0)
 end
+
 
 struct Huber2oKernel{T<:Real} <: AbstractRobustifier
     width::T
     width_squared::T
-    height::T
 end
-
-Huber2oKernel(w, h=1.0) = Huber2oKernel(w, w*w, h)
+Huber2oKernel(w) = Huber2oKernel(w, w*w)
 
 function robustify(kernel::Huber2oKernel{T}, cost) where T
     if cost < kernel.width_squared
-        return cost * kernel.height, kernel.height, T(0)
+        return cost, T(1), T(0)
     end
     sqrtcost = sqrt(cost)
-    return (sqrtcost * (kernel.width * 2) - kernel.width_squared) * kernel.height, kernel.width * kernel.height / sqrtcost, (-0.5 * kernel.width * kernel.height) / (cost * sqrtcost)
+    return sqrtcost * (kernel.width * 2) - kernel.width_squared, kernel.width / sqrtcost, (-0.5 * kernel.width) / (cost * sqrtcost)
 end
 
 
 struct GemanMcclureKernel{T<:Real} <: AbstractRobustifier
     width_squared::T
-    height::T
-    height_sqrt::T
+    function GemanMcclureKernel{T}(w::T) where T
+        return new(w * w)
+    end
 end
-
-GemanMcclureKernel(w, h=1.0) = GemanMcclureKernel(w*w, h/(w*w), sqrt(h)/w)
+GemanMcclureKernel(w::T) where T = GemanMcclureKernel{T}(w)
 
 function robustify(kernel::GemanMcclureKernel{T}, cost) where T
     w = kernel.width_squared / (cost + kernel.width_squared)
-    return cost * w * kernel.height, w * w * kernel.height_sqrt, T(0)
+    return cost * w, w * w, T(0)
 end
 
 
