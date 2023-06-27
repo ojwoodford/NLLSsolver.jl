@@ -6,11 +6,18 @@ function update(var::Number, updatevec, start=1)
     return var + updatevec[start]
 end
 
-# Standard Euclidean vector of length N
+# Standard fixed-length Euclidean vector of length N
 const EuclideanVector{N, T} = SVector{N, T}
 nvars(::EuclideanVector{N, T}) where {N, T} = static(N)
 function update(var::EuclideanVector{N, T}, updatevec, start=1)  where {N, T}
-    return EuclideanVector(var + updatevec[SR(0, N-1) .+ start])
+    return EuclideanVector(var + view(updatevec, SR(0, N-1) .+ start))
+end
+
+# Variable-length Euclidean vector
+const DynamicVector{T} = Vector{T}
+nvars(v::DynamicVector) = length(v)
+function update(var::DynamicVector, updatevec, start=1)
+    return DynamicVector(var + view(updatevec, start:start-1+length(var)))
 end
 
 # A scalar in the range zero to +Inf
@@ -27,5 +34,5 @@ end
 nvars(::ZeroToOneScalar) = static(1)
 function update(var::ZeroToOneScalar, updatevec, start=1)
     val = (var.val > 0 ? var.val : floatmin(var.val)) * exp(updatevec[start])
-    return ZeroToOneScalar(val < Inf ? val / (1 + (val - var.val)) : convert(typeof(val), 1))
+    return ZeroToOneScalar(val < Inf ? val / (1 + (val - var.val)) : one(val))
 end

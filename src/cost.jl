@@ -81,7 +81,7 @@ function computevarlen(blockind, vars)
     @unroll for i in 1:MAX_ARGS
         if i <= length(vars) && blockind[i] != 0
             nv = nvars(vars[i])
-            isstatic &= is_static(nv)
+            isstatic = isstatic && dynamic(is_static(nv))
             varlen += Int(nvars(vars[i]))
             varflags |= 1 << (i - 1)
         end
@@ -100,7 +100,7 @@ function costgradhess!(linsystem, residual::Residual, vars::Vector) where Residu
         if isstatic && varlen <= 64
             # We can do statically sized stuff from now on
             # Common case - all unfixed
-            maxflags = static(2 ^ known(ndeps(residual)) - 1)
+            maxflags = static(2 ^ dynamic(ndeps(residual)) - 1)
             if varflags == maxflags
                 return gradhesshelper!(linsystem, residual, v, blockind, maxflags)
             end
@@ -164,7 +164,7 @@ function costresjac!(linsystem, residual::Residual, vars::Vector, ind) where Res
         if isstatic && varlen <= 64
             # We can do statically sized stuff from now on
             # Common case - all unfixed
-            maxflags = static(2 ^ known(ndeps(residual)) - 1)
+            maxflags = static(2 ^ dynamic(ndeps(residual)) - 1)
             if varflags == maxflags
                 return resjachelper!(linsystem, residual, v, blockind, ind, maxflags)
             end

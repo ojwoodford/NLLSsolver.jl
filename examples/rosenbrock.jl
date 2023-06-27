@@ -17,8 +17,7 @@ end
 function NLLSsolver.computeresidual(res::Rosenbrock, x::NLLSsolver.EuclideanVector{2, Float64})
     return SVector(res.a - x[1], res.b * (x[1] ^ 2 - x[2]))
 end
-function NLLSsolver.computeresjac(varflags, res::Rosenbrock, x::NLLSsolver.EuclideanVector{2, Float64})
-    @assert varflags == 1
+function NLLSsolver.computeresjac(::StaticInt{1}, res::Rosenbrock, x::NLLSsolver.EuclideanVector{2, Float64})
     return SVector(res.a - x[1], res.b * (x[1] ^ 2 - x[2])),
            SMatrix{2}(-1., 2 * res.b * x[1], 0, -res.b)
 end

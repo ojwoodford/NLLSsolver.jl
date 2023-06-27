@@ -126,8 +126,8 @@ end
 
 function updatelinearsystem!(linsystem::UniVariateLS, res, jac, ind, unusedargs...)
     # Update the blocks in the problem
-    view(linsystem.b, SR(1, Size(res)[1]).+(ind-1)) .= res
-    view(linsystem.A, SR(1, Size(res)[1]).+(ind-1), :) .= jac
+    view(linsystem.b, SR(1, length(res)).+(ind-1)) .= res
+    view(linsystem.A, SR(1, length(res)).+(ind-1), :) .= jac
 end
 
 function updatesymA!(A, a, vars, varflags, blockindices)

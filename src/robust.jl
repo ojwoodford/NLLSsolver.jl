@@ -29,7 +29,7 @@ struct HuberKernel{T<:Real} <: AbstractRobustifier
     height::T
 end
 
-HuberKernel(w, h) = HuberKernel(w, w*w, h)
+HuberKernel(w, h=1.0) = HuberKernel(w, w*w, h)
 
 function robustify(kernel::HuberKernel{T}, cost) where T
     if cost < kernel.width_squared
@@ -45,7 +45,7 @@ struct Huber2oKernel{T<:Real} <: AbstractRobustifier
     height::T
 end
 
-Huber2oKernel(w, h) = Huber2oKernel(w, w*w, h)
+Huber2oKernel(w, h=1.0) = Huber2oKernel(w, w*w, h)
 
 function robustify(kernel::Huber2oKernel{T}, cost) where T
     if cost < kernel.width_squared
@@ -62,7 +62,7 @@ struct GemanMcclureKernel{T<:Real} <: AbstractRobustifier
     height_sqrt::T
 end
 
-GemanMcclureKernel(w, h) = GemanMcclureKernel(w*w, h/(w*w), sqrt(h)/w)
+GemanMcclureKernel(w, h=1.0) = GemanMcclureKernel(w*w, h/(w*w), sqrt(h)/w)
 
 function robustify(kernel::GemanMcclureKernel{T}, cost) where T
     w = kernel.width_squared / (cost + kernel.width_squared)
