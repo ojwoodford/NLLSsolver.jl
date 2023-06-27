@@ -43,7 +43,7 @@ end
 function optimizeinternal!(problem::NLLSProblem{VarTypes}, options::NLLSOptions, data, iteratedata, costgradient!, timeinit)::NLLSResult where VarTypes
     t = @elapsed begin
         # Initialize the linear problem
-        data.timegradient += @elapsed data.bestcost = costgradient!(data.linsystem, problem.residuals, problem.variables)
+        data.timegradient += @elapsed data.bestcost = costgradient!(data.linsystem, problem.variables, problem.residuals)
         data.gradientcomputations += 1
         # Initialize the results
         startcost = data.bestcost
@@ -89,7 +89,7 @@ function optimizeinternal!(problem::NLLSProblem{VarTypes}, options::NLLSOptions,
             # Construct the linear problem
             data.timegradient += @elapsed begin
                 zero!(data.linsystem)
-                costgradient!(data.linsystem, problem.residuals, problem.variables)
+                costgradient!(data.linsystem, problem.variables, problem.residuals)
             end
             data.gradientcomputations += 1
         end

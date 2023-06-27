@@ -28,7 +28,7 @@ function iterate!(::NewtonData, data, problem::NLLSProblem, options::NLLSOptions
     # Update the new variables
     update!(problem.varnext, problem.variables, data.linsystem, data.step)
     # Return the cost
-    data.timecost += @elapsed cost_ = cost(problem.residuals, problem.varnext)
+    data.timecost += @elapsed cost_ = cost(problem.varnext, problem.residuals)
     data.costcomputations += 1
     return cost_
 end
@@ -95,7 +95,7 @@ function iterate!(doglegdata::DoglegData, data, problem::NLLSProblem, options::N
         # Update the new variables
         update!(problem.varnext, problem.variables, data.linsystem, data.step)
         # Compute the cost
-        data.timecost += @elapsed cost_ = cost(problem.residuals, problem.varnext)
+        data.timecost += @elapsed cost_ = cost(problem.varnext, problem.residuals)
         data.costcomputations += 1
         # Update trust region radius
         mu = (data.bestcost - cost_) / linear_approx
@@ -136,7 +136,7 @@ function iterate!(levmardata::LevMarData, data, problem::NLLSProblem, options::N
         # Update the new variables
         update!(problem.varnext, problem.variables, data.linsystem, data.step)
         # Compute the cost
-        data.timecost += @elapsed cost_ = cost(problem.residuals, problem.varnext)
+        data.timecost += @elapsed cost_ = cost(problem.varnext, problem.residuals)
         data.costcomputations += 1
         # Check for exit
         if !(cost_ > data.bestcost) || (maximum(abs, data.step) < options.dstep)
@@ -183,7 +183,7 @@ function iterate!(levmardata::LevMarSchurData, data, problem::NLLSProblem, optio
         # Update the new variables
         update!(problem.varnext, problem.variables, data.linsystem, data.step)
         # Compute the cost
-        data.timecost += @elapsed cost_ = cost(problem.residuals, problem.varnext)
+        data.timecost += @elapsed cost_ = cost(problem.varnext, problem.residuals)
         data.costcomputations += 1
         # Check for exit
         if !(cost_ > data.bestcost) || (maximum(abs, data.step) < options.dstep)
@@ -227,7 +227,7 @@ function iterate!(varprodata::VarProData, data, problem::NLLSProblem, options::N
         update!(problem.varnext, problem.variables, data.linsystem, data.step)
         # Optimize the other variables
         # Compute the cost
-        data.timecost += @elapsed cost_ = cost(problem.residuals, problem.varnext)
+        data.timecost += @elapsed cost_ = cost(problem.varnext, problem.residuals)
         data.costcomputations += 1
         # Check for exit
         if !(cost_ > data.bestcost) || (maximum(abs, data.step) < options.dstep)

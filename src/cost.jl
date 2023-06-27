@@ -1,9 +1,9 @@
 using Static
 import ForwardDiff
 
-cost(problem::NLLSProblem) = cost(problem.residuals, problem.variables)
-cost(residuals::Union{Dict, Vector}, vars::Vector)::Float64 = sum(Base.Fix2(cost, vars), values(residuals); init=0.0)
-cost(residual::AbstractResidual, vars::Vector) = cost(residual, getvars(residual, vars))
+cost(problem::NLLSProblem) = cost(problem.variables, problem.residuals)
+cost(vars::Vector, residuals::Union{Dict, Vector})::Float64 = sum(Base.Fix1(cost, vars), values(residuals); init=0.0)
+cost(vars::Vector, residual::AbstractResidual)::Float64 = cost(residual, getvars(residual, vars))
 
 function cost(residual::Residual, vars::Tuple)::Float64 where Residual <: AbstractResidual
     # Compute the residual
@@ -69,7 +69,7 @@ function computevarlen(blockind, vars)
     return varlen, varflags, isstatic
 end
 
-function costgradhess!(linsystem, residual::Residual, vars::Vector) where Residual <: AbstractResidual
+function costgradhess!(linsystem, vars::Vector, residual::Residual) where Residual <: AbstractResidual
     # Get the variables and associated data
     v = getvars(residual, vars)
     blockind = getoffsets(residual, linsystem)
@@ -100,14 +100,7 @@ function costgradhess!(linsystem, residual::Residual, vars::Vector) where Residu
     return cost(residual, v)
 end
 
-function costgradhess!(linsystem, residuals, vars::Vector)::Float64
-    # Go over all resdiduals in the problem
-    c = 0.
-    @inbounds for res in values(residuals)
-        c += costgradhess!(linsystem, res, vars)
-    end
-    return c 
-end
+costgradhess!(linsystem, vars::Vector, residuals::Union{Dict, Vector})::Float64 = sum(fixallbutlast(costgradhess!, linsystem, vars), values(residuals); init=0.0)
 
 function resjachelper!(linsystem, residual::Residual, vars, blockind, ind, varflags)::Float64 where Residual <: AbstractResidual
     # Compute the residual
@@ -133,7 +126,7 @@ function resjachelper!(linsystem, residual::Residual, vars, blockind, ind, varfl
     return c
 end
 
-function costresjac!(linsystem, residual::Residual, vars::Vector, ind) where Residual <: AbstractResidual
+function costresjac!(linsystem, vars::Vector, residual::Residual, ind) where Residual <: AbstractResidual
     # Get the variables and associated data
     v = getvars(residual, vars)
     blockind = getoffsets(residual, linsystem)
@@ -166,11 +159,11 @@ end
 
 Base.length(::AbstractResidual) = 1
 
-function costresjac!(linsystem, residuals, vars::Vector, ind=1)::Float64
+function costresjac!(linsystem, vars::Vector, residuals, ind=1)::Float64
     # Go over all resdiduals in the problem
     c = 0.
     @inbounds for res in values(residuals)
-        c += costresjac!(linsystem, res, vars, ind)
+        c += costresjac!(linsystem, vars, res, ind)
         ind += length(res)
     end
     return c 
