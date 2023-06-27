@@ -33,7 +33,7 @@ NLLSsolver.nres(::BALResidual) = static(2) # Residual vector has length 2
 NLLSsolver.varindices(res::BALResidual) = res.varind
 NLLSsolver.getvars(res::BALResidual{T}, vars::Vector) where T = vars[res.varind[1]]::BALImage{T}, vars[res.varind[2]]::NLLSsolver.Point3D{T}
 NLLSsolver.computeresidual(res::BALResidual, im::BALImage, X::NLLSsolver.Point3D) = transform(im, X) - res.measurement
-const balrobustifier = NLLSsolver.HuberKernel(2., 4., 1.)
+const balrobustifier = NLLSsolver.HuberKernel(2.)
 NLLSsolver.robustkernel(::BALResidual) = balrobustifier
 Base.eltype(::BALResidual{T}) where T = T
 
@@ -76,9 +76,9 @@ function optimizeBALproblem(name)
     # Compute the mean cost per measurement
     println("   Start mean cost per measurement: ", NLLSsolver.cost(problem)/length(data.measurements))
     # Optimize the cost
-    result = NLLSsolver.optimize!(problem, NLLSsolver.NLLSOptions(iterator=NLLSsolver.levenbergmarquardt, storecosts=true))
+    result = NLLSsolver.optimize!(problem, NLLSsolver.NLLSOptions(iterator=NLLSsolver.levenbergmarquardt))
     # Compute the new mean cost per measurement
-    println("   End mean cost per measurement: ", minimum(result.costs)/length(data.measurements))
+    println("   End mean cost per measurement: ", result.bestcost/length(data.measurements))
     # Print out the solver summary
     show(result)
 end
