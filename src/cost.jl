@@ -1,28 +1,8 @@
-using FLoops: @floop, @reduce
 using Static
 import ForwardDiff
 
 cost(problem::NLLSProblem) = cost(problem.residuals, problem.variables)
-
-function cost(residuals, vars::Vector)::Float64
-    # Compute the cost of all residuals in the problem
-    c = 0.
-    @inbounds for res in values(residuals)
-        c += cost(res, vars)
-    end
-    return c
-end
-
-function cost(residuals::Vector, vars::Vector)::Float64
-    # Compute the total cost of all residuals in a container
-    c = 0.
-    @floop for res in residuals
-        c_ = cost(res, vars)
-        @reduce c += c_
-    end
-    return c
-end
-
+cost(residuals::Union{Dict, Vector}, vars::Vector)::Float64 = sum(Base.Fix2(cost, vars), values(residuals); init=0.0)
 cost(residual::AbstractResidual, vars::Vector) = cost(residual, getvars(residual, vars))
 
 function cost(residual::Residual, vars::Tuple)::Float64 where Residual <: AbstractResidual
@@ -123,7 +103,7 @@ end
 function costgradhess!(linsystem, residuals, vars::Vector)::Float64
     # Go over all resdiduals in the problem
     c = 0.
-    for res in values(residuals)
+    @inbounds for res in values(residuals)
         c += costgradhess!(linsystem, res, vars)
     end
     return c 
@@ -189,7 +169,7 @@ Base.length(::AbstractResidual) = 1
 function costresjac!(linsystem, residuals, vars::Vector, ind=1)::Float64
     # Go over all resdiduals in the problem
     c = 0.
-    for res in values(residuals)
+    @inbounds for res in values(residuals)
         c += costresjac!(linsystem, res, vars, ind)
         ind += length(res)
     end
