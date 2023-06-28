@@ -2,7 +2,7 @@ using Static
 import ForwardDiff
 
 cost(problem::NLLSProblem) = cost(problem.variables, problem.residuals)
-cost(vars::Vector, residuals::Union{Dict, Vector})::Float64 = sum(Base.Fix1(cost, vars), values(residuals); init=0.0)
+cost(vars::Vector, residuals::ResidualStruct)::Float64 = sum(Base.Fix1(cost, vars), residuals)
 cost(vars::Vector, residual::AbstractResidual)::Float64 = cost(residual, getvars(residual, vars))
 
 function cost(residual::Residual, vars::Tuple)::Float64 where Residual <: AbstractResidual
@@ -100,7 +100,7 @@ function costgradhess!(linsystem, vars::Vector, residual::Residual) where Residu
     return cost(residual, v)
 end
 
-costgradhess!(linsystem, vars::Vector, residuals::Union{Dict, Vector})::Float64 = sum(fixallbutlast(costgradhess!, linsystem, vars), values(residuals); init=0.0)
+costgradhess!(linsystem, vars::Vector, residuals::ResidualStruct)::Float64 = sum(fixallbutlast(costgradhess!, linsystem, vars), residuals)
 
 function resjachelper!(linsystem, residual::Residual, vars, blockind, ind, varflags)::Float64 where Residual <: AbstractResidual
     # Compute the residual

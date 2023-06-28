@@ -129,7 +129,7 @@ Base.eltype(::LensDistortResidual{T}) where T = T
 
 function convertlens(tolens, fromlens, halfimsz)
     # Create an optimization problem to convert the lens distortion
-    problem = NLLSsolver.NLLSProblem{typeof(tolens)}()
+    problem = NLLSsolver.NLLSProblem(typeof(tolens), LensDistortResidual{Float64})
     NLLSsolver.addvariable!(problem, tolens)
     for x in LinRange(0., convert(Float64, halfimsz), 100)
         NLLSsolver.addresidual!(problem, LensDistortResidual(x, ideal2distorted(fromlens, x)))

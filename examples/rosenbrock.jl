@@ -67,7 +67,7 @@ end
 
 function optimizeRosenbrock(start=[-0.5, 2.5], iterators=[NLLSsolver.gaussnewton, NLLSsolver.levenbergmarquardt, NLLSsolver.dogleg])
     # Create the problem
-    problem = NLLSsolver.NLLSProblem{NLLSsolver.EuclideanVector{2, Float64}}()
+    problem = NLLSsolver.NLLSProblem(NLLSsolver.EuclideanVector{2, Float64}, Rosenbrock)
     NLLSsolver.addvariable!(problem, NLLSsolver.EuclideanVector(0., 0.))
     residual = Rosenbrock()
     NLLSsolver.addresidual!(problem, residual)

@@ -34,7 +34,7 @@ NLLSsolver.robustkernel(::RosenbrockB) = rosenbrockrobustifier
 
 @testset "functional.jl" begin
     # Create the problem
-    problem = NLLSsolver.NLLSProblem{Float64}()
+    problem = NLLSsolver.NLLSProblem(Float64)
     @test NLLSsolver.addvariable!(problem, 0.) == 1
     @test NLLSsolver.addvariable!(problem, 0.) == 2
     NLLSsolver.addresidual!(problem, RosenbrockA(1.0))

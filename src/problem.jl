@@ -1,19 +1,24 @@
 using Static
 
-ResidualStruct = Dict{DataType, Vector}
+const ResidualStruct = VectorRepo
 
-mutable struct NLLSProblem{VarTypes}
+mutable struct NLLSProblem{VarTypes, ResTypes}
     # User provided
-    residuals::ResidualStruct
+    residuals::ResidualStruct{ResTypes}
     variables::Vector{VarTypes}
     varnext::Vector{VarTypes}
     varbest::Vector{VarTypes}
 
     # Constructor
-    function NLLSProblem{VarTypes}(vars=Vector{VarTypes}(), residuals=ResidualStruct(), varnext=Vector{VarTypes}(), varbest=Vector{VarTypes}()) where VarTypes
-        return new(residuals, vars, varnext, varbest)
+    function NLLSProblem{VarTypes, ResTypes}(vars=Vector{VarTypes}(), residuals=ResidualStruct{ResTypes}(), varnext=Vector{VarTypes}(), varbest=Vector{VarTypes}()) where {VarTypes, ResTypes}
+        return new{VarTypes, ResTypes}(residuals, vars, varnext, varbest)
     end
 end
+NLLSProblem() = NLLSProblem{Any, Any}()
+NLLSProblem(VT::Union{DataType, Union}) = NLLSProblem{VT, Any}()
+NLLSProblem(VT::Union{DataType, Union}, RT::Union{DataType, Union}) = NLLSProblem{VT, RT}()
+NLLSProblem(v::Vector{VT}) where VT = NLLSProblem{VT, Any}(v)
+NLLSProblem(v::Vector{VT}, r::ResidualStruct{RT}) where {VT, RT} = NLLSProblem{VT, RT}(v, r)
 
 function selectresiduals!(outres::ResidualStruct, inres::Vector, unfixed::Integer)
     selectresiduals!(outres, inres, [i for (i, r) in enumerate(inres) if in(unfixed, varindices(r))])
@@ -25,24 +30,24 @@ end
 
 function selectresiduals!(outres::ResidualStruct, inres::Vector{T}, vec::Vector) where T
     if !isempty(vec)
-        outres[T] = inres[vec]
+        outres.data[T] = inres[vec]
     end
 end
 
 # Produce a subproblem containing only the relevant residuals
-function subproblem(problem::NLLSProblem{T}, unfixed) where T
+function subproblem(problem::NLLSProblem{VT, RT}, unfixed) where {VT, RT}
     # Copy residuals that have unfixed inputs
-    residualstruct = ResidualStruct()
+    residualstruct = ResidualStruct{RT}()
     for residuals in values(problem.residuals)
         selectresiduals!(residualstruct, residuals, unfixed)
     end
     # Create the new problem (note that variables are SHARED)
-    return NLLSProblem{T}(problem.variables, residualstruct, problem.varnext, problem.varbest)
+    return NLLSProblem{VT, RT}(problem.variables, residualstruct, problem.varnext, problem.varbest)
 end
 
-function subproblem(problem::NLLSProblem{T}, resind::Vector) where T
+function subproblem(problem::NLLSProblem{VT, RT}, resind::Vector) where {VT, RT}
     # Copy residuals that have unfixed inputs
-    residualstruct = ResidualStruct()
+    residualstruct = ResidualStruct{RT}()
     firstres = 0
     firstind = 0
     len = length(resind)
@@ -57,10 +62,10 @@ function subproblem(problem::NLLSProblem{T}, resind::Vector) where T
         firstind = lastind
     end
     # Create the new problem (note that variables are SHARED)
-    return NLLSProblem{T}(problem.variables, residualstruct, problem.varnext, problem.varbest)
+    return NLLSProblem{VT, RT}(problem.variables, residualstruct, problem.varnext, problem.varbest)
 end
 
-function addresidual!(problem::NLLSProblem, residual::T) where T
+function addresidual!(problem::NLLSProblem, residual)
     # Sanity checks
     N = ndeps(residual)
     @assert isa(N, StaticInt) && N>0 && N<=MAX_ARGS "Problem with ndeps()"
@@ -69,7 +74,7 @@ function addresidual!(problem::NLLSProblem, residual::T) where T
     @assert length(varindices(residual))==N "Problem with varindices()"
     @assert length(getvars(residual, problem.variables))==N "Problem with getvars()"
     # Add to the problem
-    push!(get!(problem.residuals, T, Vector{T}()), residual)
+    push!(problem.residuals, residual)
     return nothing
 end
 
