@@ -70,15 +70,18 @@ end
 # Function to optimize a BAL problem
 function optimizeBALproblem(name)
     # Create the problem
-    data = loadbaldataset(name)
+    t = @elapsed begin
+        data = loadbaldataset(name)
+        problem = makeBALproblem(data)
+    end
     show(data)
-    problem = makeBALproblem(data)
+    println("Data loading and problem construction took ", t, " seconds.")
     # Compute the mean cost per measurement
     println("   Start mean cost per measurement: ", NLLSsolver.cost(problem)/length(data.measurements))
     # Optimize the cost
     result = NLLSsolver.optimize!(problem, NLLSsolver.NLLSOptions(iterator=NLLSsolver.levenbergmarquardt))
     # Compute the new mean cost per measurement
-    println("   End mean cost per measurement: ", result.bestcost/length(data.measurements))
+    println("   Final mean cost per measurement: ", result.bestcost/length(data.measurements))
     # Print out the solver summary
     show(result)
 end
