@@ -24,7 +24,8 @@ end
 @inline append!(vr::VectorRepo, v::Vector{T}) where T = append!(get!(vr, T), v)
 
 # Dynamic dispatch if types are not known 
-@inline sum(fun, vr::VectorRepo{Any}) = sum(Base.Fix1(sum, fun), values(vr.data))
+@inline sum(fun, vr::VectorRepo{Any}) = sum(Base.Fix1(vrsum, fun), values(vr.data); init=0.0)
+@inline vrsum(fun, v::Vector) = sum(fun, v; init=0.0)
 # Static dispatch if types are known
 @inline sum(fun, vr::VectorRepo{T}) where T = vrsum(fun, vr, T)
 @inline vrsum(fun, vr::VectorRepo, T::Union) = vrsum(fun, vr, T.a) + vrsum(fun, vr, T.b)

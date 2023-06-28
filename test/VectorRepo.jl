@@ -8,6 +8,7 @@ function fillrepo(vr, floats, ints)
     append!(vr, ints)
     push!(vr, 0.0)
     push!(vr, 0)
+    get!(vr, Char)
 
     # Test that the lengths and values are as expected
     floats = get(vr, Float64)
@@ -20,13 +21,18 @@ end
     # Generate random data
     floats = rand(10) * 100
     ints = convert(Vector{Int}, ceil.(floats))
+    total = sum(floats) + sum(ints)
 
-    # Construct repos and test the interface
+    # Construct repos and test the sum reduction
+    # Any container
     vr1 = NLLSsolver.VectorRepo()
+    @test sum(i->2i, vr1) == 0.0
     fillrepo(vr1, floats, ints)
-    vr2 = NLLSsolver.VectorRepo{Union{Float64, Int}}()
-    fillrepo(vr2, floats, ints)
+    @test isapprox(sum(i->π*i, vr1), total * π)
 
-    # Test the sum reduction
-    @test isapprox(sum(i->2i, vr1)*2, sum(i->4.0*i, vr2))
+    # Union container
+    vr2 = NLLSsolver.VectorRepo{Union{Float64, Int, Char}}()
+    @test sum(i->2i, vr2) == 0.0
+    fillrepo(vr2, floats, ints)
+    @test isapprox(sum(i->π*i, vr2), total * π)
 end
