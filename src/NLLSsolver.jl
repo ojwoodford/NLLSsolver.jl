@@ -29,6 +29,7 @@ include("utils.jl")
 include("unroll.jl")
 
 # Problem definition
+include("VectorRepo.jl")
 include("problem.jl")
 
 # Variables
