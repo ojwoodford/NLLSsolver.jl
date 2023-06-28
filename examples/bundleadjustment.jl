@@ -46,7 +46,7 @@ end
 # Function to create a NLLSsolver problem from a BAL dataset
 function makeBALproblem(data)
     # Create the problem
-    problem = NLLSsolver.NLLSProblem(Union{BALImage{Float64}, NLLSsolver.Point3D{Float64}, BALResidual{Float64}})
+    problem = NLLSsolver.NLLSProblem(Union{BALImage{Float64}, NLLSsolver.Point3D{Float64}}, BALResidual{Float64})
 
     # Add the cameras
     for cam in data.cameras
