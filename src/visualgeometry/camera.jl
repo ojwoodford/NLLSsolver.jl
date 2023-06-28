@@ -58,6 +58,7 @@ end
 EULensDistortion(alpha::T, beta::T) where T = EULensDistortion{T}(ZeroToOneScalar{T}(alpha), ZeroToInfScalar{T}(beta))
 nvars(::EULensDistortion) = static(2)
 update(var::EULensDistortion, updatevec, start=1) = EULensDistortion(update(var.alpha, updatevec, start), update(var.beta, updatevec, start+1))
+Base.eltype(::EULensDistortion{T}) where T = T
 
 function ideal2distorted(lens::EULensDistortion, x)
     z = 1 / (1 + lens.alpha.val * (sqrt(lens.beta.val * (x' * x) + 1) - 1))
@@ -109,6 +110,7 @@ struct BarrelDistortion{T}
 end
 nvars(::BarrelDistortion) = static(2)
 update(var::BarrelDistortion, updatevec, start=1) = BarrelDistortion(var.k1 + updatevec[start], var.k2 + updatevec[start+1])
+Base.eltype(::BarrelDistortion{T}) where T = T
 
 function ideal2distorted(lens::BarrelDistortion, x)
     z = x' * x
@@ -124,12 +126,13 @@ ndeps(::LensDistortResidual) = static(1) # The residual depends on one variable
 nres(::LensDistortResidual) = 1 # The residual vector has length one
 varindices(::LensDistortResidual) = SVector(1)
 computeresidual(residual::LensDistortResidual, lens::EULensDistortion) = SVector(residual.rdistort - ideal2distorted(lens, residual.rlinear))
-getvars(::LensDistortResidual{T}, vars::Vector) where T = (vars[1]::EULensDistortion{T},)
+getvars(::LensDistortResidual{T}, vars::Vector{LT}) where {T, LT} = (vars[1]::LT,)
 Base.eltype(::LensDistortResidual{T}) where T = T
 
 function convertlens(tolens, fromlens, halfimsz)
     # Create an optimization problem to convert the lens distortion
-    problem = NLLSsolver.NLLSProblem(typeof(tolens), LensDistortResidual{Float64})
+    @assert eltype(tolens)<:AbstractFloat
+    problem = NLLSsolver.NLLSProblem(typeof(tolens), LensDistortResidual{eltype(tolens)})
     NLLSsolver.addvariable!(problem, tolens)
     for x in LinRange(0., convert(Float64, halfimsz), 100)
         NLLSsolver.addresidual!(problem, LensDistortResidual(x, ideal2distorted(fromlens, x)))
