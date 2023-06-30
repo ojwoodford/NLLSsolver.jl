@@ -22,9 +22,9 @@ end
 @inline Base.append!(vr::VectorRepo, v::Vector{T}) where T = append!(get!(vr, T), v)
 
 # Dynamic dispatch if types are not known 
-@inline Base.sum(fun, vr::VectorRepo{Any}) = sum(Base.Fix1(vrsum, fun), values(vr.data); init=0.0)
-@inline vrsum(fun, v::Vector) = sum(fun, v; init=0.0)
+@inline Base.sum(fun, vr::VectorRepo{Any}; init=0.0) = sum(fixallbutlast(vrsum, fun, init), values(vr.data); init=init)
+@inline vrsum(fun, init, v::Vector) = sum(fun, v; init=init)
 # Static dispatch if types are known
-@inline Base.sum(fun, vr::VectorRepo{T}) where T = vrsum(fun, vr, T)
-@inline vrsum(fun, vr::VectorRepo, T::Union) = vrsum(fun, vr, T.a) + vrsum(fun, vr, T.b)
-@inline vrsum(fun, vr::VectorRepo, T::DataType) = sum(fun, get(vr, T); init=0.0)
+@inline Base.sum(fun, vr::VectorRepo{T}; init=0.0) where T = vrsum(fun, vr, init, T)
+@inline vrsum(fun, vr::VectorRepo, init, T::Union) = vrsum(fun, vr, init, T.a) + vrsum(fun, vr, init, T.b)
+@inline vrsum(fun, vr::VectorRepo, init, T::DataType) = sum(fun, get(vr, T); init=init)
