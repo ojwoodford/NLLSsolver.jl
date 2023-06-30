@@ -55,7 +55,7 @@ function gradhesshelper!(linsystem, residual::Residual, vars, blockind, varflags
 end
 
 # Compute the variable flags indicating which variables are unfixed (i.e. to be optimized)
-computevarflags(blockind) = mapfoldl(bi -> (bi[2] != 0) << (bi[1] - 1), |, enumerate(blockind))
+computevarflags(blockind) = mapreduce((x, y) -> (x != 0) << (y - 1), |, blockind, SR(1, length(blockind)))
 
 # Decision on whether to use static-sized autodiff - compile-time decision where possible
 function usestatic(blockind, vars)

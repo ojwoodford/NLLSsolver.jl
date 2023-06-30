@@ -10,7 +10,7 @@ VectorRepo() = VectorRepo{Any}()
 
 function Base.get(vr::VectorRepo{T}, type::DataType) where T
     @assert type<:T "Invalid type"
-    return get(vr.data, type, Vector{type}())::Vector{type}
+    return haskey(vr.data, type) ? vr.data[type]::Vector{type} : Vector{type}()
 end
 
 function Base.get!(vr::VectorRepo{T}, type::DataType) where T
