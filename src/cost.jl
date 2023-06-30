@@ -54,40 +54,31 @@ function gradhesshelper!(linsystem, residual::Residual, vars, blockind, varflags
     return c
 end
 
-function computevarflags(blockind, vars) 
-    # Compute the variable flags indicating which variables are unfixed (i.e. to be optimized)
-    varflags = 0
-    varlen = 0
-    varlenall = static(0)
-    alldynamic = static(true)
-    isstatic = true
-    @unroll for i in 1:MAX_ARGS
-        if i <= length(vars)
-            nv = nvars(vars[i])
-            varlenall += ifelse(is_static(nv), nv, static(MAX_STATIC_VAR+1))
-            alldynamic &= !is_static(nv) | (nv > static(MAX_STATIC_VAR))
-            if blockind[i] != 0
-                isstatic &= dynamic(is_static(nv))
-                varlen += dynamic(nv)
-                varflags |= 1 << (i - 1)
-            end
-        end
+# Compute the variable flags indicating which variables are unfixed (i.e. to be optimized)
+computevarflags(blockind, vars) = mapreduce((x, y) -> (x != 0) << (y - 1), |, blockind, SR(1, length(vars)))
+
+# Decision on whether to use static-sized autodiff - compile-time decision where possible
+function usestatic(blockind, vars)
+    nvs = map(nvars, vars)
+    if sum(nv -> ifelse(is_static(nv), nv , static(MAX_STATIC_VAR+1)), nvs) <= static(MAX_STATIC_VAR)
+        return static(true)
     end
-    # Provide a compile-time decision on whether to use static-sized autodiff if possible
-    usestatic = varlenall <= static(MAX_STATIC_VAR) ? static(true) : (alldynamic ? static(false) : (isstatic & varlen < MAX_STATIC_VAR))
-    return varflags, usestatic
+    if all(map(nv -> ifelse(is_static(nv), static(nv > static(MAX_STATIC_VAR)), static(true)), nvs))
+        return static(false)
+    end
+    return mapreduce((x, y) -> (x != 0) * ifelse(is_static(y), dynamic(y), MAX_STATIC_VAR+1), +, blockind, nvs) <= MAX_STATIC_VAR
 end
 
 function costgradhess!(linsystem, vars::Vector, residual::Residual) where Residual <: AbstractResidual
     # Get the variables and associated data
     v = getvars(residual, vars)
     blockind = getoffsets(residual, linsystem)
-    varflags, usestatic = computevarflags(blockind, v)
+    varflags = computevarflags(blockind, v)
 
     # Check that some variables are unfixed
     if varflags > 0
         # Check if we can do statically sized stuff
-        if dynamic(usestatic)
+        if dynamic(usestatic(blockind, v))
             # Common case - all unfixed
             maxflags = static(2 ^ dynamic(ndeps(residual)) - 1)
             if varflags == maxflags
@@ -139,12 +130,12 @@ function costresjac!(linsystem, vars::Vector, residual::Residual, ind) where Res
     # Get the variables and associated data
     v = getvars(residual, vars)
     blockind = getoffsets(residual, linsystem)
-    varflags, usestatic = computevarflags(blockind, v)
+    varflags = computevarflags(blockind, v)
 
     # Check that some variables are unfixed
     if varflags > 0
         # Check if we can do statically sized stuff
-        if dynamic(usestatic)
+        if dynamic(usestatic(blockind, v))
             # Common case - all unfixed
             maxflags = static(2 ^ dynamic(ndeps(residual)) - 1)
             if varflags == maxflags
