@@ -170,9 +170,6 @@ function updateb!(B, b, vars, varflags, boffsets, blockindices)
     end
 end
 
-localoffsets(vars, varflags) = cumsum((0, ntuple(i -> ifelse(bitiset(varflags, i), nvars(vars[i]), 0), length(vars))...))
-localranges(vars, offsets) = ntuple(i -> SR(1, nvars(vars[i])).+offsets[i], length(vars))
-
 function updatesymlinearsystem!(linsystem::MultiVariateLS, g, H, vars, varflags, blockindices)
     updateb!(linsystem.b, g, vars, varflags, linsystem.boffsets, blockindices)
     updatesymA!(linsystem.A, H, vars, varflags, blockindices)
@@ -183,7 +180,7 @@ function updateA!(A, a, vars, varflags, blockindices, ind)
     rows = A.indicestransposed.colptr[ind]:A.indicestransposed.colptr[ind+1]-1
     @inbounds dataptr = view(A.indicestransposed.nzval, rows)
     @inbounds rows = view(A.indicestransposed.rowval, rows)
-    nres = Size(a)[1]
+    nres = length(a)
     loffset = static(0)
     @unroll for i in 1:MAX_ARGS
         if bitiset(varflags, i)

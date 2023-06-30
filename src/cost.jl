@@ -55,7 +55,7 @@ function gradhesshelper!(linsystem, residual::Residual, vars, blockind, varflags
 end
 
 # Compute the variable flags indicating which variables are unfixed (i.e. to be optimized)
-computevarflags(blockind, vars) = mapreduce((x, y) -> (x != 0) << (y - 1), |, blockind, SR(1, length(vars)))
+computevarflags(blockind) = mapfoldl(bi -> (bi[2] != 0) << (bi[1] - 1), |, enumerate(blockind))
 
 # Decision on whether to use static-sized autodiff - compile-time decision where possible
 function usestatic(blockind, vars)
@@ -73,7 +73,7 @@ function costgradhess!(linsystem, vars::Vector, residual::Residual) where Residu
     # Get the variables and associated data
     v = getvars(residual, vars)
     blockind = getoffsets(residual, linsystem)
-    varflags = computevarflags(blockind, v)
+    varflags = computevarflags(blockind)
 
     # Check that some variables are unfixed
     if varflags > 0
@@ -130,7 +130,7 @@ function costresjac!(linsystem, vars::Vector, residual::Residual, ind) where Res
     # Get the variables and associated data
     v = getvars(residual, vars)
     blockind = getoffsets(residual, linsystem)
-    varflags = computevarflags(blockind, v)
+    varflags = computevarflags(blockind)
 
     # Check that some variables are unfixed
     if varflags > 0
