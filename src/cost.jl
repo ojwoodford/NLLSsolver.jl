@@ -53,49 +53,57 @@ function gradhesshelper!(linsystem, residual::Residual, vars, blockind, varflags
     return c
 end
 
-function computevarlen(blockind, vars) 
-    # Compute the total length of variables, plus the variable flags
+function computevarflags(blockind, vars) 
+    # Compute the variable flags indicating which variables are unfixed (i.e. to be optimized)
     varflags = 0
     varlen = 0
+    varlenall = static(0)
+    alldynamic = static(true)
     isstatic = true
     @unroll for i in 1:MAX_ARGS
-        if i <= length(vars) && blockind[i] != 0
+        if i <= length(vars)
             nv = nvars(vars[i])
-            isstatic = isstatic && dynamic(is_static(nv))
-            varlen += Int(nvars(vars[i]))
-            varflags |= 1 << (i - 1)
+            varlenall += dynamic(is_static(nv)) ? nv : static(MAX_STATIC_VAR+1)
+            alldynamic &= !is_static(nv) | (nv > static(MAX_STATIC_VAR))
+            if blockind[i] != 0
+                isstatic &= dynamic(is_static(nv))
+                varlen += dynamic(nv)
+                varflags |= 1 << (i - 1)
+            end
         end
     end
-    return varlen, varflags, isstatic
+    # Provide a compile-time decision on whether to use static-sized autodiff if possible
+    usestatic = varlenall <= static(MAX_STATIC_VAR) ? static(true) : (alldynamic ? static(false) : (isstatic & varlen < MAX_STATIC_VAR))
+    return varflags, usestatic
 end
 
 function costgradhess!(linsystem, vars::Vector, residual::Residual) where Residual <: AbstractResidual
     # Get the variables and associated data
     v = getvars(residual, vars)
     blockind = getoffsets(residual, linsystem)
-    varlen, varflags, isstatic = computevarlen(blockind, v)
+    varflags, usestatic = computevarflags(blockind, v)
 
-    # Check that there are some unfixed variables
+    # Check that some variables are unfixed
     if varflags > 0
-        if isstatic && varlen <= 64
-            # We can do statically sized stuff from now on
+        # Check if we can do statically sized stuff
+        if dynamic(usestatic)
             # Common case - all unfixed
             maxflags = static(2 ^ dynamic(ndeps(residual)) - 1)
             if varflags == maxflags
                 return gradhesshelper!(linsystem, residual, v, blockind, maxflags)
             end
-
+    
             # Dispatch gradient computation based on the varflags, and return the cost
             if ndeps(residual) <= 5
-                return valuedispatch(static(1), maxflags-static(1), v, fixallbutlast(gradhesshelper!, linsystem, residual, v, blockind))
+                return valuedispatch(static(1), maxflags-static(1), varflags, fixallbutlast(gradhesshelper!, linsystem, residual, v, blockind))
             end
             return gradhesshelper!(linsystem, residual, v, blockind, static(varflags))
         end
-
+        
         # Dynamically sized version
         return gradhesshelper!(linsystem, residual, v, blockind, varflags)
     end
-    
+
     # No unfixed variables, so just return the cost
     return cost(residual, v)
 end
@@ -130,29 +138,29 @@ function costresjac!(linsystem, vars::Vector, residual::Residual, ind) where Res
     # Get the variables and associated data
     v = getvars(residual, vars)
     blockind = getoffsets(residual, linsystem)
-    varlen, varflags, isstatic = computevarlen(blockind, v)
+    varflags, usestatic = computevarflags(blockind, v)
 
-    # Check that there are some unfixed variables
+    # Check that some variables are unfixed
     if varflags > 0
-        if isstatic && varlen <= 64
-            # We can do statically sized stuff from now on
+        # Check if we can do statically sized stuff
+        if dynamic(usestatic)
             # Common case - all unfixed
             maxflags = static(2 ^ dynamic(ndeps(residual)) - 1)
             if varflags == maxflags
                 return resjachelper!(linsystem, residual, v, blockind, ind, maxflags)
             end
-
+    
             # Dispatch gradient computation based on the varflags, and return the cost
             if ndeps(residual) <= 5
                 return valuedispatch(static(1), maxflags-static(1), varflags, fixallbutlast(resjachelper!, linsystem, residual, v, blockind, ind))
             end
             return resjachelper!(linsystem, residual, v, blockind, ind, static(varflags))
         end
-
+        
         # Dynamically sized version
         return resjachelper!(linsystem, residual, v, blockind, ind, varflags)
     end
-    
+
     # No unfixed variables, so just return the cost
     return cost(residual, v)
 end
