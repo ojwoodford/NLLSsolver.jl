@@ -69,7 +69,7 @@ function makemvls(vars, residuals, unfixed, nblocks)
     # Multiple variables. Use a block sparse matrix
     blockindices = zeros(UInt, length(vars))
     varblocksizes = zeros(UInt, nblocks)
-    resblocksizes = zeros(UInt, numresiduals(residuals))
+    resblocksizes = zeros(UInt, countresiduals(resnum, residuals))
     pairs = Vector{SVector{2, Int}}()
     nblocks = 0
     # Get the variable block sizes

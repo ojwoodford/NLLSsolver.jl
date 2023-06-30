@@ -13,7 +13,7 @@ function optimize!(problem::NLLSProblem{VarTypes}, options::NLLSOptions=NLLSOpti
     if nblocks == 1
         # One unfixed variable
         varlen = UInt(nvars(problem.variables[unfixed]))
-        return optimizeinternal!(problem, options, NLLSInternalSingleVar(unfixed, varlen, computehessian ? varlen : UInt(lengthresiduals(problem.residuals))), costgradient!, t)
+        return optimizeinternal!(problem, options, NLLSInternalSingleVar(unfixed, varlen, computehessian ? varlen : UInt(countresiduals(reslen, problem.residuals))), costgradient!, t)
     end
     # Multiple variables. Use a block sparse matrix
     mvls = computehessian ? makesymmvls(problem.variables, problem.residuals, unfixed, nblocks) : makemvls(problem.variables, problem.residuals, unfixed, nblocks)
@@ -52,6 +52,7 @@ function optimizeinternal!(problem::NLLSProblem{VarTypes}, options::NLLSOptions,
         # Do the iterations
         fails = 0
         cost = data.bestcost
+        converged = 0
         while true
             data.iternum += 1
             # Call the per iteration solver
@@ -82,8 +83,13 @@ function optimizeinternal!(problem::NLLSProblem{VarTypes}, options::NLLSOptions,
                 # Store the variable trajectory (as update vectors)
                 push!(trajectory, copy(data.step))
             end
-            # Check for convergence
-            if options.callback(problem, data, cost) || !(dcost >= data.bestcost * options.reldcost) || !(dcost >= options.absdcost) || (maximum(abs, data.step) < options.dstep) || (fails > options.maxfails) || data.iternum >= options.maxiters
+            # Check for termination
+            converged  = (options.callback(problem, data, cost) == true) << 0 # Terminated by the user-defined callback
+            converged |= (!(dcost >= data.bestcost * options.reldcost))  << 1 # Decrease in cost is too small
+            converged |= (maximum(abs, data.step) < options.dstep)       << 2 # Max of the step size is too small
+            converged |= (fails > options.maxfails)                      << 3 # Max number of consecutive failed iterations reach
+            converged |= (data.iternum >= options.maxiters)              << 4 # Max number of iterations reached
+            if converged != 0
                 break
             end
             # Construct the linear problem
@@ -99,7 +105,7 @@ function optimizeinternal!(problem::NLLSProblem{VarTypes}, options::NLLSOptions,
         end
     end
     # Return the result
-    return NLLSResult(startcost, data.bestcost, t, timeinit, data.timecost, data.timegradient, data.timesolver, data.iternum, data.costcomputations, data.gradientcomputations, data.linearsolvers, costs, trajectory)
+    return NLLSResult(startcost, data.bestcost, t, timeinit, data.timecost, data.timegradient, data.timesolver, converged, data.iternum, data.costcomputations, data.gradientcomputations, data.linearsolvers, costs, trajectory)
 end
 
 function updatefromnext!(problem::NLLSProblem, ::NLLSInternalMultiVar)

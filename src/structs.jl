@@ -38,6 +38,7 @@ struct NLLSResult
     timecost::Float64                       # Time (in seconds) spent computing the cost
     timegradient::Float64                   # Time (in seconds) spent computing the residual gradients and constructing the linear problems
     timesolver::Float64                     # Time (in seconds) spent solving the linear problems
+    termination::Int                        # Set of flags indicating which termination criteria were met
     niterations::Int                        # Number of outer optimization iterations performed
     costcomputations::Int                   # Number of cost computations performed
     gradientcomputations::Int               # Number of residual gradient computations performed
@@ -61,6 +62,12 @@ function Base.show(io::IO, x::NLLSResult)
             x.linearsolvers, x.timesolver, 100*x.timesolver/timetotal,
             x.timeinit, 100*x.timeinit/timetotal,
             otherstuff, 100*otherstuff/timetotal)
+    println("Reason(s) for termination:")
+    if x.termination & 1  != 0; println("   User-defined callback terminated."); end
+    if x.termination & 2  != 0; println("   Small decrease in cost."); end
+    if x.termination & 4  != 0; println("   Small step size."); end
+    if x.termination & 8  != 0; println("   Too many consecutive iterations increasing the cost."); end
+    if x.termination & 16 != 0; println("   Maximum number of outer iterations reached."); end
 end
 
 mutable struct NLLSInternalSingleVar
@@ -97,35 +104,3 @@ mutable struct NLLSInternalMultiVar
         return new(0., 0., 0., 0., 0, 0, 0, 0, Vector{Float64}(undef, size(mvls.A, 2)), mvls, spzeros(Bool, 0, 0))
     end
 end
-
-function updatevarresmap!(varresmap::SparseMatrixCSC{Bool, Int}, residuals::Vector)
-    numres = length(residuals)
-    if numres == 0
-        return
-    end
-    ndeps_ = known(ndeps(residuals[1]))
-    colind = length(varresmap.colptr)
-    rowind = length(varresmap.rowval)
-    resize!(varresmap.colptr, colind+numres)
-    resize!(varresmap.rowval, rowind+numres*ndeps_)
-    rowind += 1
-    srange = SR(0, ndeps_-1)
-    @inbounds for res in residuals
-        varresmap.rowval[srange.+rowind] = varindices(res)
-        rowind += ndeps_
-        colind += 1
-        varresmap.colptr[colind] = rowind
-    end
-end
-
-function updatevarresmap!(varresmap::SparseMatrixCSC{Bool, Int}, problem::NLLSProblem)
-    resize!(varresmap.colptr, 1)
-    varresmap.colptr[1] = 1
-    resize!(varresmap.rowval, 0)
-    @inbounds for res in values(problem.residuals)
-        updatevarresmap!(varresmap, res)
-    end
-    resize!(varresmap.nzval, length(varresmap.rowval))
-    return nothing
-end
-

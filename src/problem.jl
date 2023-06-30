@@ -1,4 +1,4 @@
-using Static
+using Static, SparseArrays
 
 const ResidualStruct = VectorRepo
 
@@ -6,12 +6,22 @@ mutable struct NLLSProblem{VarTypes, ResTypes}
     # User provided
     residuals::ResidualStruct{ResTypes}
     variables::Vector{VarTypes}
+
+    # Used internally
     varnext::Vector{VarTypes}
     varbest::Vector{VarTypes}
 
+    # Maps of dependencies
+    varresmap::SparseMatrixCSC{Bool, Int}
+    resvarmap::SparseMatrixCSC{Bool, Int}
+    varvarmap::SparseMatrixCSC{Bool, Int}
+    mapsvalid::Bool
+
     # Constructor
     function NLLSProblem{VarTypes, ResTypes}(vars=Vector{VarTypes}(), residuals=ResidualStruct{ResTypes}(), varnext=Vector{VarTypes}(), varbest=Vector{VarTypes}()) where {VarTypes, ResTypes}
-        return new{VarTypes, ResTypes}(residuals, vars, varnext, varbest)
+        nvars = length(vars)
+        nres = countresiduals(reslen, residuals)
+        return new{VarTypes, ResTypes}(residuals, vars, varnext, varbest, spzeros(Bool, nvars, nres), spzeros(Bool, nres, nvars), spzeros(Bool, nvars, nvars), false)
     end
 end
 NLLSProblem() = NLLSProblem{Any, Any}()
@@ -88,22 +98,45 @@ function addvariable!(problem::NLLSProblem, variable)
     return length(problem.variables)
 end
 
-function numresiduals(residuals::ResidualStruct)
-    num = 0
-    @inbounds for vec in values(residuals)
-        num += length(vec)
-    end
-    return num
-end
+reslen(vec::Vector) = length(vec)
+resnum(vec::Vector) = length(vec) > 0 ? length(vec) * nres(vec[1]) : 0
+resdeps(vec::Vector) = length(vec) > 0 ? length(vec) * ndeps(vec[1]) : 0
+@inline countresiduals(fun, residuals::ResidualStruct{Any}) = sum(fun, values(residuals); init=0)
+@inline countresiduals(fun, residuals::ResidualStruct{T}) where T = countresiduals(fun, residuals, T)
+@inline countresiduals(fun, residuals, T::Union) = countresiduals(fun, residuals, T.a) + countresiduals(fun, residuals, T.b)
+@inline countresiduals(fun, residuals, T::DataType) = fun(get(residuals, T))
 
-function lengthresiduals(residuals::ResidualStruct)
-    len = 0
-    @inbounds for vec in values(residuals)
-        n = length(vec)
-        if n != 0
-            len += n * nres(vec[1])
+function updatevarresmap!(varresmap::SparseMatrixCSC{Bool, Int}, residuals::Vector, colind::Int, rowind::Int)
+    numres = length(residuals)
+    if numres > 0
+        ndeps_ = known(ndeps(residuals[1]))
+        srange = SR(0, ndeps_-1)
+        @inbounds for res in residuals
+            varresmap.rowval[srange.+rowind] .= varindices(res)
+            rowind += ndeps_
+            colind += 1
+            varresmap.colptr[colind] = rowind
         end
     end
-    return len
+    return colind, rowind
+end
+
+function updatevarresmap!(problem::NLLSProblem)
+    # Pre-allocate all the necessary memory
+    vrm = problem.varresmap
+    res = problem.residuals
+    resize!(vrm.rowval, countresiduals(resdeps, res))
+    resize!(vrm.colptr, countresiduals(reslen, res)+1)
+    prevlen = length(vrm.nzval)
+    resize!(vrm.nzval, length(vrm.rowval))
+
+    # Fill in the arrays
+    vrm.nzval[prevlen+1:length(vrm.rowval)] .= true
+    varresmap.colptr[1] = 1
+    colind = 1
+    rowind = 1
+    @inbounds for r in values(res)
+        colind, rowind = updatevarresmap!(vrm, r, colind, rowind)
+    end
 end
 
