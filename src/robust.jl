@@ -62,7 +62,7 @@ end
 #     cost = x .^ 2
 #     weight = similar(cost)
 #     for (ind, c) in enumerate(cost)
-#         cost[ind], weight[ind], unused = robustify(kernel, c)
+#         cost[ind], weight[ind], = robustify(kernel, c)
 #     end
 #     plot(x, [cost, weight])
 # end
