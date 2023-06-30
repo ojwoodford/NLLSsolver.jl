@@ -60,10 +60,10 @@ computevarflags(blockind, vars) = mapreduce((x, y) -> (x != 0) << (y - 1), |, bl
 function usestatic(blockind, vars)
     nvs = map(nvars, vars)
     if sum(nv -> ifelse(is_static(nv), nv , static(MAX_STATIC_VAR+1)), nvs) <= static(MAX_STATIC_VAR)
-        return true
+        return static(true)
     end
     if all(map(nv -> ifelse(is_static(nv), static(nv > static(MAX_STATIC_VAR)), static(true)), nvs))
-        return false
+        return static(false)
     end
     return mapreduce((x, y) -> (x != 0) * ifelse(is_static(y), dynamic(y), MAX_STATIC_VAR+1), +, blockind, nvs) <= MAX_STATIC_VAR
 end
@@ -77,7 +77,7 @@ function costgradhess!(linsystem, vars::Vector, residual::Residual) where Residu
     # Check that some variables are unfixed
     if varflags > 0
         # Check if we can do statically sized stuff
-        if usestatic(blockind, v)
+        if dynamic(usestatic(blockind, v))
             # Common case - all unfixed
             maxflags = static(2 ^ dynamic(ndeps(residual)) - 1)
             if varflags == maxflags
@@ -134,7 +134,7 @@ function costresjac!(linsystem, vars::Vector, residual::Residual, ind) where Res
     # Check that some variables are unfixed
     if varflags > 0
         # Check if we can do statically sized stuff
-        if usestatic(blockind, v)
+        if dynamic(usestatic(blockind, v))
             # Common case - all unfixed
             maxflags = static(2 ^ dynamic(ndeps(residual)) - 1)
             if varflags == maxflags
