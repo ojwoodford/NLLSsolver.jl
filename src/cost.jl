@@ -1,5 +1,6 @@
 using Static
 import ForwardDiff
+import IfElse: ifelse
 
 cost(problem::NLLSProblem) = cost(problem.variables, problem.residuals)
 cost(vars::Vector, residuals::ResidualStruct)::Float64 = sum(Base.Fix1(cost, vars), residuals)
