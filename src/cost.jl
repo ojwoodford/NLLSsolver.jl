@@ -1,5 +1,6 @@
 using Static
 import ForwardDiff
+import IfElse: ifelse
 
 cost(problem::NLLSProblem) = cost(problem.variables, problem.residuals)
 cost(vars::Vector, residuals::ResidualStruct)::Float64 = sum(Base.Fix1(cost, vars), residuals)
@@ -63,7 +64,7 @@ function computevarflags(blockind, vars)
     @unroll for i in 1:MAX_ARGS
         if i <= length(vars)
             nv = nvars(vars[i])
-            varlenall += dynamic(is_static(nv)) ? nv : static(MAX_STATIC_VAR+1)
+            varlenall += ifelse(is_static(nv), nv, static(MAX_STATIC_VAR+1))
             alldynamic &= !is_static(nv) | (nv > static(MAX_STATIC_VAR))
             if blockind[i] != 0
                 isstatic &= dynamic(is_static(nv))
