@@ -44,11 +44,11 @@ NLLSsolver.robustkernel(::RosenbrockB) = rosenbrockrobustifier
     @test NLLSsolver.countresiduals(NLLSsolver.reslen, problem.residuals) == 2
     @test NLLSsolver.countresiduals(NLLSsolver.resnum, problem.residuals) == 2
     @test NLLSsolver.cost(problem) == 1.
-    NLLSsolver.updatevarresmap!(problem)
+    NLLSsolver.updatemaps!(problem)
     @test vec(sum(Matrix(problem.varresmap); dims=2)) == [2; 1]
 
     # Create a subproblem
-    @test NLLSsolver.countresiduals(resnum, NLLSsolver.subproblem(problem, trues(2)).residuals) == 2
+    @test NLLSsolver.countresiduals(NLLSsolver.resnum, NLLSsolver.subproblem(problem, trues(2)).residuals) == 2
     subprob = NLLSsolver.subproblem(problem, 2)
     @test NLLSsolver.countresiduals(NLLSsolver.resnum, subprob.residuals) == 1
     @test NLLSsolver.cost(subprob) == 0.

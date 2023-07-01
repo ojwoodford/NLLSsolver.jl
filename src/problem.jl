@@ -121,10 +121,19 @@ function updatevarresmap!(varresmap::SparseMatrixCSC{Bool, Int}, residuals::Vect
     return colind, rowind
 end
 
-function updatevarresmap!(problem::NLLSProblem)
-    # Pre-allocate all the necessary memory
-    vrm = problem.varresmap
+function updatemaps!(problem::NLLSProblem)
+    @assert problem.mapsvalid == false
+    # First the varresmap
+    # Check the size is correct
+    nvars = length(problem.variables)
     res = problem.residuals
+    nres = countresiduals(reslen, res)
+    if (nvars != size(problem.varresmap, 1)) | (nres != size(problem.varresmap, 2))
+        problem.varresmap = spzeros(Bool, nvars, nres)
+    end
+    vrm = problem.varresmap
+
+    # Pre-allocate all the necessary memory
     resize!(vrm.rowval, countresiduals(resdeps, res))
     resize!(vrm.colptr, countresiduals(reslen, res)+1)
     prevlen = length(vrm.nzval)
@@ -132,11 +141,14 @@ function updatevarresmap!(problem::NLLSProblem)
 
     # Fill in the arrays
     vrm.nzval[prevlen+1:length(vrm.rowval)] .= true
-    varresmap.colptr[1] = 1
+    vrm.colptr[1] = 1
     colind = 1
     rowind = 1
     @inbounds for r in values(res)
         colind, rowind = updatevarresmap!(vrm, r, colind, rowind)
     end
+
+    # Mark maps as updated
+    problem.mapsvalid = true
 end
 
