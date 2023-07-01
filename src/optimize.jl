@@ -84,11 +84,16 @@ function optimizeinternal!(problem::NLLSProblem{VarTypes}, options::NLLSOptions,
                 push!(trajectory, copy(data.step))
             end
             # Check for termination
+            maxstep = maximum(abs, data.step)
             converged  = (options.callback(problem, data, cost) == true) << 0 # Terminated by the user-defined callback
-            converged |= (!(dcost >= data.bestcost * options.reldcost))  << 1 # Decrease in cost is too small
-            converged |= (maximum(abs, data.step) < options.dstep)       << 2 # Max of the step size is too small
-            converged |= (fails > options.maxfails)                      << 3 # Max number of consecutive failed iterations reach
-            converged |= (data.iternum >= options.maxiters)              << 4 # Max number of iterations reached
+            converged |= isinf(cost)                                     << 1 # Cost is infinite
+            converged |= isnan(cost)                                     << 2 # Cost is NaN
+            converged |= (dcost < data.bestcost * options.reldcost)      << 3 # Decrease in cost is too small
+            converged |= isinf(maxstep)                                  << 4 # Infinity detected in the step
+            converged |= isnan(maxstep)                                  << 5 # NaN detected in the step
+            converged |= (maxstep < options.dstep)                       << 6 # Max of the step size is too small
+            converged |= (fails > options.maxfails)                      << 7 # Max number of consecutive failed iterations reach
+            converged |= (data.iternum >= options.maxiters)              << 8 # Max number of iterations reached
             if converged != 0
                 break
             end

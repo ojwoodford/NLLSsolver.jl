@@ -63,11 +63,15 @@ function Base.show(io::IO, x::NLLSResult)
             x.timeinit, 100*x.timeinit/timetotal,
             otherstuff, 100*otherstuff/timetotal)
     println("Reason(s) for termination:")
-    if x.termination & 1  != 0; println("   User-defined callback terminated."); end
-    if x.termination & 2  != 0; println("   Small decrease in cost."); end
-    if x.termination & 4  != 0; println("   Small step size."); end
-    if x.termination & 8  != 0; println("   Too many consecutive iterations increasing the cost."); end
-    if x.termination & 16 != 0; println("   Maximum number of outer iterations reached."); end
+    if 0 != x.termination & (1 << 0); println("   Terminated by user-defined callback."); end
+    if 0 != x.termination & (1 << 1); println("   Cost is infinite."); end
+    if 0 != x.termination & (1 << 2); println("   Cost is NaN."); end
+    if 0 != x.termination & (1 << 3); println("   Decrease in cost below threshold."); end
+    if 0 != x.termination & (1 << 4); println("   Step contains an infinite value."); end
+    if 0 != x.termination & (1 << 5); println("   Step contains a NaN."); end
+    if 0 != x.termination & (1 << 6); println("   Step size below threshold."); end
+    if 0 != x.termination & (1 << 7); println("   Too many consecutive iterations increasing the cost."); end
+    if 0 != x.termination & (1 << 8); println("   Maximum number of outer iterations reached."); end
 end
 
 mutable struct NLLSInternalSingleVar
