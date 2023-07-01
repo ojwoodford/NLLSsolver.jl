@@ -178,14 +178,15 @@ end
 function updateA!(A, a, vars, varflags, blockindices, ind)
     # Update the blocks in the problem
     rows = A.indicestransposed.colptr[ind]:A.indicestransposed.colptr[ind+1]-1
-    @inbounds dataptr = view(A.indicestransposed.nzval, rows)
-    @inbounds rows = view(A.indicestransposed.rowval, rows)
+    dataptr = @inbounds view(A.indicestransposed.nzval, rows)
+    rows = @inbounds view(A.indicestransposed.rowval, rows)
     nres = length(a)
     loffset = static(0)
     @unroll for i in 1:MAX_ARGS
         if bitiset(varflags, i)
             nv = nvars(vars[i])
-            @inbounds view(A.data, SR(0, nres*nv-1) .+ dataptr[findfirst(isequal(blockindices[i]), rows)]) .= reshape(view(a, :, SR(1, nv).+loffset), :)
+            bi = blockindices[i]
+            view(A.data, SR(0, nres*nv-1) .+ dataptr[findfirst(Base.Fix1(isequal, bi), rows)]) .= reshape(view(a, :, SR(1, nv).+loffset), :)
             loffset += nv
         end
     end
