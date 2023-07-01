@@ -8,7 +8,6 @@ function fillrepo(vr, floats, ints)
     append!(vr, ints)
     push!(vr, 0.0)
     push!(vr, 0)
-    get!(vr, Char)
 
     # Test that the lengths and values are as expected
     floats = get(vr, Float64)
@@ -29,10 +28,15 @@ end
     @test sum(i->2i, vr1) == 0.0
     fillrepo(vr1, floats, ints)
     @test isapprox(sum(i->π*i, vr1), total * π)
+    vec = values(vr1)
+    @test length(vec) == 2 && any(Base.Fix2(isa, Vector{Float64}), vec) && any(Base.Fix2(isa, Vector{Int}), vec)
 
     # Union container
     vr2 = NLLSsolver.VectorRepo{Union{Float64, Int, Char}}()
     @test sum(i->2i, vr2) == 0.0
     fillrepo(vr2, floats, ints)
     @test isapprox(sum(i->π*i, vr2), total * π)
+    tup = values(vr2)
+    @test isa(tup, Tuple) && length(tup) == 3
+    @test any(Base.Fix2(isa, Vector{Float64}), tup) && any(Base.Fix2(isa, Vector{Int}), tup) && any(Base.Fix2(isa, Vector{Char}), tup)
 end
