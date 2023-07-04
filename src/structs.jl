@@ -102,9 +102,46 @@ mutable struct NLLSInternalMultiVar
     linearsolvers::Int
     step::Vector{Float64}
     linsystem::MultiVariateLS
+
+    # Maps of dependencies
     varresmap::SparseMatrixCSC{Bool, Int}
+    resvarmap::SparseMatrixCSC{Bool, Int}
+    varvarmap::SparseMatrixCSC{Bool, Int}
+    mapsvalid::Bool
 
     function NLLSInternalMultiVar(mvls)
-        return new(0., 0., 0., 0., 0, 0, 0, 0, Vector{Float64}(undef, size(mvls.A, 2)), mvls, spzeros(Bool, 0, 0))
+        return new(0., 0., 0., 0., 0, 0, 0, 0, Vector{Float64}(undef, size(mvls.A, 2)), mvls, spzeros(Bool, 0, 0), spzeros(Bool, 0, 0), spzeros(Bool, 0, 0), false)
+    end
+end
+
+function updatevarresmap!(varresmap::SparseMatrixCSC{Bool, Int}, residuals::Vector, colind::Int, rowind::Int)
+    numres = length(residuals)
+    if numres > 0
+        ndeps_ = known(ndeps(residuals[1]))
+        srange = SR(0, ndeps_-1)
+        @inbounds for res in residuals
+            varresmap.rowval[srange.+rowind] .= varindices(res)
+            rowind += ndeps_
+            colind += 1
+            varresmap.colptr[colind] = rowind
+        end
+    end
+    return colind, rowind
+end
+
+function updatevarresmap!(varresmap::SparseMatrixCSC{Bool, Int}, residuals::ResidualStruct)
+    # Pre-allocate all the necessary memory
+    resize!(varresmap.rowval, countresiduals(resdeps, residuals))
+    resize!(varresmap.colptr, countresiduals(reslen, residuals)+1)
+    prevlen = length(varresmap.nzval)
+    resize!(varresmap.nzval, length(varresmap.rowval))
+
+    # Fill in the arrays
+    varresmap.nzval[prevlen+1:length(varresmap.rowval)] .= true
+    varresmap.colptr[1] = 1
+    colind = 1
+    rowind = 1
+    @inbounds for res in values(residuals)
+        colind, rowind = updatevarresmap!(varresmap, res, colind, rowind)
     end
 end
