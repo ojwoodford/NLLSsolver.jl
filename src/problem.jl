@@ -11,17 +11,9 @@ mutable struct NLLSProblem{VarTypes, ResTypes}
     varnext::Vector{VarTypes}
     varbest::Vector{VarTypes}
 
-    # Maps of dependencies
-    varresmap::SparseMatrixCSC{Bool, Int}
-    resvarmap::SparseMatrixCSC{Bool, Int}
-    varvarmap::SparseMatrixCSC{Bool, Int}
-    mapsvalid::Bool
-
     # Constructor
     function NLLSProblem{VarTypes, ResTypes}(vars=Vector{VarTypes}(), residuals=ResidualStruct{ResTypes}(), varnext=Vector{VarTypes}(), varbest=Vector{VarTypes}()) where {VarTypes, ResTypes}
-        nvars = length(vars)
-        nres = countresiduals(reslen, residuals)
-        return new{VarTypes, ResTypes}(residuals, vars, varnext, varbest, spzeros(Bool, nvars, nres), spzeros(Bool, nres, nvars), spzeros(Bool, nvars, nvars), false)
+        return new{VarTypes, ResTypes}(residuals, vars, varnext, varbest)
     end
 end
 NLLSProblem() = NLLSProblem{Any, Any}()
@@ -105,50 +97,4 @@ resdeps(vec::Vector) = length(vec) > 0 ? length(vec) * ndeps(vec[1]) : 0
 @inline countresiduals(fun, residuals::ResidualStruct{T}) where T = countresiduals(fun, residuals, T)
 @inline countresiduals(fun, residuals, T::Union) = countresiduals(fun, residuals, T.a) + countresiduals(fun, residuals, T.b)
 @inline countresiduals(fun, residuals, T::DataType) = fun(get(residuals, T))
-
-function updatevarresmap!(varresmap::SparseMatrixCSC{Bool, Int}, residuals::Vector, colind::Int, rowind::Int)
-    numres = length(residuals)
-    if numres > 0
-        ndeps_ = known(ndeps(residuals[1]))
-        srange = SR(0, ndeps_-1)
-        @inbounds for res in residuals
-            varresmap.rowval[srange.+rowind] .= varindices(res)
-            rowind += ndeps_
-            colind += 1
-            varresmap.colptr[colind] = rowind
-        end
-    end
-    return colind, rowind
-end
-
-function updatemaps!(problem::NLLSProblem)
-    @assert problem.mapsvalid == false
-    # First the varresmap
-    # Check the size is correct
-    nvars = length(problem.variables)
-    res = problem.residuals
-    nres = countresiduals(reslen, res)
-    if (nvars != size(problem.varresmap, 1)) | (nres != size(problem.varresmap, 2))
-        problem.varresmap = spzeros(Bool, nvars, nres)
-    end
-    vrm = problem.varresmap
-
-    # Pre-allocate all the necessary memory
-    resize!(vrm.rowval, countresiduals(resdeps, res))
-    resize!(vrm.colptr, countresiduals(reslen, res)+1)
-    prevlen = length(vrm.nzval)
-    resize!(vrm.nzval, length(vrm.rowval))
-
-    # Fill in the arrays
-    vrm.nzval[prevlen+1:length(vrm.rowval)] .= true
-    vrm.colptr[1] = 1
-    colind = 1
-    rowind = 1
-    @inbounds for r in values(res)
-        colind, rowind = updatevarresmap!(vrm, r, colind, rowind)
-    end
-
-    # Mark maps as updated
-    problem.mapsvalid = true
-end
 
