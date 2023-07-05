@@ -91,7 +91,8 @@ function addvariable!(problem::NLLSProblem, variable)
 end
 
 reslen(vec::Vector) = length(vec)
-resnum(vec::Vector) = length(vec) > 0 ? length(vec) * nres(vec[1]) : 0
+# Support variable length residuals
+resnum(vec::Vector) = length(vec) > 0 ? (dynamic(is_static(nres(vec[1]))) ? length(vec) * nres(vec[1]) : sum(nres, vec; init=0)) : 0
 resdeps(vec::Vector) = length(vec) > 0 ? length(vec) * ndeps(vec[1]) : 0
 @inline countresiduals(fun, residuals::ResidualStruct{Any}) = sum(fun, values(residuals); init=0)
 @inline countresiduals(fun, residuals::ResidualStruct{T}) where T = countresiduals(fun, residuals, T)

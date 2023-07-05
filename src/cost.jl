@@ -160,7 +160,7 @@ end
 Base.length(::AbstractResidual) = 1
 
 function costresjac!(linsystem, vars::Vector, residuals, ind=1)::Float64
-    # Go over all resdiduals in the problem
+    # Go over all residuals in the problem
     c = 0.
     @inbounds for res in values(residuals)
         c += costresjac!(linsystem, vars, res, ind)
