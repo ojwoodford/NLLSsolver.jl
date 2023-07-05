@@ -17,8 +17,8 @@ using NLLSsolver, LinearAlgebra, Test
 
     # Test rotations
     updatevec = randn(3)
-    rotr = update(Rotation3DR(), updatevec)
-    rotl = update(Rotation3DL(), -updatevec)
+    rotr = update(NLLSsolver.Rotation3DR(), updatevec)
+    rotl = update(NLLSsolver.Rotation3DL(), -updatevec)
     @test isapprox(NLLSsolver.getvec((rotl * rotr) * point), NLLSsolver.getvec(point))
     @test isapprox(NLLSsolver.getvec((NLLSsolver.inverse(rotl) * NLLSsolver.inverse(rotr)) * point), NLLSsolver.getvec(point))
 

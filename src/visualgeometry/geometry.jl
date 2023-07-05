@@ -55,6 +55,24 @@ update(var::Point3D, updatevec, start=1) = Point3D(var.v + view(updatevec, SR(0,
 @inline getind(x::Point3D, ind) = x.v[ind]
 
 
+abstract type AbstractRotation3D end
+struct Rotation3DR{T<:Real} <: AbstractRotation3D
+    m::SMatrix{3, 3, T, 9}
+end
+Rotation3DR(x, y, z) = Rotation3DR(rodrigues(x, y, z))
+Rotation3DR() = Rotation3DR(SMatrix{3, 3, Float64}(1., 0., 0., 0., 1., 0., 0., 0., 1.))
+nvars(::Rotation3DR) = static(3)
+update(var::Rotation3DR, updatevec, start=1) = var * Rotation3DR(updatevec[start], updatevec[start+1], updatevec[start+2])
+
+struct Rotation3DL{T<:Real} <: AbstractRotation3D
+    m::SMatrix{3, 3, T, 9}
+end
+Rotation3DL(x, y, z) = Rotation3DL(rodrigues(x, y, z))
+Rotation3DL() = Rotation3DL(SMatrix{3, 3, Float64}(1., 0., 0., 0., 1., 0., 0., 0., 1.))
+nvars(::Rotation3DL) = static(3)
+update(var::Rotation3DL, updatevec, start=1) = Rotation3DL(updatevec[start], updatevec[start+1], updatevec[start+2]) * var
+
+
 struct UnitVec3D{T<:Real} <: AbstractPoint3D
     v::Rotation3DR{T}
 end
@@ -72,24 +90,6 @@ nvars(::UnitVec3D) = static(2)
 update(var::UnitVec3D, updatevec, start=1) = UnitVec3D(update(var.v, SVector(0, updatevec[start], updatevec[start+1])))
 getvec(x::UnitVec3D) = view(x.v.m, :, 1)
 getind(x::UnitVec3D, ind) = x.v.m[ind,1]
-
-
-abstract type AbstractRotation3D end
-struct Rotation3DR{T<:Real} <: AbstractRotation3D
-    m::SMatrix{3, 3, T, 9}
-end
-Rotation3DR(x, y, z) = Rotation3DR(rodrigues(x, y, z))
-Rotation3DR() = Rotation3DR(SMatrix{3, 3, Float64}(1., 0., 0., 0., 1., 0., 0., 0., 1.))
-nvars(::Rotation3DR) = static(3)
-update(var::Rotation3DR, updatevec, start=1) = var * Rotation3DR(updatevec[start], updatevec[start+1], updatevec[start+2])
-
-struct Rotation3DL{T<:Real} <: AbstractRotation3D
-    m::SMatrix{3, 3, T, 9}
-end
-Rotation3DL(x, y, z) = Rotation3DL(rodrigues(x, y, z))
-Rotation3DL() = Rotation3DL(SMatrix{3, 3, Float64}(1., 0., 0., 0., 1., 0., 0., 0., 1.))
-nvars(::Rotation3DL) = static(3)
-update(var::Rotation3DL, updatevec, start=1) = Rotation3DL(updatevec[start], updatevec[start+1], updatevec[start+2]) * var
 
 
 abstract type AbstractPose3D end
