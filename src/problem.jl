@@ -67,7 +67,7 @@ function subproblem(problem::NLLSProblem{VT, RT}, resind::Vector) where {VT, RT}
     return NLLSProblem{VT, RT}(problem.variables, residualstruct, problem.varnext, problem.varbest)
 end
 
-function addresidual!(problem::NLLSProblem, residual)
+function addresidual!(problem::NLLSProblem, residual::AbstractResidual)
     # Sanity checks
     N = ndeps(residual)
     @assert isa(N, StaticInt) && N>0 && N<=MAX_ARGS "Problem with ndeps()"
