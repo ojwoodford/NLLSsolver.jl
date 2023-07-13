@@ -62,16 +62,16 @@ function Base.show(io::IO, x::NLLSResult)
             x.linearsolvers, x.timesolver, 100*x.timesolver/timetotal,
             x.timeinit, 100*x.timeinit/timetotal,
             otherstuff, 100*otherstuff/timetotal)
-    println("Reason(s) for termination:")
-    if 0 != x.termination & (1 << 0); println("   Terminated by user-defined callback."); end
-    if 0 != x.termination & (1 << 1); println("   Cost is infinite."); end
-    if 0 != x.termination & (1 << 2); println("   Cost is NaN."); end
-    if 0 != x.termination & (1 << 3); println("   Decrease in cost below threshold."); end
-    if 0 != x.termination & (1 << 4); println("   Step contains an infinite value."); end
-    if 0 != x.termination & (1 << 5); println("   Step contains a NaN."); end
-    if 0 != x.termination & (1 << 6); println("   Step size below threshold."); end
-    if 0 != x.termination & (1 << 7); println("   Too many consecutive iterations increasing the cost."); end
-    if 0 != x.termination & (1 << 8); println("   Maximum number of outer iterations reached."); end
+    println(io, "Reason(s) for termination:")
+    if 0 != x.termination & (1 << 0); println(io, "   Terminated by user-defined callback."); end
+    if 0 != x.termination & (1 << 1); println(io, "   Cost is infinite."); end
+    if 0 != x.termination & (1 << 2); println(io, "   Cost is NaN."); end
+    if 0 != x.termination & (1 << 3); println(io, "   Decrease in cost below threshold."); end
+    if 0 != x.termination & (1 << 4); println(io, "   Step contains an infinite value."); end
+    if 0 != x.termination & (1 << 5); println(io, "   Step contains a NaN."); end
+    if 0 != x.termination & (1 << 6); println(io, "   Step size below threshold."); end
+    if 0 != x.termination & (1 << 7); println(io, "   Too many consecutive iterations increasing the cost."); end
+    if 0 != x.termination & (1 << 8); println(io, "   Maximum number of outer iterations reached."); end
 end
 
 mutable struct NLLSInternalSingleVar
