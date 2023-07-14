@@ -26,7 +26,7 @@ struct NLLSOptions
     storecosts::Bool            # Indicates whether the cost per outer iteration should be stored
     storetrajectory::Bool       # Indicates whether the step per outer iteration should be stored
 end
-function NLLSOptions(; maxiters=100, reldcost=1.e-6, absdcost=1.e-15, dstep=1.e-6, maxfails=3, iterator=levenbergmarquardt, callback=(args...)->false, storecosts=false, storetrajectory=false)
+function NLLSOptions(; maxiters=100, reldcost=1.e-15, absdcost=1.e-15, dstep=1.e-15, maxfails=3, iterator=levenbergmarquardt, callback=(args...)->false, storecosts=false, storetrajectory=false)
     NLLSOptions(reldcost, absdcost, dstep, maxfails, maxiters, iterator, callback, storecosts, storetrajectory)
 end
 
@@ -66,12 +66,13 @@ function Base.show(io::IO, x::NLLSResult)
     if 0 != x.termination & (1 << 0); println(io, "   Terminated by user-defined callback."); end
     if 0 != x.termination & (1 << 1); println(io, "   Cost is infinite."); end
     if 0 != x.termination & (1 << 2); println(io, "   Cost is NaN."); end
-    if 0 != x.termination & (1 << 3); println(io, "   Decrease in cost below threshold."); end
-    if 0 != x.termination & (1 << 4); println(io, "   Step contains an infinite value."); end
-    if 0 != x.termination & (1 << 5); println(io, "   Step contains a NaN."); end
-    if 0 != x.termination & (1 << 6); println(io, "   Step size below threshold."); end
-    if 0 != x.termination & (1 << 7); println(io, "   Too many consecutive iterations increasing the cost."); end
-    if 0 != x.termination & (1 << 8); println(io, "   Maximum number of outer iterations reached."); end
+    if 0 != x.termination & (1 << 3); println(io, "   Relative decrease in cost below threshold."); end
+    if 0 != x.termination & (1 << 4); println(io, "   Absolute decrease in cost below threshold."); end
+    if 0 != x.termination & (1 << 5); println(io, "   Step contains an infinite value."); end
+    if 0 != x.termination & (1 << 6); println(io, "   Step contains a NaN."); end
+    if 0 != x.termination & (1 << 7); println(io, "   Step size below threshold."); end
+    if 0 != x.termination & (1 << 8); println(io, "   Too many consecutive iterations increasing the cost."); end
+    if 0 != x.termination & (1 << 9); println(io, "   Maximum number of outer iterations reached."); end
 end
 
 mutable struct NLLSInternalSingleVar
