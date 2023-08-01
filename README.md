@@ -55,6 +55,9 @@ The following examples of problem definition, creation and optimization are incl
 - **Implement reduced memory Variable Projection** for solving very large scale bipartite problems.
 - **Allow residuals to dynamically change the variables they depend on** to broaden the types of problems that can be optimized.
 - **Allow variable blocks to have a large and dynamically set number of parameters** to also broaden the types of problems that can be optimized.
+- **Allow residual blocks to depend on a dynamic number of variables** to further broaden the types of problems that can be optimized.
+- **Non-squared cost blocks**
+- **Adaptive robustifiers**
 - **Add additional solvers**
 - **Add constraints**, such as equality and inequality constraints on variables.
 - **Improve code coverage of tests**
