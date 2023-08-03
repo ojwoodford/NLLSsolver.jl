@@ -72,7 +72,7 @@ function addresidual!(problem::NLLSProblem, residual::AbstractResidual)
     N = ndeps(residual)
     @assert isa(N, StaticInt) && N>0 && N<=MAX_ARGS "Problem with ndeps()"
     M = nres(residual)
-    @assert (isa(M, Integer) || isa(M, StaticInt)) && M>0 && M<=MAX_BLOCK_SZ "Problem with nres()"
+    @assert (isa(M, Integer) || isa(M, StaticInt)) && M>0 "Problem with nres()"
     @assert length(varindices(residual))==N "Problem with varindices()"
     @assert length(getvars(residual, problem.variables))==N "Problem with getvars()"
     # Add to the problem
@@ -83,7 +83,7 @@ end
 function addvariable!(problem::NLLSProblem, variable)
     # Sanity checks
     N = nvars(variable)
-    @assert (isa(N, Integer) || isa(N, StaticInt)) && N>0 && N<=MAX_BLOCK_SZ "Problem with nvars()"
+    @assert (isa(N, Integer) || isa(N, StaticInt)) && N>0 "Problem with nvars()"
     # Add the variable
     push!(problem.variables, variable)
     # Return the index
