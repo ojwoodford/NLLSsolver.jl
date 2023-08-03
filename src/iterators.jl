@@ -14,15 +14,34 @@ end
 
 # Iterators assume that the linear problem has been constructed
 
-# Newton optimization
+# Gauss-Newton optimization (undamped-Jacobian form)
+struct GaussNewtonData
+end
+
+function iterate!(::GaussNewtonData, data, problem::NLLSProblem, options::NLLSOptions)::Float64
+    # Compute the step
+    data.timesolver += @elapsed begin
+        jacobian, residual = getjacres(data.linsystem)
+        data.step .= -linearsolve(jacobian, residual, options)
+    end
+    data.linearsolvers += 1
+    # Update the new variables
+    update!(problem.varnext, problem.variables, data.linsystem, data.step)
+    # Return the cost
+    data.timecost += @elapsed cost_ = cost(problem.varnext, problem.residuals)
+    data.costcomputations += 1
+    return cost_
+end
+
+# Newton optimization (undamped-Hessian form)
 struct NewtonData
 end
 
 function iterate!(::NewtonData, data, problem::NLLSProblem, options::NLLSOptions)::Float64
     # Compute the step
     data.timesolver += @elapsed begin
-        jacobian, residual = getjacres(data.linsystem)
-        data.step .= -linearsolve(jacobian, residual, options)
+        hessian, gradient = gethessgrad(data.linsystem)
+        data.step .= -symmetricsolve(hessian, gradient, options)
     end
     data.linearsolvers += 1
     # Update the new variables

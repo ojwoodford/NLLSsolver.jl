@@ -1,10 +1,13 @@
 using SparseArrays, Dates, Static
 import Printf.@printf
 
-@enum NLLSIterator gaussnewton levenbergmarquardt dogleg
+@enum NLLSIterator gaussnewton newton levenbergmarquardt dogleg
 function Base.String(iterator::NLLSIterator) 
     if iterator == gaussnewton
         return "Gauss-Newton"
+    end
+    if iterator == newton
+        return "Newton"
     end
     if iterator == levenbergmarquardt
         return "Levenberg-Marquardt"

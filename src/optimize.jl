@@ -1,7 +1,7 @@
 function optimize!(problem::NLLSProblem{VarTypes}, options::NLLSOptions=NLLSOptions(), unfixed=0)::NLLSResult where VarTypes
     t = Base.time_ns()
     @assert length(problem.variables) > 0
-    computehessian = in(options.iterator, [levenbergmarquardt, dogleg])
+    computehessian = !in(options.iterator, [gaussnewton])
     costgradient! = computehessian ? costgradhess! : costresjac!
     # Copy the variables
     if length(problem.variables) != length(problem.varnext)
@@ -23,7 +23,12 @@ end
 function optimizeinternal!(problem::NLLSProblem{VarTypes}, options::NLLSOptions, data, costgradient!, starttimens)::NLLSResult where VarTypes
     # Call the optimizer with the required iterator struct
     if options.iterator == gaussnewton
-        # Gauss-Newton or Newton
+        # Gauss-Newton (optimize jacobian form)
+        gaussnewtondata = GaussNewtonData()
+        return optimizeinternal!(problem, options, data, gaussnewtondata, costgradient!, (Base.time_ns() - starttimens) * 1.e-9)
+    end
+    if options.iterator == newton
+        # Gauss-Newton (optimize jacobian form)
         newtondata = NewtonData()
         return optimizeinternal!(problem, options, data, newtondata, costgradient!, (Base.time_ns() - starttimens) * 1.e-9)
     end
