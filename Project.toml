@@ -5,6 +5,7 @@ version = "2.0.1"
 
 [deps]
 Dates = "ade2ca70-3891-5945-98fb-dc099432e06a"
+DiffResults = "163ba53b-c6d8-5494-b064-1a9d43ac40c5"
 ForwardDiff = "f6369f11-7733-5829-9624-2563aa707210"
 HybridArrays = "1baab800-613f-4b0a-84e4-9cd3431bfbb9"
 IfElse = "615f187c-cbe4-4ef1-ba3b-2fcf58d6d173"
