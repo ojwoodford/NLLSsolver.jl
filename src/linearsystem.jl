@@ -134,7 +134,7 @@ function updatesymA!(A, a, vars, varflags, blockindices)
     # Update the blocks in the problem
     loffseti = static(0)
     @unroll for i in 1:MAX_ARGS
-        if bitiset(varflags, i)
+        if i <= length(vars) && bitiset(varflags, i)
             nvi = nvars(vars[i])
             rangei = SR(1, nvi) .+ loffseti
             loffseti += nvi
@@ -161,7 +161,7 @@ function updateb!(B, b, vars, varflags, boffsets, blockindices)
     # Update the blocks in the problem
     loffset = static(1)
     @unroll for i in 1:MAX_ARGS
-        if bitiset(varflags, i)
+        if i <= length(vars) && bitiset(varflags, i)
             nv = nvars(vars[i])
             range = SR(0, nv-1)
             @inbounds view(B, range .+ boffsets[blockindices[i]]) .+= view(b, range .+ loffset)
@@ -183,7 +183,7 @@ function updateA!(A, a, vars, varflags, blockindices, ind)
     nres = length(a)
     loffset = static(0)
     @unroll for i in 1:MAX_ARGS
-        if bitiset(varflags, i)
+        if i <= length(vars) && bitiset(varflags, i)
             nv = nvars(vars[i])
             bi = blockindices[i]
             view(A.data, SR(0, nres*nv-1) .+ dataptr[findfirst(Base.Fix1(isequal, bi), rows)]) .= reshape(view(a, :, SR(1, nv).+loffset), :)
