@@ -19,11 +19,9 @@ struct GaussNewtonData
 end
 
 function iterate!(::GaussNewtonData, data, problem::NLLSProblem, options::NLLSOptions)::Float64
+    jacobian, residual = getjacres(data.linsystem)
     # Compute the step
-    data.timesolver += @elapsed begin
-        jacobian, residual = getjacres(data.linsystem)
-        data.step .= -linearsolve(jacobian, residual, options)
-    end
+    data.timesolver += @elapsed data.step .= -linearsolve(jacobian, residual, options)
     data.linearsolvers += 1
     # Update the new variables
     update!(problem.varnext, problem.variables, data.linsystem, data.step)
@@ -38,11 +36,9 @@ struct NewtonData
 end
 
 function iterate!(::NewtonData, data, problem::NLLSProblem, options::NLLSOptions)::Float64
+    hessian, gradient = gethessgrad(data.linsystem)
     # Compute the step
-    data.timesolver += @elapsed begin
-        hessian, gradient = gethessgrad(data.linsystem)
-        data.step .= -symmetricsolve(hessian, gradient, options)
-    end
+    data.timesolver += @elapsed data.step .= -symmetricsolve(hessian, gradient, options)
     data.linearsolvers += 1
     # Update the new variables
     update!(problem.varnext, problem.variables, data.linsystem, data.step)
