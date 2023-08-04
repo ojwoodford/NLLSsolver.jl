@@ -1,4 +1,4 @@
-using NLLSsolver, Test, Static, LinearAlgebra
+using NLLSsolver, Test, Static, Statistics
 
 struct LinearResidual{T} <: NLLSsolver.AbstractResidual
     y::T
