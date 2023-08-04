@@ -4,7 +4,7 @@ import IfElse: ifelse
 
 cost(problem::NLLSProblem) = cost(problem.variables, problem.residuals)
 cost(vars::Vector, residuals::ResidualStruct)::Float64 = sum(Base.Fix1(cost, vars), residuals)
-cost(vars::Vector, residual::AbstractResidual)::Float64 = cost(residual, getvars(residual, vars))
+cost(vars::Vector, residual::AbstractCost)::Float64 = cost(residual, getvars(residual, vars))
 
 function cost(residual::Residual, vars::Tuple)::Float64 where Residual <: AbstractResidual
     # Compute the residual
@@ -57,7 +57,7 @@ end
 # Compute the variable flags indicating which variables are unfixed (i.e. to be optimized)
 computevarflags(blockind) = mapreduce((x, y) -> (x != 0) << (y - 1), |, blockind, SR(1, length(blockind)))
 
-function costgradhess!(linsystem, vars::Vector, residual::Residual) where Residual <: AbstractResidual
+function costgradhess!(linsystem, vars::Vector, residual::Residual) where Residual <: AbstractCost
     # Get the variables and associated data
     v = getvars(residual, vars)
     blockind = getoffsets(residual, linsystem)

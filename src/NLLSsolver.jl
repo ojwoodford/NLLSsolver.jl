@@ -1,7 +1,7 @@
 module NLLSsolver
 # Export the API
 # Types
-export AbstractResidual, AbstractRobustifier # Abstract problem definition types
+export AbstractCost, AbstractResidual, AbstractRobustifier # Abstract problem definition types
 export NLLSProblem, NLLSOptions, NLLSResult, NLLSIterator # Concrete problem & solver types
 export AbstractRobustifier, NoRobust, HuberKernel, GemanMcclureKernel # Robustifiers
 export EuclideanVector, ZeroToInfScalar, ZeroToOneScalar # Concrete general variables
@@ -17,12 +17,13 @@ export rodrigues, project, epipolarerror, proj2orthonormal # Multi-view geometry
 export ideal2image, image2ideal, pixel2image, image2pixel, ideal2distorted, distorted2ideal, convertlens
 
 # Exported abstract types
-abstract type AbstractResidual end
+abstract type AbstractCost end
+abstract type AbstractResidual <: AbstractCost end
 abstract type AbstractRobustifier end
 
 # Constants
 const MAX_ARGS = 10 # Maximum number of variables a residual can depend on
-const MAX_BLOCK_SZ = 32 # Maximum DoF of a variable and also maximum length of a residual
+const MAX_BLOCK_SZ = 32 # Maximum DoF of a variable and also maximum length of a residual allowed for various operations, such as marginalization
 const MAX_STATIC_VAR = 64 # Maximum static variable size for static sized autodiff to be used
 
 # Helper functions

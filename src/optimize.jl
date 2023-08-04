@@ -2,6 +2,7 @@ function optimize!(problem::NLLSProblem{VarTypes}, options::NLLSOptions=NLLSOpti
     t = Base.time_ns()
     @assert length(problem.variables) > 0
     computehessian = !in(options.iterator, [gaussnewton])
+    @assert !computehessian || all(type_ -> type_ <: AbstractResidual, keys(problem.residuals.data))
     costgradient! = computehessian ? costgradhess! : costresjac!
     # Copy the variables
     if length(problem.variables) != length(problem.varnext)
