@@ -180,7 +180,7 @@ function updateA!(A, a, vars, varflags, blockindices, ind)
     rows = A.indicestransposed.colptr[ind]:A.indicestransposed.colptr[ind+1]-1
     dataptr = @inbounds view(A.indicestransposed.nzval, rows)
     rows = @inbounds view(A.indicestransposed.rowval, rows)
-    nres = length(a)
+    nres = size(a, 1)
     loffset = static(0)
     @unroll for i in 1:MAX_ARGS
         if i <= length(vars) && bitiset(varflags, i)
