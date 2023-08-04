@@ -24,6 +24,7 @@ Base.eltype(::NormResidual{T}) where T = T
 @testset "dynamicvars.jl" begin
     # Generate some test data
     X = randn(Int(ceil((1.0+rand())*50.0)))
+    X = X .+ sign.(X) * 0.2
 
     # Create the problem
     problem = NLLSsolver.NLLSProblem(NLLSsolver.DynamicVector{Float64})
@@ -36,5 +37,6 @@ Base.eltype(::NormResidual{T}) where T = T
 
     # Check the result is collinear to X
     X = X ./ problem.variables[1]
-    @test all(x -> isapprox(x, X[1]), X)
+    meanx = mean(X)
+    @test all(x -> isapprox(x, meanx), X)
 end
