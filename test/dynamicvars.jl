@@ -1,4 +1,4 @@
-using NLLSsolver, Test, Static, Random
+using NLLSsolver, Test, Static, Random, LinearAlgebra
 
 struct LinearResidual{T} <: NLLSsolver.AbstractResidual
     y::T
@@ -24,7 +24,7 @@ Base.eltype(::NormResidual{T}) where T = T
 @testset "dynamicvars.jl" begin
     # Generate some test data
     Random.seed!(1)
-    X = randn(Int(ceil((1.0+rand())*50.0)))
+    X = normalize(randn(Int(ceil((1.0 + rand()) * 50))))
 
     # Create the problem
     problem = NLLSsolver.NLLSProblem(NLLSsolver.DynamicVector{Float64})
@@ -36,7 +36,6 @@ Base.eltype(::NormResidual{T}) where T = T
     result = NLLSsolver.optimize!(problem, NLLSsolver.NLLSOptions(iterator=NLLSsolver.gaussnewton, storecosts=true))
 
     # Check the result is collinear to X
-    X = X ./ problem.variables[1]
-    meanx = sum(X) / length(X)
-    @test all(X .≈ meanx)
+    Y = problem.variables[1]
+    @test X' * Y ≈ norm(Y)
 end
