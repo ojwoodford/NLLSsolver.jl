@@ -19,6 +19,11 @@ end
 @inline Base.push!(vr::VectorRepo, v::T) where T = push!(get!(vr, T), v)
 @inline Base.append!(vr::VectorRepo, v::Vector{T}) where T = append!(get!(vr, T), v)
 
+# Get the keys
+@inline Base.keys(vr::VectorRepo{Any}) = keys(vr.data)
+# Get a typed Tuple of keys
+@inline Base.keys(::VectorRepo{T}) where T = uniontotuple(T)
+
 # Get a vector of the vectors (allocates)
 @inline Base.values(vr::VectorRepo{Any}) = values(vr.data)
 # Get a typed Tuple of vectors

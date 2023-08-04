@@ -22,3 +22,6 @@ end
 
 bitiset(flags::StaticInt, bit) = (static(1 << (bit - 1)) & flags) != static(0)
 bitiset(flags, bit) = (1 << (bit - 1)) & flags != 0
+
+@inline uniontotuple(T::Union) = (uniontotuple(T.a)..., uniontotuple(T.b)...)
+@inline uniontotuple(T::DataType) = (T,)

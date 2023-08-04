@@ -33,10 +33,13 @@ end
 
     # Union container
     vr2 = NLLSsolver.VectorRepo{Union{Float64, Int, Char}}()
+    keytup = keys(vr2)
+    @test isa(keytup, Tuple) && length(keytup) == 3
+    @test any(keytup .== Float64) && any(keytup .== Int) && any(keytup .== Char)
     @test sum(i->2i, vr2) == 0.0
     fillrepo(vr2, floats, ints)
     @test isapprox(sum(i->π*i, vr2), total * π)
-    tup = values(vr2)
-    @test isa(tup, Tuple) && length(tup) == 3
-    @test any(Base.Fix2(isa, Vector{Float64}), tup) && any(Base.Fix2(isa, Vector{Int}), tup) && any(Base.Fix2(isa, Vector{Char}), tup)
+    valuetup = values(vr2)
+    @test isa(valuetup, Tuple) && length(valuetup) == 3
+    @test any(Base.Fix2(isa, Vector{Float64}), valuetup) && any(Base.Fix2(isa, Vector{Int}), valuetup) && any(Base.Fix2(isa, Vector{Char}), valuetup)
 end
