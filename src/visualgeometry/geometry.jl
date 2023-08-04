@@ -31,12 +31,12 @@ function proj2orthonormal(M)
     return s.U * s.V';
 end
 
-function epipolarerror(RX, T, x, W=Nothing)
+function epipolarerror(RX, T, x, W=nothing)
     Tp = proj(T)
     xe = x - Tp
     RXp = proj(RX) - Tp
     RXp = SVector(RXp[2], -RXp[1])
-    if W != Nothing
+    if !isnothing(W)
         RXp = W' \ RXp
         xe = W * xe
     end
