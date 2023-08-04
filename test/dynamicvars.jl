@@ -1,4 +1,4 @@
-using NLLSsolver, Test, Random, Static
+using NLLSsolver, Test, Static
 
 struct LinearResidual{T} <: NLLSsolver.AbstractResidual
     y::T
@@ -23,7 +23,6 @@ Base.eltype(::NormResidual{T}) where T = T
 
 @testset "dynamicvars.jl" begin
     # Generate some test data
-    Random.seed!(1); 
     X = randn(Int(ceil((1.0+rand())*50.0)))
 
     # Create the problem

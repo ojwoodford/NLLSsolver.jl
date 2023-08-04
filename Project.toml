@@ -19,7 +19,6 @@ StaticArrays = "90137ffa-7385-5640-81b9-e52037218182"
 
 [extras]
 Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
-Random = "9a3f8284-a2c9-5f02-9a11-845980a1fd5c"
 VisualGeometryDatasets = "962a53e2-84f2-440b-bfbc-4e96ec28357f"
 GLMakie = "e9467ef8-e4e7-5192-8a1a-b1aee30e663a"
 
@@ -33,5 +32,5 @@ VisualGeometryDatasets = "0.2.1"
 julia = "1.6"
 
 [targets]
-test = ["Test", "Random"]
+test = ["Test"]
 examples = ["VisualGeometryDatasets", "GLMakie"]
