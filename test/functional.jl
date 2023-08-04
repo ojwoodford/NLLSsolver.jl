@@ -66,6 +66,5 @@ NLLSsolver.robustkernel(::RosenbrockB) = rosenbrockrobustifier
         # Check the result
         @test isapprox(problem.variables[1], 1.0; rtol=1.e-10)
         @test isapprox(problem.variables[2], 1.0; rtol=1.e-10)
-    end
-    
+    end    
 end
