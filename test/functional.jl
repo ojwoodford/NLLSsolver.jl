@@ -11,6 +11,8 @@ NLLSsolver.varindices(::RosenbrockA) = SVector(1)
 NLLSsolver.getvars(::RosenbrockA, vars::Vector) = (vars[1]::Float64,)
 NLLSsolver.computeresidual(res::RosenbrockA, x) = res.a - x
 Base.eltype(::RosenbrockA) = Float64
+const rosenbrockrobustifier = NLLSsolver.Scaled(NLLSsolver.Huber2oKernel(1.5), 1.0)
+NLLSsolver.robustkernel(::RosenbrockA) = rosenbrockrobustifier
 
 struct RosenbrockB <: NLLSsolver.AbstractResidual
     b::Float64
@@ -21,8 +23,6 @@ NLLSsolver.varindices(::RosenbrockB) = SVector(1, 2)
 NLLSsolver.getvars(::RosenbrockB, vars::Vector) = (vars[1]::Float64, vars[2]::Float64)
 NLLSsolver.computeresidual(res::RosenbrockB, x, y) = SVector(res.b * (x ^ 2 - y))
 Base.eltype(::RosenbrockB) = Float64
-const rosenbrockrobustifier = NLLSsolver.Scaled(NLLSsolver.Huber2oKernel(2.0), 1.0)
-NLLSsolver.robustkernel(::RosenbrockB) = rosenbrockrobustifier
 
 @testset "functional.jl" begin
     # Create the problem
@@ -47,7 +47,7 @@ NLLSsolver.robustkernel(::RosenbrockB) = rosenbrockrobustifier
     @test NLLSsolver.cost(subprob) == 0.
 
     # Test optimization
-    for iter in [NLLSsolver.levenbergmarquardt, NLLSsolver.dogleg, NLLSsolver.newton]
+    for iter in [NLLSsolver.gaussnewton, NLLSsolver.newton, NLLSsolver.levenbergmarquardt, NLLSsolver.dogleg]
         # Set the start
         problem.variables[1] = -0.5
         problem.variables[2] = 2.5
