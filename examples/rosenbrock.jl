@@ -11,16 +11,8 @@ Base.eltype(::Rosenbrock) = Float64
 NLLSsolver.ndeps(::Rosenbrock) = static(1) # Residual depends on 1 variable
 NLLSsolver.nres(::Rosenbrock) = static(2) # Residual has length 2
 NLLSsolver.varindices(::Rosenbrock) = SVector(1) # There's only one variable
-function NLLSsolver.getvars(::Rosenbrock, vars::Vector)
-    return (vars[1]::NLLSsolver.EuclideanVector{2, Float64},)
-end
-function NLLSsolver.computeresidual(res::Rosenbrock, x::NLLSsolver.EuclideanVector{2, Float64})
-    return SVector(res.a - x[1], res.b * (x[1] ^ 2 - x[2]))
-end
-function NLLSsolver.computeresjac(::StaticInt{1}, res::Rosenbrock, x::NLLSsolver.EuclideanVector{2, Float64})
-    return SVector(res.a - x[1], res.b * (x[1] ^ 2 - x[2])),
-           SMatrix{2}(-1., 2 * res.b * x[1], 0, -res.b)
-end
+NLLSsolver.getvars(::Rosenbrock, vars::Vector) = (vars[1]::NLLSsolver.EuclideanVector{2, Float64},)
+NLLSsolver.computeresidual(res::Rosenbrock, x) = SVector(res.a - x[1], res.b * (x[1] ^ 2 - x[2]))
 
 function computeCostGrid(func, X, Y)
     grid = Matrix{Float64}(undef, length(Y), length(X))
@@ -90,7 +82,7 @@ function optimizeRosenbrock(start=[-0.5, 2.5], iterators=[NLLSsolver.gaussnewton
     contour!(ax1, X, Y, grid, linewidth=2, color=:white, levels=10)
 
     # Plot the trajectory and costs
-    colors = [:black, :red, :navy]
+    colors = [:black, :red, :navy, :green]
     for (ind, iter) in enumerate(iterators)
         color = colors[mod(ind-1, length(colors)) + 1]
         scatterlines!(ax1, results[ind].trajectory, color=color, linewidth=2.5)
