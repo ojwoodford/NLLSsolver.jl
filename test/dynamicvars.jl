@@ -1,4 +1,4 @@
-using NLLSsolver, Test, Static, Statistics
+using NLLSsolver, Test, Static
 
 struct LinearResidual{T} <: NLLSsolver.AbstractResidual
     y::T
@@ -37,6 +37,6 @@ Base.eltype(::NormResidual{T}) where T = T
 
     # Check the result is collinear to X
     X = X ./ problem.variables[1]
-    meanx = mean(X)
+    meanx = sum(X) / length(X)
     @test all(x -> isapprox(x, meanx), X)
 end

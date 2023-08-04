@@ -17,11 +17,6 @@ SparseArrays = "2f01184e-e22b-5df5-ae63-d93ebab69eaf"
 Static = "aedffcd0-7271-4cad-89d0-dc628f76c6d3"
 StaticArrays = "90137ffa-7385-5640-81b9-e52037218182"
 
-[extras]
-Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
-VisualGeometryDatasets = "962a53e2-84f2-440b-bfbc-4e96ec28357f"
-GLMakie = "e9467ef8-e4e7-5192-8a1a-b1aee30e663a"
-
 [compat]
 ForwardDiff = "0.10"
 HybridArrays = "0.4"
@@ -31,6 +26,11 @@ StaticArrays = "1"
 VisualGeometryDatasets = "0.2.1"
 julia = "1.6"
 
+[extras]
+GLMakie = "e9467ef8-e4e7-5192-8a1a-b1aee30e663a"
+Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
+VisualGeometryDatasets = "962a53e2-84f2-440b-bfbc-4e96ec28357f"
+
 [targets]
-test = ["Test"]
 examples = ["VisualGeometryDatasets", "GLMakie"]
+test = ["Test"]
