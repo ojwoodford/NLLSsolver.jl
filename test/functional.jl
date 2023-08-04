@@ -8,12 +8,8 @@ end
 NLLSsolver.ndeps(::RosenbrockA) = static(1)
 NLLSsolver.nres(::RosenbrockA) = 1
 NLLSsolver.varindices(::RosenbrockA) = SVector(1)
-function NLLSsolver.getvars(::RosenbrockA, vars::Vector)
-    return (vars[1]::Float64,)
-end
-function NLLSsolver.computeresidual(res::RosenbrockA, x)
-    return res.a - x
-end
+NLLSsolver.getvars(::RosenbrockA, vars::Vector) = (vars[1]::Float64,)
+NLLSsolver.computeresidual(res::RosenbrockA, x) = res.a - x
 Base.eltype(::RosenbrockA) = Float64
 
 struct RosenbrockB <: NLLSsolver.AbstractResidual
@@ -22,12 +18,8 @@ end
 NLLSsolver.ndeps(::RosenbrockB) = static(2)
 NLLSsolver.nres(::RosenbrockB) = static(1)
 NLLSsolver.varindices(::RosenbrockB) = SVector(1, 2)
-function NLLSsolver.getvars(::RosenbrockB, vars::Vector)
-    return (vars[1]::Float64, vars[2]::Float64)
-end
-function NLLSsolver.computeresidual(res::RosenbrockB, x, y)
-    return SVector(res.b * (x ^ 2 - y))
-end
+NLLSsolver.getvars(::RosenbrockB, vars::Vector) = (vars[1]::Float64, vars[2]::Float64)
+NLLSsolver.computeresidual(res::RosenbrockB, x, y) = SVector(res.b * (x ^ 2 - y))
 Base.eltype(::RosenbrockB) = Float64
 const rosenbrockrobustifier = NLLSsolver.Scaled(NLLSsolver.Huber2oKernel(2.0), 1.0)
 NLLSsolver.robustkernel(::RosenbrockB) = rosenbrockrobustifier
