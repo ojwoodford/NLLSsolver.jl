@@ -47,7 +47,7 @@ NLLSsolver.robustkernel(::RosenbrockB) = rosenbrockrobustifier
     @test NLLSsolver.cost(subprob) == 0.
 
     # Test optimization
-    for iter in [NLLSsolver.gaussnewton, NLLSsolver.levenbergmarquardt, NLLSsolver.dogleg]
+    for iter in [NLLSsolver.levenbergmarquardt, NLLSsolver.dogleg, NLLSsolver.newton]
         # Set the start
         problem.variables[1] = -0.5
         problem.variables[2] = 2.5
