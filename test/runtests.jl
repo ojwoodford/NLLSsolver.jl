@@ -7,5 +7,6 @@ using Test
     include("VectorRepo.jl")
     include("linearsolve.jl")
     include("functional.jl")
+    include("dynamicvars.jl")
     include("marginalize.jl")
 end

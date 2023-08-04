@@ -84,15 +84,22 @@ function computeresjacdynamic(varflags, residual::Residual, vars) where Residual
 
     # Use the ForwardDiff API to compute the jacobian
     M = nres(residual)
-    out = DiffResults.DiffResult(dynamic(M), (totalnumvars,))
-    if M > 1
-        ForwardDiff.jacobian!(out, fixallbutlast(computeresjachelper, varflags, residual, vars), zeros(totalnumvars))
-    else
-        ForwardDiff.gradient!(out, fixallbutlast(computeresjachelper, varflags, residual, vars), zeros(totalnumvars))
+    if M == 1
+        # Scalar residual
+        x = zeros(totalnumvars)
+        result = DiffResults.GradientResult(x)
+        result = ForwardDiff.gradient!(result, fixallbutlast(computeresjachelper, varflags, residual, vars), x)
+        # Return the residual and jacobian
+        return DiffResults.value(result)[], DiffResults.jacobian(result)'
     end
 
+    # Vector residual
+    resultlength = (totalnumvars + 1) * M
+    resultstorage = zeros(resultlength)
+    result = DiffResults.DiffResult(view(resultstorage, 1:dynamic(M)), (reshape(view(resultstorage, M+1:resultlength), dynamic(M), totalnumvars),))
+    result = ForwardDiff.jacobian!(result, fixallbutlast(computeresjachelper, varflags, residual, vars), view(resultstorage, 1:totalnumvars))
     # Return the residual and jacobian
-    return value(out), jacobian(out)
+    return DiffResults.value(result), DiffResults.jacobian(result)
 end
 
 computeresjachelper(varflags, residual, vars, x) = computeresidual(residual, updatevars(vars, varflags, x)...) 
