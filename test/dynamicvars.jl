@@ -38,5 +38,7 @@ Base.eltype(::NormResidual{T}) where T = T
     # Check the result is collinear to X
     X = X ./ problem.variables[1]
     meanx = sum(X) / length(X)
-    @test all(x -> isapprox(x, meanx), X)
+    for x in X
+        @test x ≈ meanx
+    end
 end
