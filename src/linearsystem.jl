@@ -175,26 +175,22 @@ function updatesymlinearsystem!(linsystem::MultiVariateLS, g, H, vars, varflags,
     updatesymA!(linsystem.A, H, vars, varflags, blockindices)
 end
 
-function updateA!(A, a, vars, varflags, blockindices, ind)
-    # Update the blocks in the problem
-    rows = A.indicestransposed.colptr[ind]:A.indicestransposed.colptr[ind+1]-1
-    dataptr = @inbounds view(A.indicestransposed.nzval, rows)
-    rows = @inbounds view(A.indicestransposed.rowval, rows)
-    nres = size(a, 1)
+function updatelinearsystem!(linsystem::MultiVariateLS, res, jac, ind, vars, varflags, blockindices)
+    nres = length(res)
+    view(linsystem.b, SR(0, nres-1) .+ linsystem.boffsets[ind]) .= res
+    # Update the blocks in the problem A matrix
+    rows = linsystem.A.indicestransposed.colptr[ind]:linsystem.A.indicestransposed.colptr[ind+1]-1
+    dataptr = @inbounds view(linsystem.A.indicestransposed.nzval, rows)
+    rows = @inbounds view(linsystem.A.indicestransposed.rowval, rows)
     loffset = static(0)
     @unroll for i in 1:MAX_ARGS
         if i <= length(vars) && bitiset(varflags, i)
             nv = nvars(vars[i])
             bi = blockindices[i]
-            view(A.data, SR(0, nres*nv-1) .+ dataptr[findfirst(Base.Fix1(isequal, bi), rows)]) .= reshape(view(a, :, SR(1, nv).+loffset), :)
+            view(linsystem.A.data, SR(0, nres*nv-1) .+ dataptr[findfirst(Base.Fix1(isequal, bi), rows)]) .= reshape(view(jac, :, SR(1, nv).+loffset), :)
             loffset += nv
         end
     end
-end
-
-function updatelinearsystem!(linsystem::MultiVariateLS, res, jac, ind, vars, varflags, blockindices)
-    view(linsystem.b, SR(0, length(res)-1) .+ linsystem.boffsets[ind]) .= res
-    updateA!(linsystem.A, jac, vars, varflags, blockindices, ind)
 end
 
 function uniformscaling!(linsystem, k)
