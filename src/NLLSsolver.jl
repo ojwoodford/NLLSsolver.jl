@@ -10,8 +10,8 @@ export SimpleCamera, NoDistortionCamera, ExtendedUnifiedCamera, BarrelDistortion
 # Functions
 export addresidual!, addvariable!, subproblem, nvars, nres # Construct a problem
 export update, nvars # Variable interface
-export nres, ndeps, varindices, getvars, computeresidual # Residual interface 
-export cost, computeresjac # Compute the objective
+export nres, ndeps, varindices, getvars # Residual interface 
+export cost, computeresidual, computeresjac, computecost, computecostgradhess # Compute the objective
 export optimize!  # Optimize the objective
 export rodrigues, project, epipolarerror, proj2orthonormal # Multi-view geometry helper functions
 export ideal2image, image2ideal, pixel2image, image2pixel, ideal2distorted, distorted2ideal, convertlens

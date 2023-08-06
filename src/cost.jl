@@ -6,7 +6,9 @@ cost(problem::NLLSProblem) = cost(problem.variables, problem.residuals)
 cost(vars::Vector, residuals::ResidualStruct)::Float64 = sum(Base.Fix1(cost, vars), residuals)
 cost(vars::Vector, residual::AbstractCost)::Float64 = cost(residual, getvars(residual, vars))
 
-function cost(residual::Residual, vars::Tuple)::Float64 where Residual <: AbstractResidual
+@inline cost(costblock::AbstractCost, vars::Tuple)::Float64 = computecost(costblock, vars...)
+
+function cost(residual::AbstractResidual, vars::Tuple)::Float64
     # Compute the residual
     r = computeresidual(residual, vars...)
     
@@ -23,7 +25,18 @@ function getoffsets(residual, linsystem::UniVariateLS)
     return convert.(UInt, SVector(varindices(residual)) .== linsystem.varindex)
 end
 
-function gradhesshelper!(linsystem, residual::Residual, vars, blockind, varflags)::Float64 where Residual <: AbstractResidual
+function gradhesshelper!(linsystem, costblock::AbstractCost, vars, blockind, varflags)::Float64
+    # Compute the residual
+    c, g, H = computecostgradhess(varflags, costblock, vars...)
+    
+    # Update the blocks in the problem
+    updatesymlinearsystem!(linsystem, g, H, vars, varflags, blockind)
+
+    # Return the cost
+    return c
+end
+
+function gradhesshelper!(linsystem, residual::AbstractResidual, vars, blockind, varflags)::Float64
     # Compute the residual
     res, jac = computeresjac(varflags, residual, vars...)
 
@@ -57,7 +70,7 @@ end
 # Compute the variable flags indicating which variables are unfixed (i.e. to be optimized)
 computevarflags(blockind) = mapreduce((x, y) -> (x != 0) << (y - 1), |, blockind, SR(1, length(blockind)))
 
-function costgradhess!(linsystem, vars::Vector, residual::Residual) where Residual <: AbstractCost
+function costgradhess!(linsystem, vars::Vector, residual::AbstractCost)
     # Get the variables and associated data
     v = getvars(residual, vars)
     blockind = getoffsets(residual, linsystem)
@@ -84,7 +97,7 @@ end
 
 costgradhess!(linsystem, vars::Vector, residuals::ResidualStruct)::Float64 = sum(fixallbutlast(costgradhess!, linsystem, vars), residuals)
 
-function resjachelper!(linsystem, residual::Residual, vars, blockind, ind, varflags)::Float64 where Residual <: AbstractResidual
+function resjachelper!(linsystem, residual::AbstractResidual, vars, blockind, ind, varflags)::Float64
     # Compute the residual
     res, jac = computeresjac(varflags, residual, vars...)
 
@@ -108,7 +121,7 @@ function resjachelper!(linsystem, residual::Residual, vars, blockind, ind, varfl
     return c
 end
 
-function costresjac!(linsystem, vars::Vector, residual::Residual, ind) where Residual <: AbstractResidual
+function costresjac!(linsystem, vars::Vector, residual::AbstractResidual, ind)
     # Get the variables and associated data
     v = getvars(residual, vars)
     blockind = getoffsets(residual, linsystem)

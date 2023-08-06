@@ -67,12 +67,14 @@ function subproblem(problem::NLLSProblem{VT, RT}, resind::Vector) where {VT, RT}
     return NLLSProblem{VT, RT}(problem.variables, residualstruct, problem.varnext, problem.varbest)
 end
 
-function addresidual!(problem::NLLSProblem, residual::AbstractResidual)
+function addresidual!(problem::NLLSProblem, residual::Residual) where Residual <: AbstractCost
     # Sanity checks
+    if Residual <: AbstractResidual
+        M = nres(residual)
+        @assert (isa(M, Integer) || isa(M, StaticInt)) && M>0 "Problem with nres()"
+    end
     N = ndeps(residual)
     @assert isa(N, StaticInt) && N>0 && N<=MAX_ARGS "Problem with ndeps()"
-    M = nres(residual)
-    @assert (isa(M, Integer) || isa(M, StaticInt)) && M>0 "Problem with nres()"
     @assert length(varindices(residual))==N "Problem with varindices()"
     @assert length(getvars(residual, problem.variables))==N "Problem with getvars()"
     # Add to the problem

@@ -56,6 +56,18 @@ function robustify(kernel::GemanMcclureKernel{T}, cost) where T
     return cost * w, w * w, T(0)
 end
 
+struct AdaptiveKernel <: AbstractRobustifier
+end
+struct AdaptiveKernelPartitionNegLog{T} <: AbstractCost
+    varind::Int
+end
+ndeps(::AdaptiveKernelPartitionNegLog) = static(1) # The residual depends on one variable
+varindices(cost::AdaptiveKernelPartitionNegLog) = cost.varind
+computecost(cost::AdaptiveKernelPartitionNegLog, kernel::AdaptiveKernel) = 0.1
+computecostgradhess(varflags, cost::AdaptiveKernelPartitionNegLog, kernel::AdaptiveKernel) = (0.1, 1.0, nothing)
+getvars(cost::AdaptiveKernelPartitionNegLog, vars::Vector) = (vars[cost.varind]::AdaptiveKernel,)
+Base.eltype(::AdaptiveKernelPartitionNegLog{T}) where T = T
+
 
 # function displaykernel(kernel, maxval=1)
 #     x = range(0, maxval, 1000)
