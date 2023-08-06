@@ -1,25 +1,25 @@
 using NLLSsolver, Test, Static, Random, LinearAlgebra
 
-struct LinearResidual{T} <: NLLSsolver.AbstractResidual
-    y::T
-    X::Vector{T}
+struct LinearResidual <: NLLSsolver.AbstractResidual
+    y::Float64
+    X::Vector{Float64}
 end
 NLLSsolver.ndeps(::LinearResidual) = static(1) # Residual depends on 1 variables
 NLLSsolver.nres(::LinearResidual) = static(1) # Residual has length 1
 NLLSsolver.varindices(::LinearResidual) = 1
-NLLSsolver.getvars(::LinearResidual{T}, vars::Vector) where T = (vars[1]::NLLSsolver.DynamicVector{T},)
+NLLSsolver.getvars(::LinearResidual, vars::Vector) = (vars[1]::NLLSsolver.DynamicVector{Float64},)
 NLLSsolver.computeresidual(res::LinearResidual, w) = res.X' * w - res.y
-Base.eltype(::LinearResidual{T}) where T = T
+Base.eltype(::LinearResidual) = Float64
 
-struct NormResidual{T} <: NLLSsolver.AbstractResidual
+struct NormResidual <: NLLSsolver.AbstractResidual
     len::Int
 end
 NLLSsolver.ndeps(::NormResidual) = static(1) # Residual depends on 1 variables
 NLLSsolver.nres(res::NormResidual) = res.len
 NLLSsolver.varindices(::NormResidual) = 1
-NLLSsolver.getvars(::NormResidual{T}, vars::Vector) where T = (vars[1]::NLLSsolver.DynamicVector{T},)
+NLLSsolver.getvars(::NormResidual, vars::Vector) = (vars[1]::NLLSsolver.DynamicVector{Float64},)
 NLLSsolver.computeresidual(::NormResidual, w) = w
-Base.eltype(::NormResidual{T}) where T = T
+Base.eltype(::NormResidual) = Float64
 
 @testset "dynamicvars.jl" begin
     # Generate some test data
@@ -30,7 +30,7 @@ Base.eltype(::NormResidual{T}) where T = T
     problem = NLLSsolver.NLLSProblem(NLLSsolver.DynamicVector{Float64})
     NLLSsolver.addvariable!(problem, zeros(length(X)))
     NLLSsolver.addresidual!(problem, LinearResidual(1.0, X))
-    NLLSsolver.addresidual!(problem, NormResidual{Float64}(length(X)))
+    NLLSsolver.addresidual!(problem, NormResidual(length(X)))
 
     # Optimize
     result = NLLSsolver.optimize!(problem, NLLSsolver.NLLSOptions(iterator=NLLSsolver.gaussnewton, storecosts=true))
