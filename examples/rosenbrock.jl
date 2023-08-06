@@ -14,21 +14,31 @@ NLLSsolver.varindices(::Rosenbrock) = SVector(1) # There's only one variable
 NLLSsolver.getvars(::Rosenbrock, vars::Vector) = (vars[1]::NLLSsolver.EuclideanVector{2, Float64},)
 NLLSsolver.computeresidual(res::Rosenbrock, x) = SVector(res.a - x[1], res.b * (x[1] ^ 2 - x[2]))
 
-function computeCostGrid(func, X, Y)
+function constructrosenbrockprob()
+    # Create the problem
+    problem = NLLSsolver.NLLSProblem(NLLSsolver.EuclideanVector{2, Float64}, Rosenbrock)
+    NLLSsolver.addvariable!(problem, NLLSsolver.EuclideanVector(0., 0.))
+    NLLSsolver.addresidual!(problem, Rosenbrock())
+    return problem
+end
+
+function computeCostGrid(residuals, X, Y)
     grid = Matrix{Float64}(undef, length(Y), length(X))
+    vars = [SVector(0.0, 0.0)]
     for (b, y) in enumerate(Y)
         for (a, x) in enumerate(X)
-            grid[a,b] = func(SVector(x, y))
+            vars[1] = SVector(x, y)
+            grid[a,b] = log1p(NLLSsolver.cost(vars, residuals))
         end
     end
     return grid
 end
 
-struct RosenbrockResult
+struct OptimResult
     costs::Observable{Vector{Float64}}
     trajectory::Observable{Vector{Point2f}}
 end
-RosenbrockResult() = RosenbrockResult(Observable(Vector{Float64}()), Observable(Vector{Point2f}()))
+OptimResult() = OptimResult(Observable(Vector{Float64}()), Observable(Vector{Point2f}()))
 
 function runoptimizers!(results, problem, start, iterators)
     for (ind, iter) in enumerate(iterators)
@@ -57,29 +67,21 @@ function runoptimizers!(results, problem, start, iterators)
     end
 end
 
-function optimizeRosenbrock(start=[-0.5, 2.5], iterators=[NLLSsolver.gaussnewton, NLLSsolver.levenbergmarquardt, NLLSsolver.dogleg])
-    # Create the problem
-    problem = NLLSsolver.NLLSProblem(NLLSsolver.EuclideanVector{2, Float64}, Rosenbrock)
-    NLLSsolver.addvariable!(problem, NLLSsolver.EuclideanVector(0., 0.))
-    residual = Rosenbrock()
-    NLLSsolver.addresidual!(problem, residual)
-
+function optimize2DProblem(problem, start, xrange, yrange; iterators=[NLLSsolver.gaussnewton, NLLSsolver.levenbergmarquardt, NLLSsolver.dogleg, NLLSsolver.gradientdescent])
     # Compute the results 
-    results = [RosenbrockResult() for i in range(1, length(iterators))]
+    results = [OptimResult() for i in range(1, length(iterators))]
     runoptimizers!(results, problem, start, iterators)
 
-    # Compute costs over a grid 
-    X = range(-1.5, 3., 1000)
-    Y = range(-1.5, 3., 1000)
-    grid = computeCostGrid(x -> log1p(norm(NLLSsolver.computeresidual(residual, x))), X, Y)
+    # Compute costs over a grid
+    grid = computeCostGrid(problem.residuals, xrange, yrange)
 
     # Create the plot
     GLMakie.activate!(inline=false)
     fig = Figure()
-    ax1 = Axis(fig[1, 1]; limits=(X[1], X[end], Y[1], Y[end]), title="Trajectories")
+    ax1 = Axis(fig[1, 1]; limits=(xrange[1], xrange[end], yrange[1], yrange[end]), title="Trajectories")
     ax2 = Axis(fig[1, 2]; title="Costs", xlabel="Iteration", yscale=log10)
-    heatmap!(ax1, X, Y, grid)
-    contour!(ax1, X, Y, grid, linewidth=2, color=:white, levels=10)
+    heatmap!(ax1, xrange, yrange, grid)
+    contour!(ax1, xrange, yrange, grid, linewidth=2, color=:white, levels=10)
 
     # Plot the trajectory and costs
     colors = [:black, :red, :navy, :green]
@@ -99,4 +101,4 @@ function optimizeRosenbrock(start=[-0.5, 2.5], iterators=[NLLSsolver.gaussnewton
     return fig
 end
 
-optimizeRosenbrock()
+optimize2DProblem(constructrosenbrockprob(), [-0.5, 2.5], range(-1.5, 3.0, 1000), range(-1.5, 3.0, 1000))

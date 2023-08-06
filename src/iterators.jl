@@ -256,3 +256,53 @@ function iterate!(varprodata::VarProData, data, problem::NLLSProblem, options::N
         mu *= 2.;
     end
 end
+
+
+# Gradient descent optimization
+mutable struct GradientDescentData
+    step::Float64
+end
+
+function iterate!(gddata::GradientDescentData, data, problem::NLLSProblem, options::NLLSOptions)::Float64
+    unused, gradient = gethessgrad(data.linsystem)
+    # Test the current step
+    data.step .= -gradient * gddata.step
+    update!(problem.varnext, problem.variables, data.linsystem, data.step)
+    data.timecost += @elapsed costc = cost(problem.varnext, problem.residuals)
+    data.costcomputations += 1
+    if costc < data.bestcost
+        # Test a larger step
+        data.step *= 2
+        update!(problem.varnext, problem.variables, data.linsystem, data.step)
+        data.timecost += @elapsed cost_ = cost(problem.varnext, problem.residuals)
+        data.costcomputations += 1
+        if cost_ < costc
+            multiplier = 2.0
+            costc = cost_
+            gddata.step *= 2.0
+        else
+            multiplier = 0.5
+            data.step *= 0.5
+        end
+    else
+        multiplier = 0.5
+    end
+    while true
+        # Set the step
+        # Update the reduced variables
+        data.step *= multiplier
+        update!(problem.varnext, problem.variables, data.linsystem, data.step)
+        # Compute the cost
+        data.timecost += @elapsed cost_ = cost(problem.varnext, problem.residuals)
+        data.costcomputations += 1
+        # Check we found a lower cost
+        if (costc <= data.bestcost) && (cost_ >= costc)
+            # Higher cost found. Return the lowest cost
+            data.step *= 1.0 / multiplier
+            update!(problem.varnext, problem.variables, data.linsystem, data.step)
+            return costc
+        end
+        costc = cost_
+        gddata.step *= multiplier
+    end
+end
