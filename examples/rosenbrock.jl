@@ -28,7 +28,7 @@ function computeCostGrid(residuals, X, Y)
     for (b, y) in enumerate(Y)
         for (a, x) in enumerate(X)
             vars[1] = SVector(x, y)
-            grid[a,b] = log1p(NLLSsolver.cost(vars, residuals))
+            grid[a,b] = NLLSsolver.cost(vars, residuals)
         end
     end
     return grid
@@ -74,6 +74,8 @@ function optimize2DProblem(problem, start, xrange, yrange; iterators=[NLLSsolver
 
     # Compute costs over a grid
     grid = computeCostGrid(problem.residuals, xrange, yrange)
+    minval = minimum(grid)
+    grid = map(x -> log1p(x - minval), grid)
 
     # Create the plot
     GLMakie.activate!(inline=false)
