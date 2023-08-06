@@ -51,7 +51,7 @@ end
 extractresjac(dual::ForwardDiff.Dual{T, T, N}) where {T, N} = ForwardDiff.value(dual), SVector{N, T}(dual.partials.values...)'
 
 # Automatic Jacobian computation
-computeresjac(varflags, residual, vars...) = usestatic(varflags, vars) ? computeresjacstatic(varflags, residual, vars) : computeresjacdynamic(varflags, residual, vars)
+@inline computeresjac(varflags, residual, vars...) = usestatic(varflags, vars) ? computeresjacstatic(varflags, residual, vars) : computeresjacdynamic(varflags, residual, vars)
 
 # Automatic statically-sized Jacobian computation
 function computeresjacstatic(varflags::StaticInt, residual::Residual, vars) where Residual <: AbstractResidual

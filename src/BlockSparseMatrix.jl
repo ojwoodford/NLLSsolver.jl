@@ -171,11 +171,11 @@ function makesparseindices(bsm::BlockSparseMatrix, symmetrify::Bool=false)
     return SparseArrays.SparseMatrixCSC{Int, Int}(startrow[end]-1, col-1, cols, rows, indices)
 end
 
-function SparseArrays.sparse(bsm::BlockSparseMatrix{T}, indices=makesparseindices(bsm)) where T
+@inline function SparseArrays.sparse(bsm::BlockSparseMatrix{T}, indices=makesparseindices(bsm)) where T
     return SparseArrays.SparseMatrixCSC{T, Int}(indices.m, indices.n, indices.colptr, indices.rowval, bsm.data[indices.nzval])
 end
 
-symmetrifysparse(bsm::BlockSparseMatrix{T}) where T = SparseArrays.sparse(bsm, makesparseindices(bsm, true))
+@inline symmetrifysparse(bsm::BlockSparseMatrix{T}) where T = SparseArrays.sparse(bsm, makesparseindices(bsm, true))
 
 function symmetrifyfull(bsm::BlockSparseMatrix{T}) where T
     @assert bsm.rowblocksizes == bsm.columnblocksizes
