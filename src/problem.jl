@@ -78,7 +78,7 @@ function addcost!(problem::NLLSProblem, cost::Cost) where Cost <: AbstractCost
     @assert length(varindices(cost))==N "Problem with varindices()"
     @assert length(getvars(cost, problem.variables))==N "Problem with getvars()"
     # Add to the problem
-    push!(problem.residuals, residual)
+    push!(problem.residuals, cost)
     return nothing
 end
 
