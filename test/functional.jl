@@ -35,7 +35,7 @@ Base.eltype(::RosenbrockB) = Float64
     NLLSsolver.addresidual!(problem, RosenbrockB(10.))
     @test NLLSsolver.countresiduals(NLLSsolver.reslen, problem.residuals) == 2
     @test NLLSsolver.countresiduals(NLLSsolver.resnum, problem.residuals) == 2
-    @test NLLSsolver.cost(problem) == 1.
+    @test NLLSsolver.cost(problem) == 0.5
     varresmap = spzeros(Bool, 2, 2)
     NLLSsolver.updatevarresmap!(varresmap, problem.residuals)
     @test vec(sum(Matrix(varresmap); dims=2)) == [2; 1]
