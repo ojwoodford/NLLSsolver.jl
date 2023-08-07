@@ -48,17 +48,17 @@ function makeBALproblem(data)
     # Create the problem
     problem = NLLSsolver.NLLSProblem(Union{BALImage{Float64}, NLLSsolver.Point3D{Float64}}, BALResidual{Float64})
 
-    # Add the cameras
+    # Add the camera variable blocks
     for cam in data.cameras
         NLLSsolver.addvariable!(problem, BALImage(cam))
     end
     numcameras = length(data.cameras)
-    # Add the landmarks
+    # Add the landmark variable blocks
     for lm in data.landmarks
         NLLSsolver.addvariable!(problem, NLLSsolver.Point3D(lm[1], lm[2], lm[3]))
     end
 
-    # Add the residuals
+    # Add the measurement cost blocks
     for meas in data.measurements
         NLLSsolver.addcost!(problem, BALResidual(SVector(meas.x, meas.y), SVector(meas.camera, meas.landmark + numcameras)))
     end
