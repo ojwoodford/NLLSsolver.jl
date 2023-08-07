@@ -1,10 +1,10 @@
 using Static, SparseArrays
 
-const ResidualStruct = VectorRepo
+const CostStruct = VectorRepo
 
-mutable struct NLLSProblem{VarTypes, ResTypes}
+mutable struct NLLSProblem{VarTypes, CostTypes}
     # User provided
-    residuals::ResidualStruct{ResTypes}
+    costs::CostStruct{CostTypes}
     variables::Vector{VarTypes}
 
     # Used internally
@@ -12,59 +12,59 @@ mutable struct NLLSProblem{VarTypes, ResTypes}
     varbest::Vector{VarTypes}
 
     # Constructor
-    function NLLSProblem{VarTypes, ResTypes}(vars=Vector{VarTypes}(), residuals=ResidualStruct{ResTypes}(), varnext=Vector{VarTypes}(), varbest=Vector{VarTypes}()) where {VarTypes, ResTypes}
-        return new{VarTypes, ResTypes}(residuals, vars, varnext, varbest)
+    function NLLSProblem{VarTypes, CostTypes}(vars=Vector{VarTypes}(), costs=CostStruct{CostTypes}(), varnext=Vector{VarTypes}(), varbest=Vector{VarTypes}()) where {VarTypes, CostTypes}
+        return new{VarTypes, CostTypes}(costs, vars, varnext, varbest)
     end
 end
 NLLSProblem() = NLLSProblem{Any, Any}()
 NLLSProblem(VT::Union{DataType, Union}) = NLLSProblem{VT, Any}()
-NLLSProblem(VT::Union{DataType, Union}, RT::Union{DataType, Union}) = NLLSProblem{VT, RT}()
+NLLSProblem(VT::Union{DataType, Union}, CT::Union{DataType, Union}) = NLLSProblem{VT, CT}()
 NLLSProblem(v::Vector{VT}) where VT = NLLSProblem{VT, Any}(v)
-NLLSProblem(v::Vector{VT}, r::ResidualStruct{RT}) where {VT, RT} = NLLSProblem{VT, RT}(v, r)
+NLLSProblem(v::Vector{VT}, r::CostStruct{CT}) where {VT, CT} = NLLSProblem{VT, CT}(v, r)
 
-function selectresiduals!(outres::ResidualStruct, inres::Vector, unfixed::Integer)
-    selectresiduals!(outres, inres, [i for (i, r) in enumerate(inres) if in(unfixed, varindices(r))])
+function selectcosts!(outcosts::CostStruct, incosts::Vector, unfixed::Integer)
+    selectcosts!(outcosts, incosts, [i for (i, r) in enumerate(incosts) if in(unfixed, varindices(r))])
 end
 
-function selectresiduals!(outres::ResidualStruct, inres::Vector, unfixed::BitVector)
-    selectresiduals!(outres, inres, [i for (i, r) in enumerate(inres) if any(j -> unfixed[j], varindices(r))])
+function selectcosts!(outcosts::CostStruct, incosts::Vector, unfixed::BitVector)
+    selectcosts!(outcosts, incosts, [i for (i, r) in enumerate(incosts) if any(j -> unfixed[j], varindices(r))])
 end
 
-function selectresiduals!(outres::ResidualStruct, inres::Vector{T}, vec::Vector) where T
+function selectcosts!(outcosts::CostStruct, incosts::Vector{T}, vec::Vector) where T
     if !isempty(vec)
-        outres.data[T] = inres[vec]
+        outcosts.data[T] = incosts[vec]
     end
 end
 
-# Produce a subproblem containing only the relevant residuals
-function subproblem(problem::NLLSProblem{VT, RT}, unfixed) where {VT, RT}
-    # Copy residuals that have unfixed inputs
-    residualstruct = ResidualStruct{RT}()
-    for residuals in values(problem.residuals)
-        selectresiduals!(residualstruct, residuals, unfixed)
+# Produce a subproblem containing only the relevant costs
+function subproblem(problem::NLLSProblem{VT, CT}, unfixed) where {VT, CT}
+    # Copy costs that have unfixed inputs
+    coststruct = CostStruct{CT}()
+    for costs in values(problem.costs)
+        selectcosts!(coststruct, costs, unfixed)
     end
     # Create the new problem (note that variables are SHARED)
-    return NLLSProblem{VT, RT}(problem.variables, residualstruct, problem.varnext, problem.varbest)
+    return NLLSProblem{VT, CT}(problem.variables, coststruct, problem.varnext, problem.varbest)
 end
 
-function subproblem(problem::NLLSProblem{VT, RT}, resind::Vector) where {VT, RT}
-    # Copy residuals that have unfixed inputs
-    residualstruct = ResidualStruct{RT}()
+function subproblem(problem::NLLSProblem{VT, CT}, resind::Vector) where {VT, CT}
+    # Copy costs that have unfixed inputs
+    coststruct = CostStruct{CT}()
     firstres = 0
     firstind = 0
     len = length(resind)
-    for residuals in values(problem.residuals)
-        lastres = firstres + length(residuals)
+    for costs in values(problem.costs)
+        lastres = firstres + length(costs)
         lastind = firstind
         while lastind < len && resind[lastind+1] <= lastres
             lastind += 1
         end
-        selectresiduals!(residualstruct, residuals, resind[firstind+1:lastind].-firstind)
+        selectcosts!(coststruct, costs, resind[firstind+1:lastind].-firstind)
         firstres = lastres
         firstind = lastind
     end
     # Create the new problem (note that variables are SHARED)
-    return NLLSProblem{VT, RT}(problem.variables, residualstruct, problem.varnext, problem.varbest)
+    return NLLSProblem{VT, CT}(problem.variables, coststruct, problem.varnext, problem.varbest)
 end
 
 function addcost!(problem::NLLSProblem, cost::Cost) where Cost <: AbstractCost
@@ -78,7 +78,7 @@ function addcost!(problem::NLLSProblem, cost::Cost) where Cost <: AbstractCost
     @assert length(varindices(cost))==N "Problem with varindices()"
     @assert length(getvars(cost, problem.variables))==N "Problem with getvars()"
     # Add to the problem
-    push!(problem.residuals, cost)
+    push!(problem.costs, cost)
     return nothing
 end
 
@@ -93,11 +93,11 @@ function addvariable!(problem::NLLSProblem, variable)
 end
 
 reslen(vec::Vector) = length(vec)
-# Support variable length residuals
+# Support variable length costs
 resnum(vec::Vector) = length(vec) > 0 ? (dynamic(is_static(nres(vec[1]))) ? length(vec) * nres(vec[1]) : sum(nres, vec; init=0)) : 0
 resdeps(vec::Vector) = length(vec) > 0 ? length(vec) * ndeps(vec[1]) : 0
-@inline countresiduals(fun, residuals::ResidualStruct{Any}) = sum(fun, values(residuals); init=0)
-@inline countresiduals(fun, residuals::ResidualStruct{T}) where T = countresiduals(fun, residuals, T)
-@inline countresiduals(fun, residuals, T::Union) = countresiduals(fun, residuals, T.a) + countresiduals(fun, residuals, T.b)
-@inline countresiduals(fun, residuals, T::DataType) = fun(get(residuals, T))
+@inline countcosts(fun, costs::CostStruct{Any}) = sum(fun, values(costs); init=0)
+@inline countcosts(fun, costs::CostStruct{T}) where T = countcosts(fun, costs, T)
+@inline countcosts(fun, costs, T::Union) = countcosts(fun, costs, T.a) + countcosts(fun, costs, T.b)
+@inline countcosts(fun, costs, T::DataType) = fun(get(costs, T))
 

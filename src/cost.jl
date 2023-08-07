@@ -2,9 +2,9 @@ using Static
 import ForwardDiff
 import IfElse: ifelse
 
-cost(problem::NLLSProblem) = cost(problem.variables, problem.residuals)
-cost(vars::Vector, residuals::ResidualStruct)::Float64 = sum(Base.Fix1(cost, vars), residuals)
-cost(vars::Vector, residual::AbstractCost)::Float64 = computecost(residual, getvars(residual, vars)...)
+cost(problem::NLLSProblem) = cost(problem.variables, problem.costs)
+cost(vars::Vector, costs::CostStruct)::Float64 = sum(Base.Fix1(computecost, vars), costs)
+computecost(vars::Vector, cost::AbstractCost)::Float64 = computecost(cost, getvars(cost, vars)...)
 
 function computecost(residual::AbstractResidual, vars...)::Float64
     # Compute the residual
@@ -93,7 +93,7 @@ function costgradhess!(linsystem, vars::Vector, residual::AbstractCost)
     return cost(residual, v)
 end
 
-costgradhess!(linsystem, vars::Vector, residuals::ResidualStruct)::Float64 = sum(fixallbutlast(costgradhess!, linsystem, vars), residuals)
+costgradhess!(linsystem, vars::Vector, costs::CostStruct)::Float64 = sum(fixallbutlast(costgradhess!, linsystem, vars), costs)
 
 function resjachelper!(linsystem, residual::AbstractResidual, vars, blockind, ind, varflags)::Float64
     # Compute the residual

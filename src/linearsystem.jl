@@ -1,16 +1,20 @@
 using SparseArrays, Static
 
-function addvarvarpairs!(pairs, residuals::Vector, blockindices)
-    for res in residuals
-        if ndeps(res) > 1
-            addvarvarpairs!(pairs, res, blockindices)
+function addvarvarpairs!(pairs, costs::Vector, blockindices)
+    for cost in costs
+        if ndeps(cost) > 1
+            addvarvarpairs!(pairs, cost, blockindices)
         end
     end
 end
 
-function addvarvarpairs!(pairs, residual, blockindices)
-    blocks = blockindices[varindices(residual)]
-    blocks = sort(blocks[blocks .!= 0], rev=true)
+function addvarvarpairs!(pairs, cost, blockindices)
+    blocks = blockindices[varindices(cost)]
+    blocks = blocks[blocks .!= 0]
+    if length(blocks) <= 1
+        return
+    end
+    blocks = sort!(blocks, rev=true)
     @inbounds for (i, b) in enumerate(blocks)
         @inbounds for b_ in @view blocks[i+1:end]
             push!(pairs, SVector(b, b_))
@@ -71,7 +75,7 @@ function makemvls(vars, residuals, unfixed, nblocks)
     # Multiple variables. Use a block sparse matrix
     blockindices = zeros(UInt, length(vars))
     varblocksizes = zeros(UInt, nblocks)
-    resblocksizes = zeros(UInt, countresiduals(resnum, residuals))
+    resblocksizes = zeros(UInt, countcosts(resnum, residuals))
     pairs = Vector{SVector{2, Int}}()
     nblocks = 0
     # Get the variable block sizes
@@ -95,7 +99,7 @@ function makemvls(vars, residuals, unfixed, nblocks)
     return MultiVariateLS(BlockSparseMatrix{Float64}(pairs, resblocksizes, varblocksizes), blockindices)
 end
 
-function makesymmvls(vars, residuals, unfixed, nblocks)
+function makesymmvls(vars, costs, unfixed, nblocks)
     # Multiple variables. Use a block sparse matrix
     blockindices = zeros(UInt, length(vars))
     blocksizes = zeros(UInt, nblocks)
@@ -112,8 +116,8 @@ function makesymmvls(vars, residuals, unfixed, nblocks)
     end
 
     # Compute the off-diagonal pairs
-    @inbounds for res in values(residuals)
-        addvarvarpairs!(pairs, res, blockindices)
+    @inbounds for cost in values(costs)
+        addvarvarpairs!(pairs, cost, blockindices)
     end
 
     # Construct the MultiVariateLS

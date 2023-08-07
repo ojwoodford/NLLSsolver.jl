@@ -30,20 +30,20 @@ Base.eltype(::RosenbrockB) = Float64
     @test NLLSsolver.addvariable!(problem, 0.) == 1
     @test NLLSsolver.addvariable!(problem, 0.) == 2
     NLLSsolver.addcost!(problem, RosenbrockA(1.0))
-    @test NLLSsolver.countresiduals(NLLSsolver.reslen, problem.residuals) == 1
-    @test NLLSsolver.countresiduals(NLLSsolver.resnum, problem.residuals) == 1
+    @test NLLSsolver.countcosts(NLLSsolver.reslen, problem.costs) == 1
+    @test NLLSsolver.countcosts(NLLSsolver.resnum, problem.costs) == 1
     NLLSsolver.addcost!(problem, RosenbrockB(10.))
-    @test NLLSsolver.countresiduals(NLLSsolver.reslen, problem.residuals) == 2
-    @test NLLSsolver.countresiduals(NLLSsolver.resnum, problem.residuals) == 2
+    @test NLLSsolver.countcosts(NLLSsolver.reslen, problem.costs) == 2
+    @test NLLSsolver.countcosts(NLLSsolver.resnum, problem.costs) == 2
     @test NLLSsolver.cost(problem) == 0.5
     varresmap = spzeros(Bool, 2, 2)
-    NLLSsolver.updatevarresmap!(varresmap, problem.residuals)
+    NLLSsolver.updatevarresmap!(varresmap, problem.costs)
     @test vec(sum(Matrix(varresmap); dims=2)) == [2; 1]
 
     # Create a subproblem
-    @test NLLSsolver.countresiduals(NLLSsolver.resnum, NLLSsolver.subproblem(problem, trues(2)).residuals) == 2
+    @test NLLSsolver.countcosts(NLLSsolver.resnum, NLLSsolver.subproblem(problem, trues(2)).costs) == 2
     subprob = NLLSsolver.subproblem(problem, 2)
-    @test NLLSsolver.countresiduals(NLLSsolver.resnum, subprob.residuals) == 1
+    @test NLLSsolver.countcosts(NLLSsolver.resnum, subprob.costs) == 1
     @test NLLSsolver.cost(subprob) == 0.
 
     # Test optimization

@@ -121,13 +121,13 @@ mutable struct NLLSInternalMultiVar
     end
 end
 
-function updatevarresmap!(varresmap::SparseMatrixCSC{Bool, Int}, residuals::Vector, colind::Int, rowind::Int)
-    numres = length(residuals)
+function updatevarresmap!(varresmap::SparseMatrixCSC{Bool, Int}, costvec::Vector, colind::Int, rowind::Int)
+    numres = length(costvec)
     if numres > 0
-        ndeps_ = known(ndeps(residuals[1]))
-        srange = SR(0, ndeps_-1)
-        @inbounds for res in residuals
-            varresmap.rowval[srange.+rowind] .= varindices(res)
+        @inbounds for cost in costvec
+            ndeps_ = dynamic(ndeps(cost))
+            srange = SR(0, ndeps_-1)
+            varresmap.rowval[srange.+rowind] .= varindices(cost)
             rowind += ndeps_
             colind += 1
             varresmap.colptr[colind] = rowind
@@ -136,10 +136,10 @@ function updatevarresmap!(varresmap::SparseMatrixCSC{Bool, Int}, residuals::Vect
     return colind, rowind
 end
 
-function updatevarresmap!(varresmap::SparseMatrixCSC{Bool, Int}, residuals::ResidualStruct)
+function updatevarresmap!(varresmap::SparseMatrixCSC{Bool, Int}, costs::CostStruct)
     # Pre-allocate all the necessary memory
-    resize!(varresmap.rowval, countresiduals(resdeps, residuals))
-    resize!(varresmap.colptr, countresiduals(reslen, residuals)+1)
+    resize!(varresmap.rowval, countcosts(resdeps, costs))
+    resize!(varresmap.colptr, countcosts(reslen, costs)+1)
     prevlen = length(varresmap.nzval)
     resize!(varresmap.nzval, length(varresmap.rowval))
 
@@ -148,7 +148,7 @@ function updatevarresmap!(varresmap::SparseMatrixCSC{Bool, Int}, residuals::Resi
     varresmap.colptr[1] = 1
     colind = 1
     rowind = 1
-    @inbounds for res in values(residuals)
-        colind, rowind = updatevarresmap!(varresmap, res, colind, rowind)
+    @inbounds for costvec in values(costs)
+        colind, rowind = updatevarresmap!(varresmap, costvec, colind, rowind)
     end
 end

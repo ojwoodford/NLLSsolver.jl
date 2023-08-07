@@ -26,7 +26,7 @@ function iterate!(::GaussNewtonData, data, problem::NLLSProblem, options::NLLSOp
     # Update the new variables
     update!(problem.varnext, problem.variables, data.linsystem, data.step)
     # Return the cost
-    data.timecost += @elapsed cost_ = cost(problem.varnext, problem.residuals)
+    data.timecost += @elapsed cost_ = cost(problem.varnext, problem.costs)
     data.costcomputations += 1
     return cost_
 end
@@ -43,7 +43,7 @@ function iterate!(::NewtonData, data, problem::NLLSProblem, options::NLLSOptions
     # Update the new variables
     update!(problem.varnext, problem.variables, data.linsystem, data.step)
     # Return the cost
-    data.timecost += @elapsed cost_ = cost(problem.varnext, problem.residuals)
+    data.timecost += @elapsed cost_ = cost(problem.varnext, problem.costs)
     data.costcomputations += 1
     return cost_
 end
@@ -110,7 +110,7 @@ function iterate!(doglegdata::DoglegData, data, problem::NLLSProblem, options::N
         # Update the new variables
         update!(problem.varnext, problem.variables, data.linsystem, data.step)
         # Compute the cost
-        data.timecost += @elapsed cost_ = cost(problem.varnext, problem.residuals)
+        data.timecost += @elapsed cost_ = cost(problem.varnext, problem.costs)
         data.costcomputations += 1
         # Update trust region radius
         mu = (data.bestcost - cost_) / linear_approx
@@ -151,7 +151,7 @@ function iterate!(levmardata::LevMarData, data, problem::NLLSProblem, options::N
         # Update the new variables
         update!(problem.varnext, problem.variables, data.linsystem, data.step)
         # Compute the cost
-        data.timecost += @elapsed cost_ = cost(problem.varnext, problem.residuals)
+        data.timecost += @elapsed cost_ = cost(problem.varnext, problem.costs)
         data.costcomputations += 1
         # Check for exit
         if !(cost_ > data.bestcost) || (maximum(abs, data.step) < options.dstep)
@@ -198,7 +198,7 @@ function iterate!(levmardata::LevMarSchurData, data, problem::NLLSProblem, optio
         # Update the new variables
         update!(problem.varnext, problem.variables, data.linsystem, data.step)
         # Compute the cost
-        data.timecost += @elapsed cost_ = cost(problem.varnext, problem.residuals)
+        data.timecost += @elapsed cost_ = cost(problem.varnext, problem.costs)
         data.costcomputations += 1
         # Check for exit
         if !(cost_ > data.bestcost) || (maximum(abs, data.step) < options.dstep)
@@ -242,7 +242,7 @@ function iterate!(varprodata::VarProData, data, problem::NLLSProblem, options::N
         update!(problem.varnext, problem.variables, data.linsystem, data.step)
         # Optimize the other variables
         # Compute the cost
-        data.timecost += @elapsed cost_ = cost(problem.varnext, problem.residuals)
+        data.timecost += @elapsed cost_ = cost(problem.varnext, problem.costs)
         data.costcomputations += 1
         # Check for exit
         if !(cost_ > data.bestcost) || (maximum(abs, data.step) < options.dstep)
@@ -268,14 +268,14 @@ function iterate!(gddata::GradientDescentData, data, problem::NLLSProblem, optio
     # Test the current step
     data.step .= -gradient * gddata.step
     update!(problem.varnext, problem.variables, data.linsystem, data.step)
-    data.timecost += @elapsed costc = cost(problem.varnext, problem.residuals)
+    data.timecost += @elapsed costc = cost(problem.varnext, problem.costs)
     data.costcomputations += 1
     multiplier = 1.2
     if costc < data.bestcost
         # Test a larger step
         data.step *= multiplier
         update!(problem.varnext, problem.variables, data.linsystem, data.step)
-        data.timecost += @elapsed cost_ = cost(problem.varnext, problem.residuals)
+        data.timecost += @elapsed cost_ = cost(problem.varnext, problem.costs)
         data.costcomputations += 1
         if cost_ < costc
             costc = cost_
@@ -294,7 +294,7 @@ function iterate!(gddata::GradientDescentData, data, problem::NLLSProblem, optio
         data.step *= multiplier
         update!(problem.varnext, problem.variables, data.linsystem, data.step)
         # Compute the cost
-        data.timecost += @elapsed cost_ = cost(problem.varnext, problem.residuals)
+        data.timecost += @elapsed cost_ = cost(problem.varnext, problem.costs)
         data.costcomputations += 1
         # Check we found a lower cost
         if (costc <= data.bestcost) && (cost_ >= costc)
