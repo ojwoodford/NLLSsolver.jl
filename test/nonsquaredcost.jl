@@ -1,6 +1,6 @@
 using NLLSsolver, Test, Static, StaticArrays, LinearAlgebra
 
-const NDIMS = 2
+const NDIMS = 3
 struct LinearResidualStatic <: NLLSsolver.AbstractResidual
     y::SVector{NDIMS, Float64}
     X::SMatrix{NDIMS, NDIMS, Float64, NDIMS*NDIMS}
@@ -51,7 +51,7 @@ Base.eltype(::LinearCostDynamic) = Float64
     # Generate some test data
     X = randn(SMatrix{NDIMS, NDIMS, Float64, NDIMS*NDIMS})
     y = randn(SVector{NDIMS, Float64})
-    solution = (2 * X' * X) \ ((2 * X' - I) * y)
+    solution = (X' * X) \ ((X' - I) * y)
 
     # Create the problem
     problem = NLLSsolver.NLLSProblem(NLLSsolver.EuclideanVector{NDIMS, Float64})
@@ -63,8 +63,7 @@ Base.eltype(::LinearCostDynamic) = Float64
     @test_throws AssertionError NLLSsolver.optimize!(problem, NLLSsolver.NLLSOptions(iterator=NLLSsolver.gaussnewton))
 
     # Optimize
-    result = NLLSsolver.optimize!(problem, NLLSsolver.NLLSOptions(iterator=NLLSsolver.gradientdescent, maxiters=10000))
-    show(result)
+    result = NLLSsolver.optimize!(problem, NLLSsolver.NLLSOptions(iterator=NLLSsolver.newton))
 
     # Check the result
     @test problem.variables[1] ≈ solution

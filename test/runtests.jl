@@ -8,5 +8,6 @@ using Test
     include("linearsolve.jl")
     include("functional.jl")
     include("dynamicvars.jl")
+    include("nonsquaredcost.jl")
     include("marginalize.jl")
 end
