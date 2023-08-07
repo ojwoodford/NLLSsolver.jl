@@ -33,7 +33,6 @@ NLLSsolver.ndeps(::LinearCostStatic) = static(1) # Cost depends on 1 variables
 NLLSsolver.varindices(cost::LinearCostStatic) = cost.varind
 NLLSsolver.getvars(cost::LinearCostStatic, vars::Vector) = (vars[cost.varind]::NLLSsolver.EuclideanVector{NDIMS, Float64},)
 NLLSsolver.computecost(cost::LinearCostStatic, w) = cost.y' * w
-NLLSsolver.computecostgradhess(varflags, cost::LinearCostStatic, w) = cost.y' * w, cost.y, nothing
 Base.eltype(::LinearCostStatic) = Float64
 
 struct LinearCostDynamic <: NLLSsolver.AbstractCost
@@ -44,7 +43,6 @@ NLLSsolver.ndeps(::LinearCostDynamic) = static(1) # Residual depends on 1 varia
 NLLSsolver.varindices(cost::LinearCostDynamic) = cost.varind
 NLLSsolver.getvars(cost::LinearCostDynamic, vars::Vector) = (vars[cost.varind]::NLLSsolver.DynamicVector{Float64},)
 NLLSsolver.computecost(cost::LinearCostDynamic, w) = cost.y' * w
-NLLSsolver.computecostgradhess(varflags, cost::LinearCostDynamic, w) = cost.y' * w, cost.y, nothing
 Base.eltype(::LinearCostDynamic) = Float64
 
 @testset "nonsquaredcost.jl" begin
@@ -54,7 +52,7 @@ Base.eltype(::LinearCostDynamic) = Float64
     solution = (X' * X) \ ((X' - I) * y)
 
     # Create the problem
-    problem = NLLSsolver.NLLSProblem(NLLSsolver.EuclideanVector{NDIMS, Float64})
+    problem = NLLSsolver.NLLSProblem()
     NLLSsolver.addvariable!(problem, zeros(NLLSsolver.EuclideanVector{NDIMS, Float64}))
     NLLSsolver.addcost!(problem, LinearResidualStatic(y, X, 1))
     NLLSsolver.addcost!(problem, LinearCostStatic(y, 1))

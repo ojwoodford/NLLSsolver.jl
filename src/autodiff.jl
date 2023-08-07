@@ -43,18 +43,18 @@ end
 end
 
 # Extract the residual and jacobian from duals to static arrays
-@generated function extractresjac(dual::SVector{M, ForwardDiff.Dual{T, T, N}}) where {T, M, N}
+@generated function extractvaldual(dual::SVector{M, ForwardDiff.Dual{T, T, N}}) where {T, M, N}
     res = Expr(:tuple, [:(ForwardDiff.value(dual[$i])) for i in 1:M]...)
     jac = Expr(:tuple, [:(ForwardDiff.partials($T, dual[$i], $j)) for i in 1:M, j in 1:N]...)
     return :(SVector{$M, $T}($res), SMatrix{$M, $N, $T, $M*$N}($jac))
 end
-extractresjac(dual::ForwardDiff.Dual{T, T, N}) where {T, N} = ForwardDiff.value(dual), SVector{N, T}(dual.partials.values...)'
+extractvaldual(dual::ForwardDiff.Dual{T, T, N}) where {T, N} = ForwardDiff.value(dual), SVector{N, T}(dual.partials.values...)'
 
 # Automatic Jacobian computation
 @inline computeresjac(varflags, residual, vars...) = usestatic(varflags, vars) ? computeresjacstatic(varflags, residual, vars) : computeresjacdynamic(varflags, residual, vars)
 
 # Automatic statically-sized Jacobian computation
-function computeresjacstatic(varflags::StaticInt, residual::Residual, vars) where Residual <: AbstractResidual
+function computeresjacstatic(varflags::StaticInt, residual::AbstractResidual, vars)
     # Perform static (i.e. fixed size vector) auto-differentiation
     @assert eltype(residual)!=Any "Define Base.eltype() for your residual type"
 
@@ -65,11 +65,11 @@ function computeresjacstatic(varflags::StaticInt, residual::Residual, vars) wher
     ydual = computeresidual(residual, xdual...)
 
     # Return the residual and jacobian
-    return extractresjac(ydual)
+    return extractvaldual(ydual)
 end
 
 # Automatic dynamically-sized Jacobian computation
-function computeresjacdynamic(varflags, residual::Residual, vars) where Residual <: AbstractResidual
+function computeresjacdynamic(varflags, residual::AbstractResidual, vars)
     # Perform dynamic (i.e. variable size vector) auto-differentiation
     @assert eltype(residual)!=Any "Define Base.eltype() for your residual type"
 
@@ -86,16 +86,16 @@ function computeresjacdynamic(varflags, residual::Residual, vars) where Residual
     M = nres(residual)
     if M == 1
         # Scalar residual
-        x = zeros(totalnumvars)
+        x = zeros(eltype(residual), totalnumvars)
         result = DiffResults.GradientResult(x)
         result = ForwardDiff.gradient!(result, fixallbutlast(computeresjachelper, varflags, residual, vars), x)
         # Return the residual and jacobian
-        return DiffResults.value(result)[], DiffResults.jacobian(result)'
+        return DiffResults.value(result), DiffResults.gradient(result)'
     end
 
     # Vector residual
     resultlength = (totalnumvars + 1) * M
-    resultstorage = zeros(resultlength)
+    resultstorage = zeros(eltype(residual), resultlength)
     result = DiffResults.DiffResult(view(resultstorage, 1:dynamic(M)), (reshape(view(resultstorage, M+1:resultlength), dynamic(M), totalnumvars),))
     result = ForwardDiff.jacobian!(result, fixallbutlast(computeresjachelper, varflags, residual, vars), view(resultstorage, 1:totalnumvars))
     # Return the residual and jacobian
@@ -103,3 +103,47 @@ function computeresjacdynamic(varflags, residual::Residual, vars) where Residual
 end
 
 computeresjachelper(varflags, residual, vars, x) = computeresidual(residual, updatevars(vars, varflags, x)...) 
+
+# Automatic gradient computation
+@inline computecostgradhess(varflags, cost, vars...) = usestatic(varflags, vars) ? computegradstatic(varflags, cost, vars) : computegraddynamic(varflags, cost, vars)
+
+# Automatic statically-sized gradient computation
+function computegradstatic(varflags::StaticInt, cost::AbstractCost, vars)
+    # Perform static (i.e. fixed size vector) auto-differentiation
+    @assert eltype(cost)!=Any "Define Base.eltype() for your cost type"
+
+    # Construct ForwardDiff Dual arguments for the unfixed variables
+    xdual = dualvars(vars, varflags, eltype(cost))
+    
+    # Compute the cost with ForwardDiff Duals
+    ydual = computecost(cost, xdual...)
+
+    # Return the cost and gradient
+    result = extractvaldual(ydual)
+    return result[1], result[2]', nothing
+end
+
+# Automatic dynamically-sized gradient computation
+function computegraddynamic(varflags, cost::AbstractCost, vars)
+    # Perform dynamic (i.e. variable size vector) auto-differentiation
+    @assert eltype(cost)!=Any "Define Base.eltype() for your residual type"
+
+    # Compute the number of free variables
+    N = ndeps(cost)
+    totalnumvars = 0
+    @unroll for i in 1:MAX_ARGS
+        if i <= N
+            totalnumvars += ifelse(bitiset(varflags, i), dynamic(nvars(vars[i])), 0)
+        end
+    end
+
+    # Use the ForwardDiff API to compute the gradient
+    x = zeros(eltype(cost), totalnumvars)
+    result = DiffResults.GradientResult(x)
+    result = ForwardDiff.gradient!(result, fixallbutlast(computegradhelper, varflags, cost, vars), x)
+
+    # Return the value and gradient
+    return DiffResults.value(result), DiffResults.gradient(result), nothing
+end
+
+computegradhelper(varflags, residual, vars, x) = computecost(residual, updatevars(vars, varflags, x)...)
