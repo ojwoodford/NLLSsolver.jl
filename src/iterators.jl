@@ -114,9 +114,9 @@ function iterate!(doglegdata::DoglegData, data, problem::NLLSProblem, options::N
         data.costcomputations += 1
         # Update trust region radius
         mu = (data.bestcost - cost_) / linear_approx
-        if mu > 0.75
+        if mu > 0.375
             doglegdata.trustradius = max(doglegdata.trustradius, 3 * norm(data.step))
-        elseif mu < 0.25
+        elseif mu < 0.125
             doglegdata.trustradius *= 0.5
         end
         # Check for exit
@@ -157,7 +157,7 @@ function iterate!(levmardata::LevMarData, data, problem::NLLSProblem, options::N
         if !(cost_ > data.bestcost) || (maximum(abs, data.step) < options.dstep)
             # Success (or convergence) - update lambda
             uniformscaling!(hessian, -lastlambda)
-            step_quality = (cost_ - data.bestcost) / (((data.step' * hessian) * 0.5 + gradient') * data.step)
+            step_quality = 2.0 * (cost_ - data.bestcost) / (((data.step' * hessian) * 0.5 + gradient') * data.step)
             levmardata.lambda *= step_quality < 1.966 ? 1 - (step_quality - 1) ^ 3 : 0.1
             # Return the cost
             return cost_
@@ -204,7 +204,7 @@ function iterate!(levmardata::LevMarSchurData, data, problem::NLLSProblem, optio
         if !(cost_ > data.bestcost) || (maximum(abs, data.step) < options.dstep)
             # Success (or convergence) - update lambda
             uniformscaling!(hessian, -lastlambda)
-            step_quality = (cost_ - data.bestcost) / (((data.step' * hessian) * 0.5 + gradient') * data.step)
+            step_quality = 2.0 * (cost_ - data.bestcost) / (((data.step' * hessian) * 0.5 + gradient') * data.step)
             levmardata.lambda *= step_quality < 1.966 ? 1 - (step_quality - 1) ^ 3 : 0.1
             # Return the cost
             return cost_
@@ -270,22 +270,23 @@ function iterate!(gddata::GradientDescentData, data, problem::NLLSProblem, optio
     update!(problem.varnext, problem.variables, data.linsystem, data.step)
     data.timecost += @elapsed costc = cost(problem.varnext, problem.residuals)
     data.costcomputations += 1
+    multiplier = 1.2
     if costc < data.bestcost
         # Test a larger step
-        data.step *= 2
+        data.step *= multiplier
         update!(problem.varnext, problem.variables, data.linsystem, data.step)
         data.timecost += @elapsed cost_ = cost(problem.varnext, problem.residuals)
         data.costcomputations += 1
         if cost_ < costc
-            multiplier = 2.0
             costc = cost_
-            gddata.step *= 2.0
+            gddata.step *= multiplier
+            multiplier ^= 2
         else
-            multiplier = 0.5
-            data.step *= 0.5
+            multiplier = 1.0 / multiplier
+            data.step *= multiplier
         end
     else
-        multiplier = 0.5
+        multiplier = 1.0 / multiplier
     end
     while true
         # Set the step
@@ -304,5 +305,6 @@ function iterate!(gddata::GradientDescentData, data, problem::NLLSProblem, optio
         end
         costc = cost_
         gddata.step *= multiplier
+        multiplier ^= 2
     end
 end

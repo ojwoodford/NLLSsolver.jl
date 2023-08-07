@@ -4,16 +4,14 @@ import IfElse: ifelse
 
 cost(problem::NLLSProblem) = cost(problem.variables, problem.residuals)
 cost(vars::Vector, residuals::ResidualStruct)::Float64 = sum(Base.Fix1(cost, vars), residuals)
-cost(vars::Vector, residual::AbstractCost)::Float64 = cost(residual, getvars(residual, vars))
+cost(vars::Vector, residual::AbstractCost)::Float64 = computecost(residual, getvars(residual, vars)...)
 
-@inline cost(costblock::AbstractCost, vars::Tuple)::Float64 = computecost(costblock, vars...)
-
-function cost(residual::AbstractResidual, vars::Tuple)::Float64
+function computecost(residual::AbstractResidual, vars...)::Float64
     # Compute the residual
     r = computeresidual(residual, vars...)
     
     # Compute the robustified cost
-    return robustify(robustkernel(residual), Float64(r' * r))[1]
+    return 0.5 * robustify(robustkernel(residual), Float64(r' * r))[1]
 end
 
 
@@ -64,7 +62,7 @@ function gradhesshelper!(linsystem, residual::AbstractResidual, vars, blockind, 
     end
 
     # Return the cost
-    return c
+    return 0.5 * c
 end
 
 # Compute the variable flags indicating which variables are unfixed (i.e. to be optimized)
@@ -118,7 +116,7 @@ function resjachelper!(linsystem, residual::AbstractResidual, vars, blockind, in
     end
 
     # Return the cost
-    return c
+    return 0.5 * c
 end
 
 function costresjac!(linsystem, vars::Vector, residual::AbstractResidual, ind)
