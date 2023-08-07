@@ -2,7 +2,9 @@ using SparseArrays, Static
 
 function addvarvarpairs!(pairs, residuals::Vector, blockindices)
     for res in residuals
-        addvarvarpairs!(pairs, res, blockindices)
+        if ndeps(res) > 1
+            addvarvarpairs!(pairs, res, blockindices)
+        end
     end
 end
 
