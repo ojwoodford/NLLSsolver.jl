@@ -29,10 +29,10 @@ Base.eltype(::RosenbrockB) = Float64
     problem = NLLSsolver.NLLSProblem(Float64)
     @test NLLSsolver.addvariable!(problem, 0.) == 1
     @test NLLSsolver.addvariable!(problem, 0.) == 2
-    NLLSsolver.addresidual!(problem, RosenbrockA(1.0))
+    NLLSsolver.addcost!(problem, RosenbrockA(1.0))
     @test NLLSsolver.countresiduals(NLLSsolver.reslen, problem.residuals) == 1
     @test NLLSsolver.countresiduals(NLLSsolver.resnum, problem.residuals) == 1
-    NLLSsolver.addresidual!(problem, RosenbrockB(10.))
+    NLLSsolver.addcost!(problem, RosenbrockB(10.))
     @test NLLSsolver.countresiduals(NLLSsolver.reslen, problem.residuals) == 2
     @test NLLSsolver.countresiduals(NLLSsolver.resnum, problem.residuals) == 2
     @test NLLSsolver.cost(problem) == 0.5

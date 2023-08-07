@@ -29,8 +29,8 @@ Base.eltype(::NormResidual) = Float64
     # Create the problem
     problem = NLLSsolver.NLLSProblem(NLLSsolver.DynamicVector{Float64})
     NLLSsolver.addvariable!(problem, zeros(length(X)))
-    NLLSsolver.addresidual!(problem, LinearResidual(1.0, X))
-    NLLSsolver.addresidual!(problem, NormResidual(length(X)))
+    NLLSsolver.addcost!(problem, LinearResidual(1.0, X))
+    NLLSsolver.addcost!(problem, NormResidual(length(X)))
 
     # Optimize
     result = NLLSsolver.optimize!(problem, NLLSsolver.NLLSOptions(iterator=NLLSsolver.gaussnewton, storecosts=true))

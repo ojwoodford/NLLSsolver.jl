@@ -60,7 +60,7 @@ function makeBALproblem(data)
 
     # Add the residuals
     for meas in data.measurements
-        NLLSsolver.addresidual!(problem, BALResidual(SVector(meas.x, meas.y), SVector(meas.camera, meas.landmark + numcameras)))
+        NLLSsolver.addcost!(problem, BALResidual(SVector(meas.x, meas.y), SVector(meas.camera, meas.landmark + numcameras)))
     end
 
     # Return the optimization problem

@@ -18,7 +18,7 @@ function constructrosenbrockprob()
     # Create the problem
     problem = NLLSsolver.NLLSProblem(NLLSsolver.EuclideanVector{2, Float64}, Rosenbrock)
     NLLSsolver.addvariable!(problem, NLLSsolver.EuclideanVector(0., 0.))
-    NLLSsolver.addresidual!(problem, Rosenbrock())
+    NLLSsolver.addcost!(problem, Rosenbrock())
     return problem
 end
 

@@ -20,8 +20,8 @@ struct LinearResidualDynamic <: NLLSsolver.AbstractResidual
 end
 NLLSsolver.ndeps(::LinearResidualDynamic) = static(1) # Residual depends on 1 variables
 NLLSsolver.nres(res::LinearResidualDynamic) = length(res.y) # Residual has dynamic length
-NLLSsolver.varindices(::LinearResidualDynamic) = res.varind
-NLLSsolver.getvars(::LinearResidualDynamic, vars::Vector) = (vars[res.varind]::NLLSsolver.DynamicVector{Float64},)
+NLLSsolver.varindices(res::LinearResidualDynamic) = res.varind
+NLLSsolver.getvars(res::LinearResidualDynamic, vars::Vector) = (vars[res.varind]::NLLSsolver.DynamicVector{Float64},)
 NLLSsolver.computeresidual(res::LinearResidualDynamic, w) = res.X * w - res.y
 Base.eltype(::LinearResidualDynamic) = Float64
 
@@ -42,7 +42,7 @@ struct LinearCostDynamic <: NLLSsolver.AbstractCost
 end
 NLLSsolver.ndeps(::LinearCostDynamic) = static(1) # Residual depends on 1 variables
 NLLSsolver.varindices(cost::LinearCostDynamic) = cost.varind
-NLLSsolver.getvars(cost::LinearCostDynamic, vars::Vector) = (vars[cost.varind]::NLLSsolver.EuclideanVector{NDIMS, Float64},)
+NLLSsolver.getvars(cost::LinearCostDynamic, vars::Vector) = (vars[cost.varind]::NLLSsolver.DynamicVector{Float64},)
 NLLSsolver.computecost(cost::LinearCostDynamic, w) = cost.y' * w
 NLLSsolver.computecostgradhess(varflags, cost::LinearCostDynamic, w) = cost.y' * w, cost.y, nothing
 Base.eltype(::LinearCostDynamic) = Float64
@@ -56,8 +56,11 @@ Base.eltype(::LinearCostDynamic) = Float64
     # Create the problem
     problem = NLLSsolver.NLLSProblem(NLLSsolver.EuclideanVector{NDIMS, Float64})
     NLLSsolver.addvariable!(problem, zeros(NLLSsolver.EuclideanVector{NDIMS, Float64}))
-    NLLSsolver.addresidual!(problem, LinearResidualStatic(y, X, 1))
-    NLLSsolver.addresidual!(problem, LinearCostStatic(y, 1))
+    NLLSsolver.addcost!(problem, LinearResidualStatic(y, X, 1))
+    NLLSsolver.addcost!(problem, LinearCostStatic(y, 1))
+    NLLSsolver.addvariable!(problem, zeros(NDIMS))
+    NLLSsolver.addcost!(problem, LinearResidualDynamic(Vector(y), Matrix(X), 2))
+    NLLSsolver.addcost!(problem, LinearCostDynamic(Vector(y), 2))
 
     # Test we can't use GaussNewton
     @test_throws AssertionError NLLSsolver.optimize!(problem, NLLSsolver.NLLSOptions(iterator=NLLSsolver.gaussnewton))
@@ -67,4 +70,5 @@ Base.eltype(::LinearCostDynamic) = Float64
 
     # Check the result
     @test problem.variables[1] ≈ solution
+    @test problem.variables[2] ≈ solution
 end
