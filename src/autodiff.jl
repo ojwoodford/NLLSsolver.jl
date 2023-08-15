@@ -120,7 +120,8 @@ function computegradstatic(varflags::StaticInt, cost::AbstractCost, vars)
 
     # Return the cost and gradient
     result = extractvaldual(ydual)
-    return result[1], result[2]', nothing
+    N = Size(result[2])[2]
+    return result[1], result[2], zeros(SMatrix{N, N, eltype(result[2]), N*N})
 end
 
 # Automatic dynamically-sized gradient computation
@@ -143,7 +144,8 @@ function computegraddynamic(varflags, cost::AbstractCost, vars)
     result = ForwardDiff.gradient!(result, fixallbutlast(computegradhelper, varflags, cost, vars), x)
 
     # Return the value and gradient
-    return DiffResults.value(result), DiffResults.gradient(result), nothing
+    grad = DiffResults.gradient(result)
+    return DiffResults.value(result), grad, zeros(eltype(grad), length(grad), length(grad))
 end
 
 computegradhelper(varflags, residual, vars, x) = computecost(residual, updatevars(vars, varflags, x)...)

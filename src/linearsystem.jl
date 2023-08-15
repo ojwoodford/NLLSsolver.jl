@@ -127,9 +127,7 @@ end
 function updatesymlinearsystem!(linsystem::UniVariateLS, g, H, unusedargs...)
     # Update the blocks in the problem
     linsystem.b .+= g
-    if !isnothing(H)
-        linsystem.A .+= H
-    end
+    linsystem.A .+= H
 end
 
 function updatelinearsystem!(linsystem::UniVariateLS, res, jac, ind, unusedargs...)
@@ -180,9 +178,7 @@ end
 
 function updatesymlinearsystem!(linsystem::MultiVariateLS, g, H, vars, varflags, blockindices)
     updateb!(linsystem.b, g, vars, varflags, linsystem.boffsets, blockindices)
-    if !isnothing(H)
-        updatesymA!(linsystem.A, H, vars, varflags, blockindices)
-    end
+    updatesymA!(linsystem.A, H, vars, varflags, blockindices)
 end
 
 function updatelinearsystem!(linsystem::MultiVariateLS, res, jac, ind, vars, varflags, blockindices)
