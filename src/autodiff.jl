@@ -1,5 +1,5 @@
 import ForwardDiff, DiffResults
-using Static
+using Static, StaticArrays
 
 # Decision on whether to use static-sized autodiff - compile-time decision where possible
 function usestatic(varflags::StaticInt, vars)
@@ -106,11 +106,13 @@ end
 computeresjachelper(varflags, residual, vars, x) = computeresidual(residual, updatevars(vars, varflags, x)...) 
 
 # Hessian computation wrapper
-function computehessian(f, x)
+function computehessian(f, x::AbstractArray)
     result = DiffResults.HessianResult(x)
     result = ForwardDiff.hessian!(result, f, x)
     return DiffResults.value(result), DiffResults.gradient(result), DiffResults.hessian(result)
 end
+
+computehessian(f, x::T) where T <: Number = map(first, computehessian(f ∘ first, SVector{1, T}(x)))
 
 # Automatic computation of the cost, gradient and Hessian
 function computecostgradhess(varflags, cost::AbstractCost, vars...)
