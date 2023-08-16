@@ -8,7 +8,7 @@ export EuclideanVector, ZeroToInfScalar, ZeroToOneScalar # Concrete general vari
 export Rotation3DR, Rotation3DL, Point3D, Pose3D, EffPose3D, UnitPose3D # Concrete 3D geometry variable types
 export SimpleCamera, NoDistortionCamera, ExtendedUnifiedCamera, BarrelDistortion, EULensDistortion # Concrete camera sensor & lens variable types
 # Functions
-export addresidual!, addvariable!, subproblem, nvars, nres # Construct a problem
+export addcost!, addvariable!, subproblem, nvars, nres # Construct a problem
 export update, nvars # Variable interface
 export nres, ndeps, varindices, getvars # Residual interface 
 export cost, computeresidual, computeresjac, computecost, computecostgradhess # Compute the objective
@@ -17,9 +17,10 @@ export rodrigues, project, epipolarerror, proj2orthonormal # Multi-view geometry
 export ideal2image, image2ideal, pixel2image, image2pixel, ideal2distorted, distorted2ideal, convertlens
 
 # Exported abstract types
-abstract type AbstractCost end
-abstract type AbstractResidual <: AbstractCost end
-abstract type AbstractRobustifier end
+abstract type AbstractCost end  # Standard (non-squared) cost
+abstract type AbstractResidual <: AbstractCost end # Squared (or robustified squared) cost
+abstract type AbstractRobustifier end # Robustifier with fixed parameters
+abstract type AbstractAdaptiveRobustifier <: AbstractRobustifier end # Robustifier with variable parameters
 
 # Constants
 const MAX_ARGS = 10 # Maximum number of variables a residual can depend on
@@ -45,6 +46,7 @@ include("linearsystem.jl")
 include("structs.jl")
 
 # Optimization
+include("residual.jl")
 include("marginalize.jl")
 include("robust.jl")
 include("autodiff.jl")

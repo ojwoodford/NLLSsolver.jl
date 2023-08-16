@@ -64,7 +64,7 @@ end
 ndeps(::AdaptiveKernelPartitionNegLog) = static(1) # The residual depends on one variable
 varindices(cost::AdaptiveKernelPartitionNegLog) = cost.varind
 computecost(cost::AdaptiveKernelPartitionNegLog, kernel::AdaptiveKernel) = 0.1
-computecostgradhess(varflags, cost::AdaptiveKernelPartitionNegLog, kernel::AdaptiveKernel) = (0.1, 1.0, nothing)
+computecostgradhess(varflags, cost::AdaptiveKernelPartitionNegLog, kernel::AdaptiveKernel) = (0.1, 1.0, 0.0)
 getvars(cost::AdaptiveKernelPartitionNegLog, vars::Vector) = (vars[cost.varind]::AdaptiveKernel,)
 Base.eltype(::AdaptiveKernelPartitionNegLog{T}) where T = T
 

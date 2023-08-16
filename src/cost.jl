@@ -6,23 +6,6 @@ cost(problem::NLLSProblem) = cost(problem.variables, problem.costs)
 cost(vars::Vector, costs::CostStruct)::Float64 = sum(Base.Fix1(computecost, vars), costs)
 computecost(vars::Vector, cost::AbstractCost)::Float64 = computecost(cost, getvars(cost, vars)...)
 
-function computecost(residual::AbstractResidual, vars...)::Float64
-    # Compute the residual
-    r = computeresidual(residual, vars...)
-    
-    # Compute the robustified cost
-    return 0.5 * robustify(robustkernel(residual), Float64(r' * r))[1]
-end
-
-
-function getoffsets(residual, linsystem::MultiVariateLS)
-    return linsystem.blockindices[varindices(residual)]
-end
-
-function getoffsets(residual, linsystem::UniVariateLS)
-    return convert.(UInt, SVector(varindices(residual)) .== linsystem.varindex)
-end
-
 function gradhesshelper!(linsystem, costblock::AbstractCost, vars, blockind, varflags)::Float64
     # Compute the residual
     c, g, H = computecostgradhess(varflags, costblock, vars...)
@@ -32,37 +15,6 @@ function gradhesshelper!(linsystem, costblock::AbstractCost, vars, blockind, var
 
     # Return the cost
     return c
-end
-
-function gradhesshelper!(linsystem, residual::AbstractResidual, vars, blockind, varflags)::Float64
-    # Compute the residual
-    res, jac = computeresjac(varflags, residual, vars...)
-
-    # Compute the robustified cost and the IRLS weight
-    c, w1, w2 = robustify(robustkernel(residual), res' * res)
-
-    # If this residual has a weight...
-    if w1 != 0    
-        # Compute the unrobust gradient and Hessian
-        g = jac' * res
-        H = jac' * jac
-        # Check for robust case
-        if w1 != 1
-            # IRLS reweighting of Hessian
-            H *= w1
-            if w2 < 0
-                # Second order correction
-                H += ((2 * w2) * g) * g'
-            end
-            # IRLS reweighting of gradient
-            g *= w1
-        end
-        # Update the blocks in the problem
-        updatesymlinearsystem!(linsystem, g, H, vars, varflags, blockind)
-    end
-
-    # Return the cost
-    return 0.5 * c
 end
 
 # Compute the variable flags indicating which variables are unfixed (i.e. to be optimized)

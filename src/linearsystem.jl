@@ -229,3 +229,15 @@ function zero!(linsystem)
     fill!(linsystem.b, 0)
     zero!(linsystem.A)
 end
+
+function getoffsets(block, linsystem::MultiVariateLS)
+    return linsystem.blockindices[varindices(block)]
+end
+
+function getoffsets(block, linsystem::UniVariateLS)
+    varind = varindices(block)
+    if isa(varind, Number)
+        return SVector(UInt(varind == linsystem.varindex))
+    end
+    return convert.(UInt, varind .== linsystem.varindex)
+end
