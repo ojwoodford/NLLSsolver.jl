@@ -1,4 +1,5 @@
 import ForwardDiff, DiffResults
+using Static
 
 # Decision on whether to use static-sized autodiff - compile-time decision where possible
 function usestatic(varflags::StaticInt, vars)
@@ -13,7 +14,7 @@ function usestatic(varflags::StaticInt, vars)
             totalnumvars += nvi
         end
     end
-    if totalnumvars > static(MAX_STATIC_VAR)
+    if totalnumvars > MAX_STATIC_VAR
         return false
     end
     return true
@@ -104,48 +105,35 @@ end
 
 computeresjachelper(varflags, residual, vars, x) = computeresidual(residual, updatevars(vars, varflags, x)...) 
 
-# Automatic gradient computation
-@inline computecostgradhess(varflags, cost, vars...) = usestatic(varflags, vars) ? computegradstatic(varflags, cost, vars) : computegraddynamic(varflags, cost, vars)
-
-# Automatic statically-sized gradient computation
-function computegradstatic(varflags::StaticInt, cost::AbstractCost, vars)
-    # Perform static (i.e. fixed size vector) auto-differentiation
-    @assert eltype(cost)!=Any "Define Base.eltype() for your cost type"
-
-    # Construct ForwardDiff Dual arguments for the unfixed variables
-    xdual = dualvars(vars, varflags, eltype(cost))
-    
-    # Compute the cost with ForwardDiff Duals
-    ydual = computecost(cost, xdual...)
-
-    # Return the cost and gradient
-    result = extractvaldual(ydual)
-    N = Size(result[2])[2]
-    return result[1], result[2], zeros(SMatrix{N, N, eltype(result[2]), N*N})
+# Hessian computation wrapper
+function computehessian(f, x)
+    result = DiffResults.HessianResult(x)
+    result = ForwardDiff.hessian!(result, f, x)
+    return DiffResults.value(result), DiffResults.gradient(result), DiffResults.hessian(result)
 end
 
-# Automatic dynamically-sized gradient computation
-function computegraddynamic(varflags, cost::AbstractCost, vars)
+# Automatic computation of the cost, gradient and Hessian
+function computecostgradhess(varflags, cost::AbstractCost, vars...)
     # Perform dynamic (i.e. variable size vector) auto-differentiation
     @assert eltype(cost)!=Any "Define Base.eltype() for your residual type"
 
     # Compute the number of free variables
     N = ndeps(cost)
-    totalnumvars = 0
+    totalnumvars = static(0)
     @unroll for i in 1:MAX_ARGS
         if i <= N
-            totalnumvars += ifelse(bitiset(varflags, i), dynamic(nvars(vars[i])), 0)
+            totalnumvars += ifelse(bitiset(varflags, i), nvars(vars[i]), static(0))
         end
     end
 
-    # Use the ForwardDiff API to compute the gradient
-    x = zeros(eltype(cost), totalnumvars)
-    result = DiffResults.GradientResult(x)
-    result = ForwardDiff.gradient!(result, fixallbutlast(computegradhelper, varflags, cost, vars), x)
+    # Construct the cost function that updates the variables
+    costfunc = fixallbutlast(computegradhesshelper, varflags, cost, vars)
 
-    # Return the value and gradient
-    grad = DiffResults.gradient(result)
-    return DiffResults.value(result), grad, zeros(eltype(grad), length(grad), length(grad))
+    # Compute hessian with either static or dynamic array
+    if dynamic(is_static(totalnumvars)) && totalnumvars <= MAX_STATIC_VAR
+        return computehessian(costfunc, zeros(SVector{dynamic(totalnumvars), eltype(cost)}))
+    end
+    return computehessian(costfunc, zeros(eltype(cost), dynamic(totalnumvars)))
 end
 
-computegradhelper(varflags, residual, vars, x) = computecost(residual, updatevars(vars, varflags, x)...)
+computegradhesshelper(varflags, residual, vars, x) = computecost(residual, updatevars(vars, varflags, x)...)
