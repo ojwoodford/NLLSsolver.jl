@@ -15,7 +15,7 @@ function computecostgradhess(varflags, residual::AbstractResidual, vars...)
     H = jac' * jac
 
     # Compute the robustified cost and the IRLS weight
-    c, w1, w2 = robustifyd(robustkernel(residual), res' * res)
+    c, w1, w2 = robustifydcost(robustkernel(residual), res' * res)
 
     # Check for robust case
     if w1 != 1
