@@ -25,7 +25,7 @@ struct ZeroToInfScalar{T}
     val::T
 end
 nvars(::ZeroToInfScalar) = static(1)
-update(var::ZeroToInfScalar, updatevec, start=1) = ZeroToInfScalar((var.val > 0 ? var.val : floatmin(var.val)) * exp(updatevec[start]))
+update(var::ZeroToInfScalar, updatevec, start=1) = ZeroToInfScalar(ifelse(var.val > 0, var.val, floatmin(var.val)) * exp(updatevec[start]))
 
 # A scalar in the range zero to one
 struct ZeroToOneScalar{T}
@@ -33,6 +33,6 @@ struct ZeroToOneScalar{T}
 end
 nvars(::ZeroToOneScalar) = static(1)
 function update(var::ZeroToOneScalar, updatevec, start=1)
-    val = (var.val > 0 ? var.val : floatmin(var.val)) * exp(updatevec[start])
-    return ZeroToOneScalar(val < Inf ? val / (1 + (val - var.val)) : one(val))
+    val = ifelse(var.val > 0, var.val, floatmin(var.val)) * exp(updatevec[start])
+    return ZeroToOneScalar(ifelse(val < Inf, val / (1 + (val - var.val)), one(val)))
 end
