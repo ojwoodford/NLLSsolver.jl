@@ -57,13 +57,3 @@ function robustifyd(kernel::GemanMcclureKernel, cost)
     w2 = w * w
     return cost * w, w2, -2 * w2 * r
 end
-
-# function displaykernel(kernel, maxval=1)
-#     x = range(0, maxval, 1000)
-#     cost = x .^ 2
-#     weight = similar(cost)
-#     for (ind, c) in enumerate(cost)
-#         cost[ind], weight[ind], = robustify(kernel, c)
-#     end
-#     plot(x, [cost, weight])
-# end
