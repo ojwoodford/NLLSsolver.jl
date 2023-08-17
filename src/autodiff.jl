@@ -21,6 +21,28 @@ function usestatic(varflags::StaticInt, vars)
 end
 usestatic(varflags, vars) = false
 
+# Count the number of variables across all unfixed variable blocks
+function computetotalnumvars(varflags::StaticInt, vars)
+    N = length(vars)
+    totalnumvars = static(0)
+    @unroll for i in 1:MAX_ARGS
+        if i <= N && bitiset(varflags, i)
+            totalnumvars += nvars(vars[i])
+        end
+    end
+    return totalnumvars
+end
+function computetotalnumvars(varflags, vars)
+    N = length(vars)
+    totalnumvars = 0
+    @unroll for i in 1:MAX_ARGS
+        if i <= N
+            totalnumvars += ifelse(bitiset(varflags, i), dynamic(nvars(vars[i])), 0)
+        end
+    end
+    return totalnumvars
+end
+
 # Construct a vector of duals with zero values and one partial derivative set to 1
 @generated function singleseed(::Type{T}, ::Val{N}, ::Val{i}) where {T, N, i}
     return ForwardDiff.Partials{N, T}(tuple([T(i == j) for j in 1:N]...))
@@ -76,13 +98,7 @@ function computeresjacdynamic(varflags, residual::AbstractResidual, vars)
     @assert eltype(residual)!=Any "Define Base.eltype() for your residual type"
 
     # Compute the number of free variables
-    N = ndeps(residual)
-    totalnumvars = 0
-    @unroll for i in 1:MAX_ARGS
-        if i <= N
-            totalnumvars += ifelse(bitiset(varflags, i), dynamic(nvars(vars[i])), 0)
-        end
-    end
+    totalnumvars = computetotalnumvars(varflags, vars)
 
     # Use the ForwardDiff API to compute the jacobian
     M = nres(residual)
@@ -130,13 +146,7 @@ function computecostgradhess(varflags, cost::AbstractCost, vars...)
     @assert eltype(cost)!=Any "Define Base.eltype() for your residual type"
 
     # Compute the number of free variables
-    N = ndeps(cost)
-    totalnumvars = static(0)
-    @unroll for i in 1:MAX_ARGS
-        if i <= N
-            totalnumvars += ifelse(bitiset(varflags, i), nvars(vars[i]), static(0))
-        end
-    end
+    totalnumvars = computetotalnumvars(varflags, vars)
 
     # Construct the cost function that updates the variables
     costfunc = fixallbutlast(computegradhesshelper, varflags, cost, vars)
