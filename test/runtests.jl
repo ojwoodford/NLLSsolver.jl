@@ -5,6 +5,7 @@ using Test
     include("geometry.jl")
     include("BlockSparseMatrix.jl")
     include("VectorRepo.jl")
+    include("robust.jl")
     include("linearsolve.jl")
     include("functional.jl")
     include("dynamicvars.jl")

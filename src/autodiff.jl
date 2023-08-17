@@ -140,3 +140,7 @@ function computecostgradhess(varflags, cost::AbstractCost, vars...)
 end
 
 computegradhesshelper(varflags, residual, vars, x) = computecost(residual, updatevars(vars, varflags, x)...)
+
+@inline autorobustifyd(kernel::AbstractRobustifier, cost) = computehessian(Base.Fix1(robustify, kernel), cost)
+@inline autorobustifydd(kernel::AbstractAdaptiveRobustifier, cost) = computehessian(fixallbutlast(computerobustgradhesshelper, kernel, cost), zeros(SVector{nvars(residual)+1, T}))
+computerobustgradhesshelper(kernel, cost, x) = robustify(update(kernel, x), cost+x[end])

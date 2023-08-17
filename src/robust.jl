@@ -9,8 +9,8 @@ robustkernel(::AbstractResidual) = NoRobust()
 @inline robustify(::NoRobust, cost) = cost
 @inline robustifyd(::NoRobust, cost) = cost, one(cost), zero(cost)
 
-@inline autorobustifyd(kernel::AbstractRobustifier, cost) = computehessian(Base.Fix1(robustify, kernel), cost)
 robustifyd(kernel::AbstractRobustifier, cost) = autorobustifyd(kernel, cost)
+robustifydd(kernel::AbstractAdaptiveRobustifier, cost) = autorobustifydd(kernel, cost)
 
 struct Scaled{T<:Real,Robustifier<:AbstractRobustifier} <: AbstractRobustifier
     robust::Robustifier
@@ -52,8 +52,10 @@ GemanMcclureKernel(w::T) where T = GemanMcclureKernel{T}(w)
 
 robustify(kernel::GemanMcclureKernel, cost) = cost * kernel.width_squared / (cost + kernel.width_squared)
 function robustifyd(kernel::GemanMcclureKernel, cost)
-    w = kernel.width_squared / (cost + kernel.width_squared)
-    return cost * w, w * w, zero(cost)
+    r = 1.0 / (cost + kernel.width_squared)
+    w = kernel.width_squared * r
+    w2 = w * w
+    return cost * w, w2, -2 * w2 * r
 end
 
 # function displaykernel(kernel, maxval=1)
