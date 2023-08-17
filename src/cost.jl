@@ -52,7 +52,7 @@ function resjachelper!(linsystem, residual::AbstractResidual, vars, blockind, in
     res, jac = computeresjac(varflags, residual, vars...)
 
     # Compute the robustified cost and the IRLS weight
-    c, w1, = robustifyd(robustkernel(residual), res' * res)
+    c, w1, = robustifydcost(robustkernel(residual), res' * res)
 
     # If this residual has a weight...
     if w1 != 0    

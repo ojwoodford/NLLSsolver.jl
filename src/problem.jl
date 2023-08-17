@@ -69,14 +69,16 @@ end
 
 function addcost!(problem::NLLSProblem, cost::Cost) where Cost <: AbstractCost
     # Sanity checks
+    N = ndeps(cost)
+    @assert isa(N, StaticInt) && N>0 && N<=MAX_ARGS "Problem with ndeps()"
+    @assert length(varindices(cost))==N "Problem with varindices()"
+    vars = getvars(cost, problem.variables)
+    @assert length(vars)==N "Problem with getvars()"
+    @assert (!(Cost <: AbstractAdaptiveResidual) || isa(vars[1], AbstractAdaptiveRobustifier)) "Adaptive residual without adaptive robustifier"
     if Cost <: AbstractResidual
         M = nres(cost)
         @assert (isa(M, Integer) || isa(M, StaticInt)) && M>0 "Problem with nres()"
     end
-    N = ndeps(cost)
-    @assert isa(N, StaticInt) && N>0 && N<=MAX_ARGS "Problem with ndeps()"
-    @assert length(varindices(cost))==N "Problem with varindices()"
-    @assert length(getvars(cost, problem.variables))==N "Problem with getvars()"
     # Add to the problem
     push!(problem.costs, cost)
     return nothing

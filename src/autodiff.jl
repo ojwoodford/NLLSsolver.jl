@@ -115,6 +115,15 @@ end
 
 computehessian(f, x::T) where T <: Number = map(first, computehessian(f ∘ first, SVector{1, T}(x)))
 
+# Gradient computation wrapper
+function computegradient(f, x::AbstractArray)
+    result = DiffResults.GradientResult(x)
+    result = ForwardDiff.gradient!(result, f, x)
+    return DiffResults.value(result), DiffResults.gradient(result)
+end
+
+computegradient(f, x::T) where T <: Number = map(first, computegradient(f ∘ first, SVector{1, T}(x)))
+
 # Automatic computation of the cost, gradient and Hessian
 function computecostgradhess(varflags, cost::AbstractCost, vars...)
     # Perform dynamic (i.e. variable size vector) auto-differentiation
@@ -141,6 +150,6 @@ end
 
 computegradhesshelper(varflags, residual, vars, x) = computecost(residual, updatevars(vars, varflags, x)...)
 
-@inline autorobustifyd(kernel::AbstractRobustifier, cost) = computehessian(Base.Fix1(robustify, kernel), cost)
-@inline autorobustifydd(kernel::AbstractAdaptiveRobustifier, cost) = computehessian(fixallbutlast(computerobustgradhesshelper, kernel, cost), zeros(SVector{nvars(residual)+1, T}))
+@inline autorobustifydcost(kernel::AbstractRobustifier, cost) = computehessian(Base.Fix1(robustify, kernel), cost)
+@inline autorobustifydkernel(kernel::AbstractAdaptiveRobustifier, cost::T) where T = computehessian(fixallbutlast(computerobustgradhesshelper, kernel, cost), zeros(SVector{nvars(kernel)+1, T}))
 computerobustgradhesshelper(kernel, cost, x) = robustify(update(kernel, x), cost+x[end])

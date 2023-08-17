@@ -4,6 +4,7 @@ module NLLSsolver
 export AbstractCost, AbstractResidual, AbstractRobustifier # Abstract problem definition types
 export NLLSProblem, NLLSOptions, NLLSResult, NLLSIterator # Concrete problem & solver types
 export AbstractRobustifier, NoRobust, Scaled, HuberKernel, Huber2oKernel, GemanMcclureKernel # Robustifiers
+export ContaminatedGaussian # Adaptive robustifiers
 export EuclideanVector, ZeroToInfScalar, ZeroToOneScalar # Concrete general variables
 export Rotation3DR, Rotation3DL, Point3D, Pose3D, EffPose3D, UnitPose3D # Concrete 3D geometry variable types
 export SimpleCamera, NoDistortionCamera, ExtendedUnifiedCamera, BarrelDistortion, EULensDistortion # Concrete camera sensor & lens variable types
@@ -11,7 +12,7 @@ export SimpleCamera, NoDistortionCamera, ExtendedUnifiedCamera, BarrelDistortion
 export addcost!, addvariable!, subproblem, nvars, nres # Construct a problem
 export update, nvars # Variable interface
 export nres, ndeps, varindices, getvars # Residual interface
-export robustkernel, robustify, robustifyd # Robustifier interface
+export robustkernel, robustify, robustifydcost, robustifydkernel # Robustifier interface
 export cost, computeresidual, computeresjac, computecost, computecostgradhess # Compute the objective
 export optimize!  # Optimize the objective
 export rodrigues, project, epipolarerror, proj2orthonormal # Multi-view geometry helper functions
@@ -51,6 +52,7 @@ include("structs.jl")
 include("residual.jl")
 include("marginalize.jl")
 include("robust.jl")
+include("robustadaptive.jl")
 include("autodiff.jl")
 include("cost.jl")
 include("linearsolver.jl")
