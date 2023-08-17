@@ -26,7 +26,8 @@ usestatic(varflags, vars) = false
     return ForwardDiff.Partials{N, T}(tuple([T(i == j) for j in 1:N]...))
 end
 @generated function dualzeros(::Type{T}, ::Val{N}, ::Val{First}, ::Val{Last}) where {T, N, First, Last}
-    return SVector{Last-First+1, ForwardDiff.Dual{T, T, N}}(tuple([ForwardDiff.Dual{T, T, N}(zero(T), singleseed(T, Val(N), Val(i))) for i in First:Last]...))
+    TG = ForwardDiff.Tag(computeresidual, T)
+    return SVector{Last-First+1, ForwardDiff.Dual{TG, T, N}}(tuple([ForwardDiff.Dual{TG, T, N}(zero(T), singleseed(T, Val(N), Val(i))) for i in First:Last]...))
 end
 dualzeros(T, N) = dualzeros(T, N, Val(1), N)
 
@@ -44,12 +45,12 @@ end
 end
 
 # Extract the residual and jacobian from duals to static arrays
-@generated function extractvaldual(dual::SVector{M, ForwardDiff.Dual{T, T, N}}) where {T, M, N}
+@generated function extractvaldual(dual::SVector{M, ForwardDiff.Dual{TG, T, N}}) where {TG, T, M, N}
     res = Expr(:tuple, [:(ForwardDiff.value(dual[$i])) for i in 1:M]...)
-    jac = Expr(:tuple, [:(ForwardDiff.partials($T, dual[$i], $j)) for i in 1:M, j in 1:N]...)
+    jac = Expr(:tuple, [:(ForwardDiff.partials(dual[$i], $j)) for i in 1:M, j in 1:N]...)
     return :(SVector{$M, $T}($res), SMatrix{$M, $N, $T, $M*$N}($jac))
 end
-extractvaldual(dual::ForwardDiff.Dual{T, T, N}) where {T, N} = ForwardDiff.value(dual), SVector{N, T}(dual.partials.values...)'
+extractvaldual(dual::ForwardDiff.Dual{TG, T, N}) where {TG, T, N} = ForwardDiff.value(dual), SVector{N, T}(dual.partials.values...)'
 
 # Automatic Jacobian computation
 @inline computeresjac(varflags, residual, vars...) = usestatic(varflags, vars) ? computeresjacstatic(varflags, residual, vars) : computeresjacdynamic(varflags, residual, vars)
