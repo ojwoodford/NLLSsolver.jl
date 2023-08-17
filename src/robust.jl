@@ -5,23 +5,21 @@ using Static
 struct NoRobust <: AbstractRobustifier
 end
 
-function robustify(::NoRobust, cost::T) where T
-    return cost, T(1), T(0)
-end
+robustkernel(::AbstractResidual) = NoRobust()
+@inline robustify(::NoRobust, cost) = cost
+@inline robustifyd(::NoRobust, cost) = cost, one(cost), zero(cost)
 
-function robustkernel(::AbstractResidual)
-    return NoRobust()
-end
-
+@inline autorobustifyd(kernel::AbstractRobustifier, cost) = computehessian(Base.Fix1(robustify, kernel), cost)
+robustifyd(kernel::AbstractRobustifier, cost) = autorobustifyd(kernel, cost)
 
 struct Scaled{T<:Real,Robustifier<:AbstractRobustifier} <: AbstractRobustifier
     robust::Robustifier
     height::T
 end
-robustify(kernel::Scaled{Real, NoRobust}, cost) = cost * kernel.height, kernel.height, zero(cost)
-
-function robustify(kernel::Scaled, cost)
-    c, d1, d2 = robustify(kernel.robust, cost)
+robustify(kernel::Scaled, cost) = robustify(kernel.robust, cost) * kernel.height
+robustifyd(kernel::Scaled{Real, NoRobust}, cost) = cost * kernel.height, kernel.height, zero(cost)
+function robustifyd(kernel::Scaled, cost)
+    c, d1, d2 = robustifyd(kernel.robust, cost)
     return c * kernel.height, d1 * kernel.height, d2 * kernel.height
 end
 
@@ -34,7 +32,8 @@ end
 HuberKernel(w) = HuberKernel(w, w*w, static(false))
 Huber2oKernel(w) = HuberKernel(w, w*w, static(true))
 
-function robustify(kernel::HuberKernel, cost)
+robustify(kernel::HuberKernel, cost) = cost < kernel.width_squared ? cost : sqrt(cost) * (kernel.width * 2) - kernel.width_squared
+function robustifyd(kernel::HuberKernel, cost)
     if cost < kernel.width_squared
         return cost, one(cost), zero(cost)
     end
@@ -51,23 +50,11 @@ struct GemanMcclureKernel{T<:Real} <: AbstractRobustifier
 end
 GemanMcclureKernel(w::T) where T = GemanMcclureKernel{T}(w)
 
-function robustify(kernel::GemanMcclureKernel{T}, cost) where T
+robustify(kernel::GemanMcclureKernel, cost) = cost * kernel.width_squared / (cost + kernel.width_squared)
+function robustifyd(kernel::GemanMcclureKernel, cost)
     w = kernel.width_squared / (cost + kernel.width_squared)
-    return cost * w, w * w, T(0)
+    return cost * w, w * w, zero(cost)
 end
-
-struct AdaptiveKernel <: AbstractRobustifier
-end
-struct AdaptiveKernelPartitionNegLog{T} <: AbstractCost
-    varind::Int
-end
-ndeps(::AdaptiveKernelPartitionNegLog) = static(1) # The residual depends on one variable
-varindices(cost::AdaptiveKernelPartitionNegLog) = cost.varind
-computecost(cost::AdaptiveKernelPartitionNegLog, kernel::AdaptiveKernel) = 0.1
-computecostgradhess(varflags, cost::AdaptiveKernelPartitionNegLog, kernel::AdaptiveKernel) = (0.1, 1.0, 0.0)
-getvars(cost::AdaptiveKernelPartitionNegLog, vars::Vector) = (vars[cost.varind]::AdaptiveKernel,)
-Base.eltype(::AdaptiveKernelPartitionNegLog{T}) where T = T
-
 
 # function displaykernel(kernel, maxval=1)
 #     x = range(0, maxval, 1000)

@@ -3,14 +3,15 @@ module NLLSsolver
 # Types
 export AbstractCost, AbstractResidual, AbstractRobustifier # Abstract problem definition types
 export NLLSProblem, NLLSOptions, NLLSResult, NLLSIterator # Concrete problem & solver types
-export AbstractRobustifier, NoRobust, HuberKernel, GemanMcclureKernel # Robustifiers
+export AbstractRobustifier, NoRobust, Scaled, HuberKernel, GemanMcclureKernel # Robustifiers
 export EuclideanVector, ZeroToInfScalar, ZeroToOneScalar # Concrete general variables
 export Rotation3DR, Rotation3DL, Point3D, Pose3D, EffPose3D, UnitPose3D # Concrete 3D geometry variable types
 export SimpleCamera, NoDistortionCamera, ExtendedUnifiedCamera, BarrelDistortion, EULensDistortion # Concrete camera sensor & lens variable types
 # Functions
 export addcost!, addvariable!, subproblem, nvars, nres # Construct a problem
 export update, nvars # Variable interface
-export nres, ndeps, varindices, getvars # Residual interface 
+export nres, ndeps, varindices, getvars # Residual interface
+export robustkernel, robustify, robustifyd # Robustifier interface
 export cost, computeresidual, computeresjac, computecost, computecostgradhess # Compute the objective
 export optimize!  # Optimize the objective
 export rodrigues, project, epipolarerror, proj2orthonormal # Multi-view geometry helper functions
@@ -19,6 +20,7 @@ export ideal2image, image2ideal, pixel2image, image2pixel, ideal2distorted, dist
 # Exported abstract types
 abstract type AbstractCost end  # Standard (non-squared) cost
 abstract type AbstractResidual <: AbstractCost end # Squared (or robustified squared) cost
+abstract type AbstractAdaptiveResidual <: AbstractCost end # Squared cost with adaptive robustifier
 abstract type AbstractRobustifier end # Robustifier with fixed parameters
 abstract type AbstractAdaptiveRobustifier <: AbstractRobustifier end # Robustifier with variable parameters
 

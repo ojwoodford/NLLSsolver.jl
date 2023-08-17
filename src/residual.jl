@@ -3,7 +3,7 @@ function computecost(residual::AbstractResidual, vars...)::Float64
     r = computeresidual(residual, vars...)
     
     # Compute the robustified cost
-    return 0.5 * robustify(robustkernel(residual), Float64(r' * r))[1]
+    return 0.5 * robustify(robustkernel(residual), Float64(r' * r))
 end
 
 function computecostgradhess(varflags, residual::AbstractResidual, vars...)
@@ -15,7 +15,7 @@ function computecostgradhess(varflags, residual::AbstractResidual, vars...)
     H = jac' * jac
 
     # Compute the robustified cost and the IRLS weight
-    c, w1, w2 = robustify(robustkernel(residual), res' * res)
+    c, w1, w2 = robustifyd(robustkernel(residual), res' * res)
 
     # Check for robust case
     if w1 != 1
@@ -30,5 +30,5 @@ function computecostgradhess(varflags, residual::AbstractResidual, vars...)
     end
 
     # Return the cost
-    return 0.5 * c, g, H
+    return 0.5 * Float64(c), g, H
 end
