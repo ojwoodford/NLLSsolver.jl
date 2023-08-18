@@ -58,5 +58,12 @@ Base.eltype(::RosenbrockB) = Float64
         # Check the result
         @test isapprox(problem.variables[1], 1.0; rtol=1.e-10)
         @test isapprox(problem.variables[2], 1.0; rtol=1.e-10)
-    end    
+    end
+
+    # Test standard gradient descent (a worse optimizer, so needs a closer starting point)
+    problem.variables[1] = 1.0 - 1.e-5
+    problem.variables[2] = 1.0
+    result = NLLSsolver.optimize!(problem, NLLSsolver.NLLSOptions(iterator=NLLSsolver.gradientdescent))
+    @test isapprox(problem.variables[1], 1.0; rtol=1.e-4)
+    @test isapprox(problem.variables[2], 1.0; rtol=1.e-4)
 end
