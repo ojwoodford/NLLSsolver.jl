@@ -1,3 +1,4 @@
+using Static, StaticArrays
 
 struct ContaminatedGaussian{T<:Real} <: AbstractAdaptiveRobustifier
     invsigma1::ZeroToInfScalar{T}
@@ -19,6 +20,7 @@ end
 ContaminatedGaussian(s1::T, s2::T, w::T) where T <: Real = ContaminatedGaussian(ZeroToInfScalar{T}(1.0/s1), ZeroToInfScalar{T}(1.0/s2), ZeroToOneScalar{T}(w))
 nvars(::ContaminatedGaussian) = static(3)
 update(var::ContaminatedGaussian, updatevec, start=1) = ContaminatedGaussian(update(var.invsigma1, updatevec, start), update(var.invsigma2, updatevec, start+1), update(var.w, updatevec, start+2))
+params(var::ContaminatedGaussian) = SVector(1.0 / var.invsigma1.val, 1.0 / var.invsigma2.val, var.w.val)
 
 function robustify(kernel::ContaminatedGaussian, cost)
     c = cost * kernel.halfs2sq
@@ -32,16 +34,16 @@ function robustifydcost(kernel::ContaminatedGaussian, cost)
     s *= kernel.halfs2sqminuss1sq
     return c + log(den), kernel.halfs2sq - s * den, -s * kernel.halfs2sqminuss1sq * t * den * den
 end
-function robustifydkernel(kernel::ContaminatedGaussian, cost)
-    c = cost * kernel.halfs2sq
-    ex = exp(cost * kernel.halfs2sqminuss1sq)
-    wex = kernel.w.val * ex
-    swex = wex * kernel.invsigma1.val
-    oneminusw = 1 - kernel.w.val
-    tw = oneminusw * kernel.invsigma2.val
-    den = 1 / (swex + tw)
-    s = swex * kernel.halfs2sqminuss1sq
-    return c + log(den), # Value
-           SVector{4}(wex * (kernel.s1sq * cost - 1) * den, oneminusw * (2 * c - 1) * den, (kernel.invsigma2.val - kernel.invsigma1.val * ex) * den, kernel.halfs2sq - s * den), # Gradient
-           zeros(SMatrix{4, 4})
-end
+# function robustifydkernel(kernel::ContaminatedGaussian, cost)
+#     c = cost * kernel.halfs2sq
+#     ex = exp(cost * kernel.halfs2sqminuss1sq)
+#     wex = kernel.w.val * ex
+#     swex = wex * kernel.invsigma1.val
+#     oneminusw = 1 - kernel.w.val
+#     tw = oneminusw * kernel.invsigma2.val
+#     den = 1 / (swex + tw)
+#     s = swex * kernel.halfs2sqminuss1sq
+#     return c + log(den), # Value
+#            SVector{4}(wex * (kernel.s1sq * cost - 1) * den, oneminusw * (2 * c - 1) * den, (kernel.invsigma2.val - kernel.invsigma1.val * ex) * den, kernel.halfs2sq - s * den), # Gradient
+#            zeros(SMatrix{4, 4})
+# end

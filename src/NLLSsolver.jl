@@ -21,7 +21,7 @@ export ideal2image, image2ideal, pixel2image, image2pixel, ideal2distorted, dist
 # Exported abstract types
 abstract type AbstractCost end  # Standard (non-squared) cost
 abstract type AbstractResidual <: AbstractCost end # Squared (or robustified squared) cost
-abstract type AbstractAdaptiveResidual <: AbstractCost end # Squared cost with adaptive robustifier
+abstract type AbstractAdaptiveResidual <: AbstractResidual end # Squared cost with adaptive robustifier
 abstract type AbstractRobustifier end # Robustifier with fixed parameters
 abstract type AbstractAdaptiveRobustifier <: AbstractRobustifier end # Robustifier with variable parameters
 

@@ -10,5 +10,6 @@ using Test
     include("functional.jl")
     include("dynamicvars.jl")
     include("nonsquaredcost.jl")
+    include("adaptivecost.jl")
     include("marginalize.jl")
 end
