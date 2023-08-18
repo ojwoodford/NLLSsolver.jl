@@ -1,6 +1,3 @@
-using Static
-# import Plots.plot
-
 # Robustification
 struct NoRobust <: AbstractRobustifier
 end
