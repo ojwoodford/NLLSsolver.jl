@@ -22,10 +22,7 @@ nvars(::ContaminatedGaussian) = static(3)
 update(var::ContaminatedGaussian, updatevec, start=1) = ContaminatedGaussian(update(var.invsigma1, updatevec, start), update(var.invsigma2, updatevec, start+1), update(var.w, updatevec, start+2))
 params(var::ContaminatedGaussian) = SVector(1.0 / var.invsigma1.val, 1.0 / var.invsigma2.val, var.w.val)
 
-function robustify(kernel::ContaminatedGaussian, cost)
-    c = cost * kernel.halfs2sq
-    return c - log(kernel.w.val * kernel.invsigma1.val * exp(cost * kernel.halfs2sqminuss1sq) + (1 - kernel.w.val) * kernel.invsigma2.val)
-end
+robustify(kernel::ContaminatedGaussian, cost) = cost * kernel.halfs2sq - log(kernel.w.val * kernel.invsigma1.val * exp(cost * kernel.halfs2sqminuss1sq) + (1 - kernel.w.val) * kernel.invsigma2.val)
 function robustifydcost(kernel::ContaminatedGaussian, cost)
     c = cost * kernel.halfs2sq
     s = kernel.w.val * kernel.invsigma1.val * exp(cost * kernel.halfs2sqminuss1sq)

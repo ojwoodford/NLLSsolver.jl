@@ -33,5 +33,5 @@ Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
 VisualGeometryDatasets = "962a53e2-84f2-440b-bfbc-4e96ec28357f"
 
 [targets]
-examples = ["VisualGeometryDatasets", "GLMakie"]
+examples = ["GLMakie", "VisualGeometryDatasets"]
 test = ["Test", "Random"]

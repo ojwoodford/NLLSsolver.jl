@@ -22,13 +22,13 @@ function constructrosenbrockprob()
     return problem
 end
 
-function computeCostGrid(residuals, X, Y)
+function computeCostGrid(costs, X, Y)
     grid = Matrix{Float64}(undef, length(Y), length(X))
     vars = [SVector(0.0, 0.0)]
     for (b, y) in enumerate(Y)
         for (a, x) in enumerate(X)
             vars[1] = SVector(x, y)
-            grid[a,b] = NLLSsolver.cost(vars, residuals)
+            grid[a,b] = NLLSsolver.cost(vars, costs)
         end
     end
     return grid
@@ -73,7 +73,7 @@ function optimize2DProblem(problem, start, xrange, yrange; iterators=[NLLSsolver
     runoptimizers!(results, problem, start, iterators)
 
     # Compute costs over a grid
-    grid = computeCostGrid(problem.residuals, xrange, yrange)
+    grid = computeCostGrid(problem.costs, xrange, yrange)
     minval = minimum(grid)
     grid = map(x -> log1p(x - minval), grid)
 

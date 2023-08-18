@@ -17,11 +17,9 @@ Base.eltype(::SimpleResidual) = Float64
     NLLSsolver.addvariable!(problem, ContaminatedGaussian(0.5, 5.0, 0.6))
     NLLSsolver.addvariable!(problem, 0.)
     Random.seed!(1)
-    for ind = 1:800
-        NLLSsolver.addcost!(problem, SimpleResidual(1 + randn()))
-    end
-    for ind = 1:200
-        NLLSsolver.addcost!(problem, SimpleResidual(1 + 10 * randn()))
+    points = vcat(randn(800), randn(200) * 10.0) .+ 1
+    for p in points
+        NLLSsolver.addcost!(problem, SimpleResidual(p))
     end
 
     # Optimize the cost
