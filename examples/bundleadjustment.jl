@@ -113,7 +113,7 @@ function optimizeBALproblem(name)
     # Compute the final AUC
     println("   Final AUC: ", computeauc(problem, 2.0))
     # Print out the solver summary
-    show(result)
+    display(result)
 end
 
 optimizeBALproblem("problem-16-22106")
