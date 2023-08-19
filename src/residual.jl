@@ -5,7 +5,7 @@ function computecost(residual::AbstractResidual, vars...)::Float64
     r = computeresidual(residual, vars...)
     
     # Compute the robustified cost
-    return 0.5 * robustify(robustkernel(residual), Float64(r' * r))
+    return 0.5 * robustify(robustkernel(residual), Float64(sqnorm(r)))
 end
 
 function computecostgradhess(varflags, residual::AbstractResidual, vars...)
@@ -17,7 +17,7 @@ function computecostgradhess(varflags, residual::AbstractResidual, vars...)
     H = jac' * jac
 
     # Compute the robustified cost and the IRLS weight
-    c, dc, d2c = robustifydcost(robustkernel(residual), res' * res)
+    c, dc, d2c = robustifydcost(robustkernel(residual), sqnorm(res))
 
     # Check for robust case
     if dc != 1
@@ -40,7 +40,7 @@ function computecost(residual::AbstractAdaptiveResidual, kernel, vars...)::Float
     r = computeresidual(residual, vars...)
     
     # Compute the robustified cost
-    return 0.5 * robustify(kernel, Float64(r' * r))
+    return 0.5 * robustify(kernel, Float64(sqnorm(r)))
 end
 
 function computecostgradhess(varflags, residual::AbstractAdaptiveResidual, kernel, vars...)
@@ -51,7 +51,7 @@ function computecostgradhess(varflags, residual::AbstractAdaptiveResidual, kerne
     if varflagsres == 0
         # Only the kernel is optimized
         res = computeresidual(residual, vars...)
-        cost, dc, d2c = robustifydkernel(kernel, res' * res)
+        cost, dc, d2c = robustifydkernel(kernel, sqnorm(res))
         return 0.5 * Float64(cost), dc[kernelvarind], d2c[kernelvarind, kernelvarind]
     end
 
@@ -59,7 +59,7 @@ function computecostgradhess(varflags, residual::AbstractAdaptiveResidual, kerne
     res, jac = computeresjac(varflagsres, residual, vars...)
  
     # Compute the unrobust cost, gradient and Hessian
-    cost = res' * res
+    cost = sqnorm(res)
     g = jac' * res
     H = jac' * jac
 
@@ -113,7 +113,7 @@ function resjachelper!(linsystem, residual::AbstractResidual, vars, blockind, in
     res, jac = computeresjac(varflags, residual, vars...)
 
     # Compute the robustified cost and the IRLS weight
-    c, w1, = robustifydcost(kernel, res' * res)
+    c, w1, = robustifydcost(kernel, sqnorm(res))
 
     # If this residual has a weight...
     if w1 != 0    

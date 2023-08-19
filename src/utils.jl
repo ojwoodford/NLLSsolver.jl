@@ -25,3 +25,5 @@ bitiset(flags, bit) = (1 << (bit - 1)) & flags != 0
 
 @inline uniontotuple(T::Union) = (uniontotuple(T.a)..., uniontotuple(T.b)...)
 @inline uniontotuple(T::DataType) = (T,)
+
+@inline sqnorm(x) = (x' * x)
