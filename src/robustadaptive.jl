@@ -44,3 +44,30 @@ end
 #            SVector{4}(wex * (kernel.s1sq * cost - 1) * den, oneminusw * (2 * c - 1) * den, (kernel.invsigma2.val - kernel.invsigma1.val * ex) * den, kernel.halfs2sq - s * den), # Gradient
 #            zeros(SMatrix{4, 4})
 # end
+
+function optimize(kernel::ContaminatedGaussian{T}, squarederrors::Vector{T}, maxiters=10)::ContaminatedGaussian{T} where T
+    # Optimize the parameters of the kernel using Expectation-Maximization algorithm
+    totalsquarederror = sum(squarederrors)
+    oldparams = params(kernel)
+    for iter = 1:maxiters
+        wratio = ((1 - kernel.w.val) * kernel.invsigma2.val) / (kernel.invsigma1.val * kernel.w.val)
+        halfs1sqminuss2sq = -kernel.halfs2sqminuss1sq
+        sigma1 = T(0)
+        totalweight = T(0)
+        for (ind, err) in enumerate(squarederrors)
+            # Expectation step - compute latent variables as a likelihood ratio
+            w = 1 / (1 + wratio * exp(halfs1sqminuss2sq * err))
+            # Compute running totals for the Maximization step
+            sigma1 += w * err
+            totalweight += w
+        end
+        # Complete the Maximization step (computing the optimal distribution parameters) by normalizing by the total weights
+        newparams = SVector(sqrt(sigma1 / totalweight), sqrt((totalsquarederror - sigma1) / (length(squarederrors) - totalweight)), totalweight / length(squarederrors))
+        kernel = ContaminatedGaussian(newparams...)
+        if isapprox(oldparams, newparams; rtol=1.e-6)
+            break
+        end
+        oldparams = newparams
+    end
+    return kernel
+end
