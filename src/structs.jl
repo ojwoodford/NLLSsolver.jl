@@ -28,11 +28,11 @@ struct NLLSOptions
     maxfails::Int               # Maximum number of consecutive iterations that have a higher cost than the current best before termination
     maxiters::Int               # Maximum number of outer iterations
     iterator::NLLSIterator      # Inner iterator (see above for options)
-    callback                    # Callback called every outer iteration - returns true to terminate
+    callback                    # Callback called every outer iteration - (cost, problem, data) -> (newcost, terminate::Bool) where terminate == true ends the optimization
     storecosts::Bool            # Indicates whether the cost per outer iteration should be stored
     storetrajectory::Bool       # Indicates whether the step per outer iteration should be stored
 end
-function NLLSOptions(; maxiters=100, reldcost=1.e-15, absdcost=1.e-15, dstep=1.e-15, maxfails=3, iterator=levenbergmarquardt, callback=(args...)->false, storecosts=false, storetrajectory=false)
+function NLLSOptions(; maxiters=100, reldcost=1.e-15, absdcost=1.e-15, dstep=1.e-15, maxfails=3, iterator=levenbergmarquardt, callback=(cost, args...)->(cost, false), storecosts=false, storetrajectory=false)
     NLLSOptions(reldcost, absdcost, dstep, maxfails, maxiters, iterator, callback, storecosts, storetrajectory)
 end
 

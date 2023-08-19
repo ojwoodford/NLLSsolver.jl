@@ -68,6 +68,9 @@ function optimizeinternal!(problem::NLLSProblem{VarTypes}, options::NLLSOptions,
             data.iternum += 1
             # Call the per iteration solver
             cost = iterate!(iteratedata, data, problem, options)::Float64
+            # Call the user-defined callback
+            cost, terminate = options.callback(cost, problem, data)
+            # Store the cost if necessary
             if options.storecosts
                 push!(costs, cost)
             end
@@ -96,7 +99,7 @@ function optimizeinternal!(problem::NLLSProblem{VarTypes}, options::NLLSOptions,
             end
             # Check for termination
             maxstep = maximum(abs, data.step)
-            converged  = (options.callback(problem, data, cost) == true) << 0 # Terminated by the user-defined callback
+            converged  = (terminate == true)                             << 0 # Terminated by the user-defined callback
             converged |= isinf(cost)                                     << 1 # Cost is infinite
             converged |= isnan(cost)                                     << 2 # Cost is NaN
             converged |= (dcost < data.bestcost * options.reldcost)      << 3 # Relative decrease in cost is too small
