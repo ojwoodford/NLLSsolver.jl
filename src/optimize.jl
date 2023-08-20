@@ -69,7 +69,7 @@ function optimizeinternal!(problem::NLLSProblem{VarTypes}, options::NLLSOptions,
             # Call the per iteration solver
             cost = iterate!(iteratedata, data, problem, options)::Float64
             # Call the user-defined callback
-            cost, terminate = options.callback(cost, problem, data)
+            cost, terminate = options.callback(cost, problem, data)::Tuple{Float64, Int}
             # Store the cost if necessary
             if options.storecosts
                 push!(costs, cost)
@@ -99,16 +99,17 @@ function optimizeinternal!(problem::NLLSProblem{VarTypes}, options::NLLSOptions,
             end
             # Check for termination
             maxstep = maximum(abs, data.step)
-            converged  = (terminate == true)                             << 0 # Terminated by the user-defined callback
-            converged |= isinf(cost)                                     << 1 # Cost is infinite
-            converged |= isnan(cost)                                     << 2 # Cost is NaN
-            converged |= (dcost < data.bestcost * options.reldcost)      << 3 # Relative decrease in cost is too small
-            converged |= (dcost < options.absdcost)                      << 4 # Absolute decrease in cost is too small
-            converged |= isinf(maxstep)                                  << 5 # Infinity detected in the step
-            converged |= isnan(maxstep)                                  << 6 # NaN detected in the step
-            converged |= (maxstep < options.dstep)                       << 7 # Max of the step size is too small
-            converged |= (fails > options.maxfails)                      << 8 # Max number of consecutive failed iterations reach
-            converged |= (data.iternum >= options.maxiters)              << 9 # Max number of iterations reached
+            converged = 0
+            converged |= isinf(cost)                                     << 0 # Cost is infinite
+            converged |= isnan(cost)                                     << 1 # Cost is NaN
+            converged |= (dcost < data.bestcost * options.reldcost)      << 2 # Relative decrease in cost is too small
+            converged |= (dcost < options.absdcost)                      << 3 # Absolute decrease in cost is too small
+            converged |= isinf(maxstep)                                  << 4 # Infinity detected in the step
+            converged |= isnan(maxstep)                                  << 5 # NaN detected in the step
+            converged |= (maxstep < options.dstep)                       << 6 # Max of the step size is too small
+            converged |= (fails > options.maxfails)                      << 7 # Max number of consecutive failed iterations reach
+            converged |= (data.iternum >= options.maxiters)              << 8 # Max number of iterations reached
+            converged |= terminate                                       << 9 # Terminated by the user-defined callback
             if converged != 0
                 break
             end
