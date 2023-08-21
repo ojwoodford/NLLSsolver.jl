@@ -118,38 +118,6 @@ mutable struct NLLSInternalMultiVar
     mapsvalid::Bool
 
     function NLLSInternalMultiVar(mvls)
-        return new(0., 0., 0., 0., 0, 0, 0, 0, Vector{Float64}(undef, size(mvls.A, 2)), mvls, spzeros(Bool, 0, 0), spzeros(Bool, 0, 0), spzeros(Bool, 0, 0), false)
-    end
-end
-
-function updatevarresmap!(varresmap::SparseMatrixCSC{Bool, Int}, costvec::Vector, colind::Int, rowind::Int)
-    numres = length(costvec)
-    if numres > 0
-        @inbounds for cost in costvec
-            ndeps_ = dynamic(ndeps(cost))
-            srange = SR(0, ndeps_-1)
-            varresmap.rowval[srange.+rowind] .= varindices(cost)
-            rowind += ndeps_
-            colind += 1
-            varresmap.colptr[colind] = rowind
-        end
-    end
-    return colind, rowind
-end
-
-function updatevarresmap!(varresmap::SparseMatrixCSC{Bool, Int}, costs::CostStruct)
-    # Pre-allocate all the necessary memory
-    resize!(varresmap.rowval, countcosts(resdeps, costs))
-    resize!(varresmap.colptr, countcosts(reslen, costs)+1)
-    prevlen = length(varresmap.nzval)
-    resize!(varresmap.nzval, length(varresmap.rowval))
-
-    # Fill in the arrays
-    varresmap.nzval[prevlen+1:length(varresmap.rowval)] .= true
-    varresmap.colptr[1] = 1
-    colind = 1
-    rowind = 1
-    @inbounds for costvec in values(costs)
-        colind, rowind = updatevarresmap!(varresmap, costvec, colind, rowind)
+        return new(0., 0., 0., 0., 0, 0, 0, 0, Vector{Float64}(undef, size(mvls.A, 2)), mvls)
     end
 end

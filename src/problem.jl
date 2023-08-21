@@ -4,16 +4,18 @@ const CostStruct = VectorRepo
 
 mutable struct NLLSProblem{VarTypes, CostTypes}
     # User provided
-    costs::CostStruct{CostTypes}
-    variables::Vector{VarTypes}
+    costs::CostStruct{CostTypes} # Set of cost and residual blocks that define the problem
+    variables::Vector{VarTypes}  # Current state of variables in use by optimizer
 
     # Used internally
-    varnext::Vector{VarTypes}
-    varbest::Vector{VarTypes}
+    varnext::Vector{VarTypes}    # Updated set of variables proposed by iterator
+    varbest::Vector{VarTypes}    # Best set of variables found so far
+    varcostmap::SparseMatrixCSC{Bool, Int} # Map of variables used by each cost block (i.e. each column represents a cost block, and dependent variables are set to 1)
+    varcostmapvalid::Bool        # Flag indicating whether the above variable cost map is valid, or should be regenerated
 
     # Constructor
-    function NLLSProblem{VarTypes, CostTypes}(vars=Vector{VarTypes}(), costs=CostStruct{CostTypes}(), varnext=Vector{VarTypes}(), varbest=Vector{VarTypes}()) where {VarTypes, CostTypes}
-        return new{VarTypes, CostTypes}(costs, vars, varnext, varbest)
+    function NLLSProblem{VarTypes, CostTypes}(vars=Vector{VarTypes}(), costs=CostStruct{CostTypes}(), varnext=Vector{VarTypes}(), varbest=Vector{VarTypes}(), varcostmap=spzeros(Bool, 0, 0), varcostmapvalid=false) where {VarTypes, CostTypes}
+        return new{VarTypes, CostTypes}(costs, vars, varnext, varbest, varcostmap, varcostmapvalid)
     end
 end
 NLLSProblem() = NLLSProblem{Any, Any}()
@@ -81,6 +83,8 @@ function addcost!(problem::NLLSProblem, cost::Cost) where Cost <: AbstractCost
     end
     # Add to the problem
     push!(problem.costs, cost)
+    # Mark the var cost map as invalid
+    problem.varcostmapvalid = false
     return nothing
 end
 
@@ -92,6 +96,49 @@ function addvariable!(problem::NLLSProblem, variable)
     push!(problem.variables, variable)
     # Return the index
     return length(problem.variables)
+end
+
+function updatevarcostmap!(varcostmap::SparseMatrixCSC{Bool, Int}, costvec::Vector, colind::Int, rowind::Int)
+    numres = length(costvec)
+    if numres > 0
+        @inbounds for cost in costvec
+            ndeps_ = dynamic(ndeps(cost))
+            srange = SR(0, ndeps_-1)
+            varcostmap.rowval[srange.+rowind] .= varindices(cost)
+            rowind += ndeps_
+            colind += 1
+            varcostmap.colptr[colind] = rowind
+        end
+    end
+    return colind, rowind
+end
+
+function updatevarcostmap!(varcostmap::SparseMatrixCSC{Bool, Int}, costs::CostStruct)
+    # Pre-allocate all the necessary memory
+    resize!(varcostmap.rowval, countcosts(resdeps, costs))
+    prevlen = length(varcostmap.nzval)
+    resize!(varcostmap.nzval, length(varcostmap.rowval))
+
+    # Fill in the arrays
+    varcostmap.nzval[prevlen+1:length(varcostmap.rowval)] .= true
+    varcostmap.colptr[1] = 1
+    colind = 1
+    rowind = 1
+    @inbounds for costvec in values(costs)
+        colind, rowind = updatevarcostmap!(varcostmap, costvec, colind, rowind)
+    end
+    return nothing
+end
+
+function updatevarcostmap!(problem::NLLSProblem)
+    # Check the size is correct
+    sz = (length(problem.variables), countcosts(reslen, problem.costs))
+    if size(problem.varcostmap) != sz
+        problem.varcostmap = spzeros(Bool, sz[1], sz[2])
+    end
+    retval = updatevarcostmap!(problem.varcostmap, problem.costs)
+    problem.varcostmapvalid = true
+    return retval
 end
 
 reslen(vec::Vector) = length(vec)

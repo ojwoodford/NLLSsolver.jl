@@ -36,9 +36,12 @@ Base.eltype(::RosenbrockB) = Float64
     @test NLLSsolver.countcosts(NLLSsolver.reslen, problem.costs) == 2
     @test NLLSsolver.countcosts(NLLSsolver.resnum, problem.costs) == 2
     @test NLLSsolver.cost(problem) == 0.5
-    varresmap = spzeros(Bool, 2, 2)
-    NLLSsolver.updatevarresmap!(varresmap, problem.costs)
-    @test vec(sum(Matrix(varresmap); dims=2)) == [2; 1]
+    @test problem.varcostmapvalid == false
+    NLLSsolver.updatevarcostmap!(problem)
+    @test problem.varcostmapvalid == true
+    varcostmap = Matrix(problem.varcostmap)
+    println(varcostmap)
+    @test vec(sum(varcostmap; dims=2)) == [2; 1]
 
     # Create a subproblem
     @test NLLSsolver.countcosts(NLLSsolver.resnum, NLLSsolver.subproblem(problem, trues(2)).costs) == 2
