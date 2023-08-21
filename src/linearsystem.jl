@@ -44,8 +44,8 @@ struct UniVariateLS
     b::Vector{Float64}
     varindex::UInt
 
-    function UniVariateLS(unfixed, varlen, reslen=varlen)
-        return new(zeros(Float64, reslen, varlen), zeros(Float64, reslen), unfixed)
+    function UniVariateLS(unfixed, varlen, costnum=varlen)
+        return new(zeros(Float64, costnum, varlen), zeros(Float64, costnum), unfixed)
     end
 end
 

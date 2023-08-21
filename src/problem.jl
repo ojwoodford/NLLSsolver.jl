@@ -115,7 +115,7 @@ end
 
 function updatevarcostmap!(varcostmap::SparseMatrixCSC{Bool, Int}, costs::CostStruct)
     # Pre-allocate all the necessary memory
-    resize!(varcostmap.rowval, countcosts(resdeps, costs))
+    resize!(varcostmap.rowval, countcosts(costdeps, costs))
     prevlen = length(varcostmap.nzval)
     resize!(varcostmap.nzval, length(varcostmap.rowval))
 
@@ -132,7 +132,7 @@ end
 
 function updatevarcostmap!(problem::NLLSProblem)
     # Check the size is correct
-    sz = (length(problem.variables), countcosts(reslen, problem.costs))
+    sz = (length(problem.variables), countcosts(costnum, problem.costs))
     if size(problem.varcostmap) != sz
         problem.varcostmap = spzeros(Bool, sz[1], sz[2])
     end
@@ -141,10 +141,9 @@ function updatevarcostmap!(problem::NLLSProblem)
     return retval
 end
 
-reslen(vec::Vector) = length(vec)
-# Support variable length costs
-resnum(vec::Vector) = length(vec) > 0 ? (dynamic(is_static(nres(vec[1]))) ? length(vec) * nres(vec[1]) : sum(nres, vec; init=0)) : 0
-resdeps(vec::Vector) = length(vec) > 0 ? length(vec) * ndeps(vec[1]) : 0
+costnum(vec::Vector)  = length(vec)
+costdeps(vec::Vector) = length(vec) > 0 ? (dynamic(is_static(ndeps(vec[1]))) ? length(vec) * ndeps(vec[1]) : sum(ndeps, vec; init=0)) : 0 # Support variable number of dependencies
+resnum(vec::Vector)   = length(vec) > 0 ? (dynamic(is_static( nres(vec[1]))) ? length(vec) *  nres(vec[1]) : sum( nres, vec; init=0)) : 0 # Support variable length costs
 @inline countcosts(fun, costs::CostStruct{Any}) = sum(fun, values(costs); init=0)
 @inline countcosts(fun, costs::CostStruct{T}) where T = countcosts(fun, costs, T)
 @inline countcosts(fun, costs, T::Union) = countcosts(fun, costs, T.a) + countcosts(fun, costs, T.b)
