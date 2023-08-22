@@ -31,19 +31,6 @@ function robustifydcost(kernel::ContaminatedGaussian, cost)
     s *= kernel.halfs2sqminuss1sq
     return c + log(den), kernel.halfs2sq - s * den, -s * kernel.halfs2sqminuss1sq * t * den * den
 end
-# function robustifydkernel(kernel::ContaminatedGaussian, cost)
-#     c = cost * kernel.halfs2sq
-#     ex = exp(cost * kernel.halfs2sqminuss1sq)
-#     wex = kernel.w.val * ex
-#     swex = wex * kernel.invsigma1.val
-#     oneminusw = 1 - kernel.w.val
-#     tw = oneminusw * kernel.invsigma2.val
-#     den = 1 / (swex + tw)
-#     s = swex * kernel.halfs2sqminuss1sq
-#     return c + log(den), # Value
-#            SVector{4}(wex * (kernel.s1sq * cost - 1) * den, oneminusw * (2 * c - 1) * den, (kernel.invsigma2.val - kernel.invsigma1.val * ex) * den, kernel.halfs2sq - s * den), # Gradient
-#            zeros(SMatrix{4, 4})
-# end
 
 function optimize(kernel::ContaminatedGaussian{T}, squarederrors::Vector{T}, maxiters=10)::ContaminatedGaussian{T} where T
     # Optimize the parameters of the kernel using Expectation-Maximization algorithm
