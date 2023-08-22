@@ -104,7 +104,7 @@ function updatevarcostmap!(varcostmap::SparseMatrixCSC{Bool, Int}, costvec::Vect
         @inbounds for cost in costvec
             ndeps_ = dynamic(ndeps(cost))
             srange = SR(0, ndeps_-1)
-            varcostmap.rowval[srange.+rowind] .= varindices(cost)
+            varcostmap.rowval[srange.+rowind] .= sort(varindices(cost))
             rowind += ndeps_
             colind += 1
             varcostmap.colptr[colind] = rowind
