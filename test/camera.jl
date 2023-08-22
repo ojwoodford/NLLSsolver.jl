@@ -1,4 +1,4 @@
-using NLLSsolver, StaticArrays, ForwardDiff, Test
+using NLLSsolver, StaticArrays, ForwardDiff, Test, Static
 
 function testcamera(cam, x)
     # Test image to ideal transformations
@@ -12,7 +12,7 @@ function testcamera(cam, x)
     @test isapprox(W, ForwardDiff.jacobian(x -> ideal2image(cam, x), x))
 
     # Test the update of all zeros returns the same camera
-    @test cam == update(cam, zeros(nvars(cam)))
+    @test cam == update(cam, zeros(dynamic(nvars(cam))))
 end
 
 @testset "camera.jl" begin

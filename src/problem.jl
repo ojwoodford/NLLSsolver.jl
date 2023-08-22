@@ -1,102 +1,151 @@
-ResidualStruct = Dict{DataType, Vector}
+using Static, SparseArrays
 
-mutable struct NLLSProblem{VarTypes}
+const CostStruct = VectorRepo
+
+mutable struct NLLSProblem{VarTypes, CostTypes}
     # User provided
-    residuals::ResidualStruct
-    variables::Vector{VarTypes}
-    varnext::Vector{VarTypes}
-    varbest::Vector{VarTypes}
+    costs::CostStruct{CostTypes} # Set of cost and residual blocks that define the problem
+    variables::Vector{VarTypes}  # Current state of variables in use by optimizer
+
+    # Used internally
+    varnext::Vector{VarTypes}    # Updated set of variables proposed by iterator
+    varbest::Vector{VarTypes}    # Best set of variables found so far
+    varcostmap::SparseMatrixCSC{Bool, Int} # Map of variables used by each cost block (i.e. each column represents a cost block, and dependent variables are set to 1)
+    varcostmapvalid::Bool        # Flag indicating whether the above variable cost map is valid, or should be regenerated
 
     # Constructor
-    function NLLSProblem{VarTypes}(vars=Vector{VarTypes}(), residuals=ResidualStruct(), varnext=Vector{VarTypes}(), varbest=Vector{VarTypes}()) where VarTypes
-        return new(residuals, vars, varnext, varbest)
+    function NLLSProblem{VarTypes, CostTypes}(vars=Vector{VarTypes}(), costs=CostStruct{CostTypes}(), varnext=Vector{VarTypes}(), varbest=Vector{VarTypes}(), varcostmap=spzeros(Bool, 0, 0), varcostmapvalid=false) where {VarTypes, CostTypes}
+        return new{VarTypes, CostTypes}(costs, vars, varnext, varbest, varcostmap, varcostmapvalid)
     end
 end
+NLLSProblem() = NLLSProblem{Any, Any}()
+NLLSProblem(VT::Union{DataType, Union}) = NLLSProblem{VT, Any}()
+NLLSProblem(VT::Union{DataType, Union}, CT::Union{DataType, Union}) = NLLSProblem{VT, CT}()
+NLLSProblem(v::Vector{VT}) where VT = NLLSProblem{VT, Any}(v)
+NLLSProblem(v::Vector{VT}, r::CostStruct{CT}) where {VT, CT} = NLLSProblem{VT, CT}(v, r)
 
-function selectresiduals!(outres::ResidualStruct, inres::Vector, unfixed::Integer)
-    selectresiduals!(outres, inres, [i for (i, r) in enumerate(inres) if in(unfixed, varindices(r))])
+function selectcosts!(outcosts::CostStruct, incosts::Vector, unfixed::Integer)
+    selectcosts!(outcosts, incosts, [i for (i, r) in enumerate(incosts) if in(unfixed, varindices(r))])
 end
 
-function selectresiduals!(outres::ResidualStruct, inres::Vector, unfixed::BitVector)
-    selectresiduals!(outres, inres, [i for (i, r) in enumerate(inres) if any(j -> unfixed[j], varindices(r))])
+function selectcosts!(outcosts::CostStruct, incosts::Vector, unfixed::BitVector)
+    selectcosts!(outcosts, incosts, [i for (i, r) in enumerate(incosts) if any(j -> unfixed[j], varindices(r))])
 end
 
-function selectresiduals!(outres::ResidualStruct, inres::Vector{T}, vec::Vector) where T
+function selectcosts!(outcosts::CostStruct, incosts::Vector{T}, vec::Vector) where T
     if !isempty(vec)
-        outres[T] = inres[vec]
+        outcosts.data[T] = incosts[vec]
     end
 end
 
-# Produce a subproblem containing only the relevant residuals
-function subproblem(problem::NLLSProblem{T}, unfixed) where T
-    # Copy residuals that have unfixed inputs
-    residualstruct = ResidualStruct()
-    for residuals in values(problem.residuals)
-        selectresiduals!(residualstruct, residuals, unfixed)
+# Produce a subproblem containing only the relevant costs
+function subproblem(problem::NLLSProblem{VT, CT}, unfixed) where {VT, CT}
+    # Copy costs that have unfixed inputs
+    coststruct = CostStruct{CT}()
+    for costs in values(problem.costs)
+        selectcosts!(coststruct, costs, unfixed)
     end
     # Create the new problem (note that variables are SHARED)
-    return NLLSProblem{T}(problem.variables, residualstruct, problem.varnext, problem.varbest)
+    return NLLSProblem{VT, CT}(problem.variables, coststruct, problem.varnext, problem.varbest)
 end
 
-function subproblem(problem::NLLSProblem{T}, resind::Vector) where T
-    # Copy residuals that have unfixed inputs
-    residualstruct = ResidualStruct()
+function subproblem(problem::NLLSProblem{VT, CT}, resind::Vector) where {VT, CT}
+    # Copy costs that have unfixed inputs
+    coststruct = CostStruct{CT}()
     firstres = 0
     firstind = 0
     len = length(resind)
-    for residuals in values(problem.residuals)
-        lastres = firstres + length(residuals)
+    for costs in values(problem.costs)
+        lastres = firstres + length(costs)
         lastind = firstind
         while lastind < len && resind[lastind+1] <= lastres
             lastind += 1
         end
-        selectresiduals!(residualstruct, residuals, resind[firstind+1:lastind].-firstind)
+        selectcosts!(coststruct, costs, resind[firstind+1:lastind].-firstind)
         firstres = lastres
         firstind = lastind
     end
     # Create the new problem (note that variables are SHARED)
-    return NLLSProblem{T}(problem.variables, residualstruct, problem.varnext, problem.varbest)
+    return NLLSProblem{VT, CT}(problem.variables, coststruct, problem.varnext, problem.varbest)
 end
 
-function addresidual!(problem::NLLSProblem, residual::T) where T
+function addcost!(problem::NLLSProblem, cost::Cost) where Cost <: AbstractCost
     # Sanity checks
-    N = ndeps(residual)
-    @assert isa(N, Integer) && N>0 && N<=MAX_ARGS "Problem with ndeps()"
-    M = nres(residual)
-    @assert isa(M, Integer) && M>0 && M<=MAX_BLOCK_SZ "Problem with nres()"
-    @assert length(varindices(residual))==N "Problem with varindices()"
-    @assert length(getvars(residual, problem.variables))==N "Problem with getvars()"
+    N = ndeps(cost)
+    @assert isa(N, StaticInt) && N>0 && N<=MAX_ARGS "Problem with ndeps()"
+    @assert length(varindices(cost))==N "Problem with varindices()"
+    vars = getvars(cost, problem.variables)
+    @assert length(vars)==N "Problem with getvars()"
+    @assert (!(Cost <: AbstractAdaptiveResidual) || isa(vars[1], AbstractAdaptiveRobustifier)) "Adaptive residual without adaptive robustifier"
+    if Cost <: AbstractResidual
+        M = nres(cost)
+        @assert (isa(M, Integer) || isa(M, StaticInt)) && M>0 "Problem with nres()"
+    end
     # Add to the problem
-    push!(get!(problem.residuals, T, Vector{T}()), residual)
+    push!(problem.costs, cost)
+    # Mark the var cost map as invalid
+    problem.varcostmapvalid = false
     return nothing
 end
 
 function addvariable!(problem::NLLSProblem, variable)
     # Sanity checks
     N = nvars(variable)
-    @assert isa(N, Integer) && N>0 && N<=MAX_BLOCK_SZ "Problem with nvars()"
+    @assert (isa(N, Integer) || isa(N, StaticInt)) && N>0 "Problem with nvars()"
     # Add the variable
     push!(problem.variables, variable)
     # Return the index
     return length(problem.variables)
 end
 
-function numresiduals(residuals::ResidualStruct)
-    num = 0
-    @inbounds for vec in values(residuals)
-        num += length(vec)
-    end
-    return num
-end
-
-function lengthresiduals(residuals::ResidualStruct)
-    len = 0
-    @inbounds for vec in values(residuals)
-        n = length(vec)
-        if n != 0
-            len += n * nres(vec[1])
+function updatevarcostmap!(varcostmap::SparseMatrixCSC{Bool, Int}, costvec::Vector, colind::Int, rowind::Int)
+    numres = length(costvec)
+    if numres > 0
+        @inbounds for cost in costvec
+            ndeps_ = dynamic(ndeps(cost))
+            srange = SR(0, ndeps_-1)
+            varcostmap.rowval[srange.+rowind] .= sort(varindices(cost))
+            rowind += ndeps_
+            colind += 1
+            varcostmap.colptr[colind] = rowind
         end
     end
-    return len
+    return colind, rowind
 end
+
+function updatevarcostmap!(varcostmap::SparseMatrixCSC{Bool, Int}, costs::CostStruct)
+    # Pre-allocate all the necessary memory
+    resize!(varcostmap.rowval, countcosts(costdeps, costs))
+    prevlen = length(varcostmap.nzval)
+    resize!(varcostmap.nzval, length(varcostmap.rowval))
+
+    # Fill in the arrays
+    varcostmap.nzval[prevlen+1:length(varcostmap.rowval)] .= true
+    varcostmap.colptr[1] = 1
+    colind = 1
+    rowind = 1
+    @inbounds for costvec in values(costs)
+        colind, rowind = updatevarcostmap!(varcostmap, costvec, colind, rowind)
+    end
+    return nothing
+end
+
+function updatevarcostmap!(problem::NLLSProblem)
+    # Check the size is correct
+    sz = (length(problem.variables), countcosts(costnum, problem.costs))
+    if size(problem.varcostmap) != sz
+        problem.varcostmap = spzeros(Bool, sz[1], sz[2])
+    end
+    retval = updatevarcostmap!(problem.varcostmap, problem.costs)
+    problem.varcostmapvalid = true
+    return retval
+end
+
+costnum(vec::Vector)  = length(vec)
+costdeps(vec::Vector) = length(vec) > 0 ? (dynamic(is_static(ndeps(vec[1]))) ? length(vec) * ndeps(vec[1]) : sum(ndeps, vec; init=0)) : 0 # Support variable number of dependencies
+resnum(vec::Vector)   = length(vec) > 0 ? (dynamic(is_static( nres(vec[1]))) ? length(vec) *  nres(vec[1]) : sum( nres, vec; init=0)) : 0 # Support variable length costs
+@inline countcosts(fun, costs::CostStruct{Any}) = sum(fun, values(costs); init=0)
+@inline countcosts(fun, costs::CostStruct{T}) where T = countcosts(fun, costs, T)
+@inline countcosts(fun, costs, T::Union) = countcosts(fun, costs, T.a) + countcosts(fun, costs, T.b)
+@inline countcosts(fun, costs, T::DataType) = fun(get(costs, T))
 

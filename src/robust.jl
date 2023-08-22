@@ -1,81 +1,65 @@
-# import Plots.plot
-
 # Robustification
 struct NoRobust <: AbstractRobustifier
 end
 
-function robustify(::NoRobust, cost::T) where T
-    return cost, T(1), T(0)
-end
+robustkernel(::AbstractResidual) = NoRobust()
+@inline robustify(::NoRobust, cost) = cost
+@inline robustifydcost(::NoRobust, cost) = cost, one(cost), zero(cost)
 
-function robustkernel(::AbstractResidual)
-    return NoRobust()
-end
+robustifydcost(kernel::AbstractRobustifier, cost) = autorobustifydcost(kernel, cost)
+robustifydkernel(kernel::AbstractAdaptiveRobustifier, cost) = autorobustifydkernel(kernel, cost)
 
-struct ScaledNoRobust{T<:Real} <: AbstractRobustifier
+struct Scaled{T<:Real,Robustifier<:AbstractRobustifier} <: AbstractRobustifier
+    robust::Robustifier
     height::T
-    height_sqrt::T
+end
+robustify(kernel::Scaled, cost) = robustify(kernel.robust, cost) * kernel.height
+robustifydcost(kernel::Scaled{Real, NoRobust}, cost) = cost * kernel.height, kernel.height, zero(cost)
+function robustifydcost(kernel::Scaled, cost)
+    c, d1, d2 = robustifydcost(kernel.robust, cost)
+    return c * kernel.height, d1 * kernel.height, d2 * kernel.height
 end
 
-ScaledNoRobust(h) = ScaledNoRobust(h, sqrt(h))
 
-function robustify(kernel::ScaledNoRobust{T}, cost) where T
-    return cost * kernel.height, kernel.height_sqrt, T(0)
-end
-
-struct HuberKernel{T<:Real} <: AbstractRobustifier
+struct HuberKernel{T<:Real, B} <: AbstractRobustifier
     width::T
     width_squared::T
-    height::T
+    secondorder::B
 end
+HuberKernel(w) = HuberKernel(w, w*w, static(false))
+Huber2oKernel(w) = HuberKernel(w, w*w, static(true))
 
-HuberKernel(w, h) = HuberKernel(w, w*w, h)
-
-function robustify(kernel::HuberKernel{T}, cost) where T
+robustify(kernel::HuberKernel, cost) = cost < kernel.width_squared ? cost : sqrt(cost) * (kernel.width * 2) - kernel.width_squared
+function robustifydcost(kernel::HuberKernel, cost)
     if cost < kernel.width_squared
-        return cost * kernel.height, kernel.height, T(0)
+        return cost, one(cost), zero(cost)
     end
     sqrtcost = sqrt(cost)
-    return (sqrtcost * (kernel.width * 2) - kernel.width_squared) * kernel.height, kernel.width * kernel.height / sqrtcost, T(0)
-end
-
-struct Huber2oKernel{T<:Real} <: AbstractRobustifier
-    width::T
-    width_squared::T
-    height::T
-end
-
-Huber2oKernel(w, h) = Huber2oKernel(w, w*w, h)
-
-function robustify(kernel::Huber2oKernel{T}, cost) where T
-    if cost < kernel.width_squared
-        return cost * kernel.height, kernel.height, T(0)
-    end
-    sqrtcost = sqrt(cost)
-    return (sqrtcost * (kernel.width * 2) - kernel.width_squared) * kernel.height, kernel.width * kernel.height / sqrtcost, (-0.5 * kernel.width * kernel.height) / (cost * sqrtcost)
+    return sqrtcost * (kernel.width * 2) - kernel.width_squared, kernel.width / sqrtcost, dynamic(kernel.secondorder) ? (-0.5 * kernel.width) / (cost * sqrtcost) : zero(cost)
 end
 
 
 struct GemanMcclureKernel{T<:Real} <: AbstractRobustifier
     width_squared::T
-    height::T
-    height_sqrt::T
+    function GemanMcclureKernel{T}(w::T) where T
+        return new(w * w)
+    end
+end
+GemanMcclureKernel(w::T) where T = GemanMcclureKernel{T}(w)
+
+robustify(kernel::GemanMcclureKernel, cost) = cost * kernel.width_squared / (cost + kernel.width_squared)
+function robustifydcost(kernel::GemanMcclureKernel, cost)
+    r = 1.0 / (cost + kernel.width_squared)
+    w = kernel.width_squared * r
+    w2 = w * w
+    return cost * w, w2, -2 * w2 * r
 end
 
-GemanMcclureKernel(w, h) = GemanMcclureKernel(w*w, h/(w*w), sqrt(h)/w)
-
-function robustify(kernel::GemanMcclureKernel{T}, cost) where T
-    w = kernel.width_squared / (cost + kernel.width_squared)
-    return cost * w * kernel.height, w * w * kernel.height_sqrt, T(0)
+# TO BE DELETED (when another abstract cost is defined)
+struct AdaptiveKernelPartitionNegLog{T} <: AbstractCost
+    varind::Int
 end
-
-
-# function displaykernel(kernel, maxval=1)
-#     x = range(0, maxval, 1000)
-#     cost = x .^ 2
-#     weight = similar(cost)
-#     for (ind, c) in enumerate(cost)
-#         cost[ind], weight[ind], unused = robustify(kernel, c)
-#     end
-#     plot(x, [cost, weight])
-# end
+varindices(cost::AdaptiveKernelPartitionNegLog) = cost.varind
+computecost(cost::AdaptiveKernelPartitionNegLog, kernel::Float64) = 0.1
+getvars(cost::AdaptiveKernelPartitionNegLog, vars::Vector) = (vars[cost.varind]::Float64,)
+Base.eltype(::AdaptiveKernelPartitionNegLog{T}) where T = T

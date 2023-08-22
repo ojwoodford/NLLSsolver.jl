@@ -14,21 +14,36 @@ end
 
 # Iterators assume that the linear problem has been constructed
 
-# Newton optimization
-struct NewtonData
+# Gauss-Newton optimization (undamped-Jacobian form)
+struct GaussNewtonData
 end
 
-function iterate!(::NewtonData, data, problem::NLLSProblem, options::NLLSOptions)::Float64
+function iterate!(::GaussNewtonData, data, problem::NLLSProblem, options::NLLSOptions)::Float64
+    jacobian, residual = getjacres(data.linsystem)
     # Compute the step
-    data.timesolver += @elapsed begin
-        jacobian, residual = getjacres(data.linsystem)
-        data.step .= -linearsolve(jacobian, residual, options)
-    end
+    data.timesolver += @elapsed data.step .= -linearsolve(jacobian, residual, options)
     data.linearsolvers += 1
     # Update the new variables
     update!(problem.varnext, problem.variables, data.linsystem, data.step)
     # Return the cost
-    data.timecost += @elapsed cost_ = cost(problem.residuals, problem.varnext)
+    data.timecost += @elapsed cost_ = cost(problem.varnext, problem.costs)
+    data.costcomputations += 1
+    return cost_
+end
+
+# Newton optimization (undamped-Hessian form)
+struct NewtonData
+end
+
+function iterate!(::NewtonData, data, problem::NLLSProblem, options::NLLSOptions)::Float64
+    hessian, gradient = gethessgrad(data.linsystem)
+    # Compute the step
+    data.timesolver += @elapsed data.step .= -symmetricsolve(hessian, gradient, options)
+    data.linearsolvers += 1
+    # Update the new variables
+    update!(problem.varnext, problem.variables, data.linsystem, data.step)
+    # Return the cost
+    data.timecost += @elapsed cost_ = cost(problem.varnext, problem.costs)
     data.costcomputations += 1
     return cost_
 end
@@ -95,13 +110,13 @@ function iterate!(doglegdata::DoglegData, data, problem::NLLSProblem, options::N
         # Update the new variables
         update!(problem.varnext, problem.variables, data.linsystem, data.step)
         # Compute the cost
-        data.timecost += @elapsed cost_ = cost(problem.residuals, problem.varnext)
+        data.timecost += @elapsed cost_ = cost(problem.varnext, problem.costs)
         data.costcomputations += 1
         # Update trust region radius
         mu = (data.bestcost - cost_) / linear_approx
-        if mu > 0.75
+        if mu > 0.375
             doglegdata.trustradius = max(doglegdata.trustradius, 3 * norm(data.step))
-        elseif mu < 0.25
+        elseif mu < 0.125
             doglegdata.trustradius *= 0.5
         end
         # Check for exit
@@ -136,13 +151,13 @@ function iterate!(levmardata::LevMarData, data, problem::NLLSProblem, options::N
         # Update the new variables
         update!(problem.varnext, problem.variables, data.linsystem, data.step)
         # Compute the cost
-        data.timecost += @elapsed cost_ = cost(problem.residuals, problem.varnext)
+        data.timecost += @elapsed cost_ = cost(problem.varnext, problem.costs)
         data.costcomputations += 1
         # Check for exit
         if !(cost_ > data.bestcost) || (maximum(abs, data.step) < options.dstep)
             # Success (or convergence) - update lambda
             uniformscaling!(hessian, -lastlambda)
-            step_quality = (cost_ - data.bestcost) / (((data.step' * hessian) * 0.5 + gradient') * data.step)
+            step_quality = 2.0 * (cost_ - data.bestcost) / (((data.step' * hessian) * 0.5 + gradient') * data.step)
             levmardata.lambda *= step_quality < 1.966 ? 1 - (step_quality - 1) ^ 3 : 0.1
             # Return the cost
             return cost_
@@ -154,90 +169,53 @@ function iterate!(levmardata::LevMarData, data, problem::NLLSProblem, options::N
 end
 
 
-
-# Levenberg-Marquardt optimization with Schur complement
-mutable struct LevMarSchurData
-    lambda::Float64
-
-    function LevMarSchurData()
-        return new(1.0)
-    end
+# Gradient descent optimization
+mutable struct GradientDescentData
+    step::Float64
 end
 
-function iterate!(levmardata::LevMarSchurData, data, problem::NLLSProblem, options::NLLSOptions)::Float64
-    lastlambda = 0.
-    mu = 2.
-    while true
-        # Dampen the Hessian
-        uniformscaling!(data.linsystem.a, levmardata.lambda - lastlambda)
-        lastlambda = levmardata.lambda
-        # Solve the linear system
-        data.timesolver += @elapsed begin
-            # Compute the reduced system
-            # Solve the reduced system
-            data.step .= -symmetricsolve(hessian, gradient, options)
-            # Back substitute to find the other variables
-
-        end
-        data.linearsolvers += 1
-        # Update the new variables
+function iterate!(gddata::GradientDescentData, data, problem::NLLSProblem, options::NLLSOptions)::Float64
+    unused, gradient = gethessgrad(data.linsystem)
+    # Test the current step
+    data.step .= -gradient * gddata.step
+    update!(problem.varnext, problem.variables, data.linsystem, data.step)
+    data.timecost += @elapsed costc = cost(problem.varnext, problem.costs)
+    data.costcomputations += 1
+    multiplier = 1.2
+    if costc < data.bestcost
+        # Test a larger step
+        data.step *= multiplier
         update!(problem.varnext, problem.variables, data.linsystem, data.step)
-        # Compute the cost
-        data.timecost += @elapsed cost_ = cost(problem.residuals, problem.varnext)
+        data.timecost += @elapsed cost_ = cost(problem.varnext, problem.costs)
         data.costcomputations += 1
-        # Check for exit
-        if !(cost_ > data.bestcost) || (maximum(abs, data.step) < options.dstep)
-            # Success (or convergence) - update lambda
-            uniformscaling!(hessian, -lastlambda)
-            step_quality = (cost_ - data.bestcost) / (((data.step' * hessian) * 0.5 + gradient') * data.step)
-            levmardata.lambda *= step_quality < 1.966 ? 1 - (step_quality - 1) ^ 3 : 0.1
-            # Return the cost
-            return cost_
+        if cost_ < costc
+            costc = cost_
+            gddata.step *= multiplier
+            multiplier ^= 2
+        else
+            multiplier = 1.0 / multiplier
+            data.step *= multiplier
         end
-        # Failure - increase lambda
-        levmardata.lambda *= mu;
-        mu *= 2.;
+    else
+        multiplier = 1.0 / multiplier
     end
-end
-
-
-# Levenberg-Marquardt optimization
-mutable struct VarProData
-    lambda::Float64
-
-    function VarProData()
-        return new(1.0)
-    end
-end
-
-function iterate!(varprodata::VarProData, data, problem::NLLSProblem, options::NLLSOptions)::Float64
-    @assert varprodata.lambda >= 0.
-    # Compute the reduced system
-    hessian, gradient = gethessgrad(data.linsystem)
-    lastlambda = 0.
-    mu = 2.
     while true
-        # Dampen the Hessian
-        uniformscaling!(hessian, varprodata.lambda - lastlambda)
-        lastlambda = varprodata.lambda
-        # Solve the linear system
-        data.timesolver += @elapsed data.step .= -symmetricsolve(hessian, gradient, options)
-        data.linearsolvers += 1
+        # Set the step
         # Update the reduced variables
+        data.step *= multiplier
         update!(problem.varnext, problem.variables, data.linsystem, data.step)
-        # Optimize the other variables
         # Compute the cost
-        data.timecost += @elapsed cost_ = cost(problem.residuals, problem.varnext)
+        data.timecost += @elapsed cost_ = cost(problem.varnext, problem.costs)
         data.costcomputations += 1
-        # Check for exit
-        if !(cost_ > data.bestcost) || (maximum(abs, data.step) < options.dstep)
-            # Success (or convergence) - update lambda
-            varprodata.lambda *= 0.333
-            # Return the cost
-            return cost_
+        # Check we found a lower cost
+        if (costc <= data.bestcost) && (cost_ >= costc)
+            # Higher cost found. Return the lowest cost
+            data.step *= 1.0 / multiplier
+            update!(problem.varnext, problem.variables, data.linsystem, data.step)
+            return costc
         end
-        # Failure - increase lambda
-        varprodata.lambda *= mu;
-        mu *= 2.;
+        costc = cost_
+        gddata.step *= multiplier
+        multiplier ^= 2
     end
 end

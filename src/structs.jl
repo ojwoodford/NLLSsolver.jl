@@ -1,16 +1,22 @@
-using SparseArrays, Dates
+using SparseArrays, Dates, Static
 import Printf.@printf
 
-@enum NLLSIterator gaussnewton levenbergmarquardt dogleg
+@enum NLLSIterator gaussnewton newton levenbergmarquardt dogleg gradientdescent
 function Base.String(iterator::NLLSIterator) 
     if iterator == gaussnewton
         return "Gauss-Newton"
+    end
+    if iterator == newton
+        return "Newton"
     end
     if iterator == levenbergmarquardt
         return "Levenberg-Marquardt"
     end
     if iterator == dogleg
         return "Dogleg"
+    end
+    if iterator == gradientdescent
+        return "Gradient descent"
     end
     return "Unknown iterator"
 end
@@ -22,11 +28,11 @@ struct NLLSOptions
     maxfails::Int               # Maximum number of consecutive iterations that have a higher cost than the current best before termination
     maxiters::Int               # Maximum number of outer iterations
     iterator::NLLSIterator      # Inner iterator (see above for options)
-    callback                    # Callback called every outer iteration - returns true to terminate
+    callback                    # Callback called every outer iteration - (cost, problem, data) -> (newcost, terminate::Bool) where terminate == true ends the optimization
     storecosts::Bool            # Indicates whether the cost per outer iteration should be stored
     storetrajectory::Bool       # Indicates whether the step per outer iteration should be stored
 end
-function NLLSOptions(; maxiters=100, reldcost=1.e-6, absdcost=1.e-15, dstep=1.e-6, maxfails=3, iterator=levenbergmarquardt, callback=(args...)->false, storecosts=false, storetrajectory=false)
+function NLLSOptions(; maxiters=100, reldcost=1.e-15, absdcost=1.e-15, dstep=1.e-15, maxfails=3, iterator=levenbergmarquardt, callback=(cost, args...)->(cost, 0), storecosts=false, storetrajectory=false)
     NLLSOptions(reldcost, absdcost, dstep, maxfails, maxiters, iterator, callback, storecosts, storetrajectory)
 end
 
@@ -38,6 +44,7 @@ struct NLLSResult
     timecost::Float64                       # Time (in seconds) spent computing the cost
     timegradient::Float64                   # Time (in seconds) spent computing the residual gradients and constructing the linear problems
     timesolver::Float64                     # Time (in seconds) spent solving the linear problems
+    termination::Int                        # Set of flags indicating which termination criteria were met
     niterations::Int                        # Number of outer optimization iterations performed
     costcomputations::Int                   # Number of cost computations performed
     gradientcomputations::Int               # Number of residual gradient computations performed
@@ -61,6 +68,18 @@ function Base.show(io::IO, x::NLLSResult)
             x.linearsolvers, x.timesolver, 100*x.timesolver/timetotal,
             x.timeinit, 100*x.timeinit/timetotal,
             otherstuff, 100*otherstuff/timetotal)
+    println(io, "Reason(s) for termination:")
+    if 0 != x.termination & (1 << 0); println(io, "   Cost is infinite."); end
+    if 0 != x.termination & (1 << 1); println(io, "   Cost is NaN."); end
+    if 0 != x.termination & (1 << 2); println(io, "   Relative decrease in cost below threshold."); end
+    if 0 != x.termination & (1 << 3); println(io, "   Absolute decrease in cost below threshold."); end
+    if 0 != x.termination & (1 << 4); println(io, "   Step contains an infinite value."); end
+    if 0 != x.termination & (1 << 5); println(io, "   Step contains a NaN."); end
+    if 0 != x.termination & (1 << 6); println(io, "   Step size below threshold."); end
+    if 0 != x.termination & (1 << 7); println(io, "   Too many consecutive iterations increasing the cost."); end
+    if 0 != x.termination & (1 << 8); println(io, "   Maximum number of outer iterations reached."); end
+    userflags = x.termination >> 9
+    if 0 != userflags; println(io, "   Terminated by user-defined callback, with flags: ", string(userflags, base=2)); end
 end
 
 mutable struct NLLSInternalSingleVar
@@ -91,41 +110,14 @@ mutable struct NLLSInternalMultiVar
     linearsolvers::Int
     step::Vector{Float64}
     linsystem::MultiVariateLS
+
+    # Maps of dependencies
     varresmap::SparseMatrixCSC{Bool, Int}
+    resvarmap::SparseMatrixCSC{Bool, Int}
+    varvarmap::SparseMatrixCSC{Bool, Int}
+    mapsvalid::Bool
 
     function NLLSInternalMultiVar(mvls)
-        return new(0., 0., 0., 0., 0, 0, 0, 0, Vector{Float64}(undef, size(mvls.A, 2)), mvls, spzeros(Bool, 0, 0))
+        return new(0., 0., 0., 0., 0, 0, 0, 0, Vector{Float64}(undef, size(mvls.A, 2)), mvls)
     end
 end
-
-function updatevarresmap!(varresmap::SparseMatrixCSC{Bool, Int}, residuals::Vector)
-    numres = length(residuals)
-    if numres == 0
-        return
-    end
-    ndeps_ = ndeps(residuals[1])
-    colind = length(varresmap.colptr)
-    rowind = length(varresmap.rowval)
-    resize!(varresmap.colptr, colind+numres)
-    resize!(varresmap.rowval, rowind+numres*ndeps_)
-    rowind += 1
-    srange = SR(0, ndeps_-1)
-    @inbounds for res in residuals
-        varresmap.rowval[srange.+rowind] = varindices(res)
-        rowind += ndeps_
-        colind += 1
-        varresmap.colptr[colind] = rowind
-    end
-end
-
-function updatevarresmap!(varresmap::SparseMatrixCSC{Bool, Int}, problem::NLLSProblem)
-    resize!(varresmap.colptr, 1)
-    varresmap.colptr[1] = 1
-    resize!(varresmap.rowval, 0)
-    @inbounds for res in values(problem.residuals)
-        updatevarresmap!(varresmap, res)
-    end
-    resize!(varresmap.nzval, length(varresmap.rowval))
-    return nothing
-end
-

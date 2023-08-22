@@ -1,34 +1,29 @@
-using StaticArrays
+using StaticArrays, Static
 
-function valuedispatch_expr(::Val{lower}, ::Val{upper}, val, fun) where {lower, upper}
+@inline function valuedispatch(lower::StaticInt, upper::StaticInt, val::Int, fun)
     if lower >= upper
-        return :( return $fun(Val($upper)) ) 
+        return fun(upper)
     end
-    midpoint = lower + div(upper - lower, 2)
-    expr_a = valuedispatch_expr(Val(lower), Val(midpoint), val, fun)
-    expr_b = valuedispatch_expr(Val(midpoint+1), Val(upper), val, fun)
-    return quote
-        if $val <= $midpoint
-            $expr_a
-        else
-            $expr_b
-        end
+    midpoint = lower + div(upper - lower, static(2))
+    if val <= midpoint
+        return valuedispatch(lower, midpoint, val, fun)
     end
-end
-
-macro valuedispatch_macro(lower::Int, upper::Int, val, fun)
-    return valuedispatch_expr(Val(lower), Val(upper), esc(val), esc(fun))
-end
-
-@generated function valuedispatch(::Val{lower}, ::Val{upper}, val, fun) where {lower, upper}
-    return :( @valuedispatch_macro($lower, $upper, val, fun) )
+    return valuedispatch(midpoint + static(1), upper, val, fun)
 end
 
 expandfunc(args, v) = args[1](args[2:end]..., v)
 fixallbutlast(func, args...) = Base.Fix1(expandfunc, (func, args...))
 
-const SR = StaticArrays.SUnitRange
+SR(first, last) = StaticArrays.SUnitRange(dynamic(first), dynamic(last))
 
 macro bitiset(flags, bit)
     esc(:(((1 << ($bit - 1)) & $flags) != 0))
 end
+
+bitiset(flags::StaticInt, bit) = (static(1 << (bit - 1)) & flags) != static(0)
+bitiset(flags, bit) = (1 << (bit - 1)) & flags != 0
+
+@inline uniontotuple(T::Union) = (uniontotuple(T.a)..., uniontotuple(T.b)...)
+@inline uniontotuple(T::DataType) = (T,)
+
+@inline sqnorm(x) = (x' * x)
