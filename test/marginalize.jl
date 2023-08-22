@@ -1,4 +1,4 @@
-using NLLSsolver, SparseArrays, StaticArrays, Test
+using NLLSsolver, SparseArrays, StaticArrays, Test, Random
 
 @testset "marginalize.jl" begin
     # Define the size of test problem
@@ -7,6 +7,7 @@ using NLLSsolver, SparseArrays, StaticArrays, Test
     pairs_ = [2, 1, 6, 1, 7, 1, 9, 1, 8, 2, 7, 3, 8, 3, 10, 3, 12, 4, 4, 3, 9, 5, 10, 5, 11, 5, 6, 5, 6, 4, 11, 6, 12, 6]
     
     # Intitialize a sparse linear system randomly
+    Random.seed!(1)
     pairs = [SVector(i, i) for i in 1:length(blocksizes)]
     for i in 1:2:length(pairs_)
         push!(pairs, SVector(pairs_[i], pairs_[i+1]))
