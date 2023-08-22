@@ -61,6 +61,5 @@ struct AdaptiveKernelPartitionNegLog{T} <: AbstractCost
 end
 varindices(cost::AdaptiveKernelPartitionNegLog) = cost.varind
 computecost(cost::AdaptiveKernelPartitionNegLog, kernel::Float64) = 0.1
-computecostgradhess(varflags, cost::AdaptiveKernelPartitionNegLog, kernel::Float64) = (0.1, 1.0, 0.0)
 getvars(cost::AdaptiveKernelPartitionNegLog, vars::Vector) = (vars[cost.varind]::Float64,)
 Base.eltype(::AdaptiveKernelPartitionNegLog{T}) where T = T

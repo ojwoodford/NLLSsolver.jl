@@ -1,3 +1,8 @@
+# This example:
+#   1. Constructs and optimizes the 2D Rosenbrock cost function, using a number of different solvers.
+#   2. Visualizes the cost space and the trajectories taken by the different optimizers through that space.
+#   3. Different optimization start points can be iteractively selected within the state space using the mouse.
+
 using StaticArrays, GLMakie, LinearAlgebra, Static
 import NLLSsolver
 

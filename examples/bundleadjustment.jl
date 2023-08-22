@@ -1,3 +1,9 @@
+# This example:
+#   1. Defines the variable and residual blocks for "Bundle Adjustment in the Large" (BAL) problems
+#   2. Loads a BAL dataset and constructs an NLLSsolver problem from this
+#   3. Optimizes the bundle adjustment problem and prints the optimization summary, as well as the start and end AUC.
+#         AUC = area under curve, specifically the area under the error-recall curve, thresholded at 2 pixel error.
+
 using VisualGeometryDatasets, StaticArrays, Static, LinearAlgebra
 import NLLSsolver
 export optimizeBALproblem
