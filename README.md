@@ -27,7 +27,7 @@ Each instance of these two types must implement a standard API, as follows.
 - **`newvar::MyVar = update(oldvar::MyVar, updatevec::AbstractVector, start::Int=1)`** updates a variable, using the values in update vector `updatevec`, starting at index `start`. 
 
 #### Cost blocks
-- **`::StaticInt{N} = ndeps(::MyCost)`** returns the number of variable blocks the cost block depends on. This must be a compile-time constant of type StaticInt.
+- **`::StaticInt{N} = ndeps(::MyCost)`** returns the number of variable blocks the cost block depends on. This must be a compile-time constant of type `StaticInt`.
 - **`varind::SVector{N, Int} = varindices(costblock::MyCost)`** returns the indices of the variable blocks (stored in problem) that this cost block depends on. These values are assumed to remain fixed for the duration of an optimization.
 - **`blockvars::Tuple = getvars(costblock::MyCost, allvars::Vector)`** returns a tuple containing the variables the cost block depends on.
 
