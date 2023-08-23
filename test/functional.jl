@@ -11,7 +11,7 @@ NLLSsolver.varindices(::RosenbrockA) = SVector(1)
 NLLSsolver.getvars(::RosenbrockA, vars::Vector) = (vars[1]::Float64,)
 NLLSsolver.computeresidual(res::RosenbrockA, x) = res.a - x
 Base.eltype(::RosenbrockA) = Float64
-const rosenbrockrobustifier = NLLSsolver.Scaled(NLLSsolver.Huber2oKernel(1.5), 1.0)
+const rosenbrockrobustifier = NLLSsolver.Scaled(NLLSsolver.Huber2oKernel(1.6), 1.0)
 NLLSsolver.robustkernel(::RosenbrockA) = rosenbrockrobustifier
 
 struct RosenbrockB <: NLLSsolver.AbstractResidual
