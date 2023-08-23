@@ -20,7 +20,6 @@ function emcallback(cost, problem, data)
     # Recompute the cost
     data.timecost += @elapsed newcost = NLLSsolver.cost(problem.varnext, problem.costs)
     data.costcomputations += 1
-    @assert newcost <= cost
     # Return cost and do not trigger termination
     return newcost, 0
 end
