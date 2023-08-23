@@ -11,7 +11,7 @@ NLLSsolver.varindices(::RosenbrockA) = SVector(1)
 NLLSsolver.getvars(::RosenbrockA, vars::Vector) = (vars[1]::Float64,)
 NLLSsolver.computeresidual(res::RosenbrockA, x) = res.a - x
 Base.eltype(::RosenbrockA) = Float64
-const rosenbrockrobustifier = NLLSsolver.Scaled(NLLSsolver.Huber2oKernel(1.5), 1.0)
+const rosenbrockrobustifier = NLLSsolver.Scaled(NLLSsolver.Huber2oKernel(1.6), 1.0)
 NLLSsolver.robustkernel(::RosenbrockA) = rosenbrockrobustifier
 
 struct RosenbrockB <: NLLSsolver.AbstractResidual
@@ -46,6 +46,11 @@ Base.eltype(::RosenbrockB) = Float64
     subprob = NLLSsolver.subproblem(problem, 2)
     @test NLLSsolver.countcosts(NLLSsolver.resnum, subprob.costs) == 1
     @test NLLSsolver.cost(subprob) == 0.
+
+    # Check callback termination
+    result = NLLSsolver.optimize!(problem, NLLSsolver.NLLSOptions(callback=(cost, unusedargs...)->(cost, 13)))
+    @test result.termination == (13 << 9)
+    @test result.niterations == 1
 
     # Test optimization
     for iter in [NLLSsolver.gaussnewton, NLLSsolver.newton, NLLSsolver.levenbergmarquardt, NLLSsolver.dogleg]

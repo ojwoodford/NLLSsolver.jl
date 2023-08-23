@@ -20,29 +20,29 @@ end
 # Compute the variable flags indicating which variables are unfixed (i.e. to be optimized)
 computevarflags(blockind) = mapreduce((x, y) -> (x != 0) << (y - 1), |, blockind, SR(1, length(blockind)))
 
-function costgradhess!(linsystem, vars::Vector, residual::AbstractCost)
+function costgradhess!(linsystem, vars::Vector, cost::AbstractCost)
     # Get the variables and associated data
-    v = getvars(residual, vars)
-    blockind = getoffsets(residual, linsystem)
+    v = getvars(cost, vars)
+    blockind = getoffsets(cost, linsystem)
     varflags = computevarflags(blockind)
 
     # Check that some variables are unfixed
     if varflags > 0
         # Common case - all unfixed
-        maxflags = static(2 ^ dynamic(ndeps(residual)) - 1)
+        maxflags = static(2 ^ dynamic(ndeps(cost)) - 1)
         if varflags == maxflags
-            return gradhesshelper!(linsystem, residual, v, blockind, maxflags)
+            return gradhesshelper!(linsystem, cost, v, blockind, maxflags)
         end
 
         # Dispatch gradient computation based on the varflags, and return the cost
-        if ndeps(residual) <= 5
-            return valuedispatch(static(1), maxflags-static(1), varflags, fixallbutlast(gradhesshelper!, linsystem, residual, v, blockind))
+        if ndeps(cost) <= 5
+            return valuedispatch(static(1), maxflags-static(1), varflags, fixallbutlast(gradhesshelper!, linsystem, cost, v, blockind))
         end
-        return gradhesshelper!(linsystem, residual, v, blockind, static(varflags))
+        return gradhesshelper!(linsystem, cost, v, blockind, static(varflags))
     end
 
     # No unfixed variables, so just return the cost
-    return cost(residual, v)
+    return computecost(cost, v)
 end
 
 costgradhess!(linsystem, vars::Vector, costs::CostStruct)::Float64 = sum(fixallbutlast(costgradhess!, linsystem, vars), costs)

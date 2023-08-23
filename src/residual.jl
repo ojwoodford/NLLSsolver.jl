@@ -1,41 +1,11 @@
 using Static
 
-function computecost(residual::AbstractResidual, vars...)::Float64
-    # Compute the residual
-    r = computeresidual(residual, vars...)
-    
-    # Compute the robustified cost
-    return 0.5 * robustify(robustkernel(residual), Float64(sqnorm(r)))
-end
+computecost(residual::AbstractResidual, vars...) = computerescost(residual, robustkernel(residual), vars)
+computecostgradhess(varflags, residual::AbstractResidual, vars...) = computerescostgradhess(varflags << static(1), residual, robustkernel(residual), vars)
+computecost(residual::AbstractAdaptiveResidual, kernel, vars...) = computerescost(residual, kernel, vars)
+computecostgradhess(varflags, residual::AbstractAdaptiveResidual, kernel, vars...) = computerescostgradhess(varflags, residual, kernel, vars)
 
-function computecostgradhess(varflags, residual::AbstractResidual, vars...)
-    # Compute the residual and Jacobian
-    res, jac = computeresjac(varflags, residual, vars...)
- 
-    # Compute the unrobust gradient and Hessian
-    g = jac' * res
-    H = jac' * jac
-
-    # Compute the robustified cost and the IRLS weight
-    c, dc, d2c = robustifydcost(robustkernel(residual), sqnorm(res))
-
-    # Check for robust case
-    if dc != 1
-        # IRLS reweighting of Hessian
-        H *= dc
-        if d2c < 0
-            # Second order correction
-            H += ((2 * d2c) * g) * g'
-        end
-        # IRLS reweighting of gradient
-        g *= dc
-    end
-
-    # Return the cost and derivatives
-    return 0.5 * Float64(c), g, H
-end
-
-function computecost(residual::AbstractAdaptiveResidual, kernel, vars...)::Float64
+function computerescost(residual, kernel, vars)::Float64
     # Compute the residual
     r = computeresidual(residual, vars...)
     
@@ -43,15 +13,14 @@ function computecost(residual::AbstractAdaptiveResidual, kernel, vars...)::Float
     return 0.5 * robustify(kernel, Float64(sqnorm(r)))
 end
 
-function computecostgradhess(varflags, residual::AbstractAdaptiveResidual, kernel, vars...)
-    kernelvarind = SR(1, nvars(kernel))
-
+function computerescostgradhess(varflags, residual, kernel, vars)
     # Check for case that only kernel is optimized
     varflagsres = varflags >> static(1)
     if varflagsres == 0
         # Only the kernel is optimized
         res = computeresidual(residual, vars...)
         cost, dc, d2c = robustifydkernel(kernel, sqnorm(res))
+        kernelvarind = SR(1, nvars(kernel))
         return 0.5 * Float64(cost), dc[kernelvarind], d2c[kernelvarind, kernelvarind]
     end
 
@@ -85,6 +54,7 @@ function computecostgradhess(varflags, residual::AbstractAdaptiveResidual, kerne
     cost, dc, d2c = robustifydkernel(kernel, cost)
 
     # Compute the d^2/dkernel.dvariables block
+    kernelvarind = SR(1, nvars(kernel))
     dkdv = g * view(d2c, kernelvarind, nvars(kernel)+1)'
 
     # IRLS reweighting of Hessian

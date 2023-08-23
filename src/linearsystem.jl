@@ -176,7 +176,7 @@ function updateb!(B, b, vars, varflags, boffsets, blockindices)
     end
 end
 
-function updatesymlinearsystem!(linsystem::MultiVariateLS, g, H, vars, varflags, blockindices)
+function updatesymlinearsystem!(linsystem::MultiVariateLS, g::AbstractVector, H::AbstractArray, vars, varflags, blockindices)
     updateb!(linsystem.b, g, vars, varflags, linsystem.boffsets, blockindices)
     updatesymA!(linsystem.A, H, vars, varflags, blockindices)
 end
