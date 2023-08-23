@@ -65,7 +65,7 @@ function cacheindices(bsm)
 end
 
 function updatelastrowsym!(bsm::BlockSparseMatrix{T}, rowindices, blocksz) where T
-    @assert(bsm.rowblocksizes = bsm.columnblocksizes)
+    @assert(bsm.rowblocksizes == bsm.columnblocksizes)
     diff = blocksz - bsm.rowblocksizes[end]
     if diff != 0
         blocksz_ = convert(UInt8, blocksz)
