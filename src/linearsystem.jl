@@ -62,12 +62,13 @@ struct MultiVariateLS
     blockindices::Vector{UInt} # One for each variable
     boffsets::Vector{UInt} # One per block in b
     soloffsets::Vector{UInt} # One for each unfixed variable
+    sparseindices::SparseMatrixCSC{Int, Int} # Indices for turning block sparse matrix into sparse matrix
 
-    function MultiVariateLS(A::BlockSparseMatrix, blockindices)
+    function MultiVariateLS(A::BlockSparseMatrix, blockindices, sparseindices=spzeros(0, 0))
         boffsets = computestartindices(A.rowblocksizes)
         blen = boffsets[end] + A.rowblocksizes[end] - 1
         soloffsets = A.rowblocksizes == A.columnblocksizes ? boffsets : computestartindices(A.columnblocksizes)
-        return new(A, zeros(Float64, blen), blockindices, boffsets, soloffsets)
+        return new(A, zeros(Float64, blen), blockindices, boffsets, soloffsets, sparseindices)
     end
 end
 
@@ -95,8 +96,14 @@ function makemvls(vars, residuals, unfixed, nblocks)
         ind += length(res)
     end
 
+    # Construct the BSM
+    bsm = BlockSparseMatrix{Float64}(pairs, resblocksizes, varblocksizes)
+
+    # Construct the sparse indices
+    sparseindices = size(bsm, 2) > 1000 && 3 * nnz(bsm) < length(bsm) ? makesparseindices(bsm, false) : spzeros(0, 0)
+
     # Construct the MultiVariateLS
-    return MultiVariateLS(BlockSparseMatrix{Float64}(pairs, resblocksizes, varblocksizes), blockindices)
+    return MultiVariateLS(bsm, blockindices, sparseindices)
 end
 
 function makesymmvls(vars, costs, unfixed, nblocks)
@@ -120,8 +127,14 @@ function makesymmvls(vars, costs, unfixed, nblocks)
         addvarvarpairs!(pairs, cost, blockindices)
     end
 
+    # Construct the BSM
+    bsm = BlockSparseMatrix{Float64}(pairs, blocksizes, blocksizes)
+
+    # Construct the sparse indices
+    sparseindices = size(bsm, 2) > 1000 && 3 * nnz(bsm) < length(bsm) ? makesparseindices(bsm, true) : spzeros(0, 0)
+
     # Construct the MultiVariateLS
-    return MultiVariateLS(BlockSparseMatrix{Float64}(pairs, blocksizes, blocksizes), blockindices)
+    return MultiVariateLS(bsm, blockindices, sparseindices)
 end
 
 function updatesymlinearsystem!(linsystem::UniVariateLS, g, H, unusedargs...)
@@ -208,8 +221,8 @@ function gethessgrad(linsystem::UniVariateLS)
 end
 
 function gethessgrad(linsystem::MultiVariateLS)
-    if size(linsystem.A, 2) > 1000 && 3 * nnz(linsystem.A) < length(linsystem.A)
-        return symmetrifysparse(linsystem.A), linsystem.b
+    if !isempty(linsystem.sparseindices)
+        return sparse(linsystem.A, linsystem.sparseindices), linsystem.b
     end
     return symmetrifyfull(linsystem.A), linsystem.b
 end
@@ -219,8 +232,8 @@ function getjacres(linsystem::UniVariateLS)
 end
 
 function getjacres(linsystem::MultiVariateLS)
-    if size(linsystem.A, 2) > 1000 && 3 * nnz(linsystem.A) < length(linsystem.A)
-        return SparseArrays.sparse(linsystem.A), linsystem.b
+    if !isempty(linsystem.sparseindices)
+        return sparse(linsystem.A, linsystem.sparseindices), linsystem.b
     end
     return Matrix(linsystem.A), linsystem.b
 end
