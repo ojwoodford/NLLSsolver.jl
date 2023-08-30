@@ -4,15 +4,12 @@ using NLLSsolver, SparseArrays, StaticArrays, Test, Random
     # Define the size of test problem
     blocksizes = [1, 1, 2, 2, 3, 3, 3, 3, 2, 2, 1, 1]
     fromblock = 7
-    pairs_ = [2, 1, 6, 1, 7, 1, 9, 1, 8, 2, 7, 3, 8, 3, 10, 3, 12, 4, 4, 3, 9, 5, 10, 5, 11, 5, 6, 5, 6, 4, 11, 6, 12, 6]
+    rows = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 2, 6, 7, 9, 8, 7, 8, 10, 12, 4, 9, 10, 11, 6, 6, 11, 12]
+    cols = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 1, 1, 1, 1, 2, 3, 3, 3,  4,  3, 5, 5,  5,  5, 4, 6,  6]
     
     # Intitialize a sparse linear system randomly
+    from = NLLSsolver.MultiVariateLS(NLLSsolver.BlockSparseMatrix{Float64}(sparse(cols, rows, trues(length(rows))), blocksizes, blocksizes), 1:length(blocksizes))
     Random.seed!(1)
-    pairs = [SVector(i, i) for i in 1:length(blocksizes)]
-    for i in 1:2:length(pairs_)
-        push!(pairs, SVector(pairs_[i], pairs_[i+1]))
-    end
-    from = NLLSsolver.MultiVariateLS(NLLSsolver.BlockSparseMatrix{Float64}(pairs, blocksizes, blocksizes), 1:length(blocksizes))
     from.A.data .= randn(length(from.A.data))
     from.b .= randn(length(from.b))
     # Make the diagonal blocks symmetric

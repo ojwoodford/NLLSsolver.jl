@@ -8,10 +8,11 @@ using NLLSsolver, SparseArrays, StaticArrays, Test
            1  4  0  0  0  0 ;
            2  5  0  0  0  0 ;
            3  6  0  0  0  0 ;
-           0  0  7  8  9  13]
+           0  0  7  8  9  13;
+           0  0  0  0  0  0 ]
 
     # Construct a matching BSM
-    b = NLLSsolver.BlockSparseMatrix{Float64}([SVector(2, 1), SVector(3, 2), SVector(1, 3), SVector(3, 3)], [3,3,1], [2,3,1])
+    b = NLLSsolver.BlockSparseMatrix{Float64}(sparse([0 0 1; 1 0 0; 0 1 1; 0 0 0]' .> 0), [3,3,1,1], [2,3,1])
     NLLSsolver.block(b, 2, 1) .= reshape(1.:6., (3, 2))
     NLLSsolver.block(b, 3, 2, 1, 3) .= SMatrix{1, 3, Float64, 3}(7:9)
     NLLSsolver.block(b, 1, 3, 3, 1) .= [10.; 11; 12]
@@ -19,19 +20,19 @@ using NLLSsolver, SparseArrays, StaticArrays, Test
 
     # Interface checks
     @test eltype(b) == Float64
-    @test size(b) == (7, 6)
-    @test length(b) == 42
+    @test size(b) == (8, 6)
+    @test length(b) == 48
     @test nnz(b) == 13
 
     m = Matrix(b)
     @test typeof(m) == Matrix{Float64}
-    @test size(m) == (7, 6)
+    @test size(m) == (8, 6)
     @test m == out
 
     s = sparse(b)
     @test issparse(s)
     @test typeof(s) == SparseMatrixCSC{Float64, Int64}
-    @test size(s) == (7, 6)
+    @test size(s) == (8, 6)
     @test nnz(s) == 13
     @test Matrix(s) == out
 
@@ -49,7 +50,7 @@ using NLLSsolver, SparseArrays, StaticArrays, Test
     outsym = max.(out2, out2')
 
     # Construct a matching BSM
-    bs = NLLSsolver.BlockSparseMatrix{Int64}([SVector(2, 1), SVector(3, 2), SVector(2, 2), SVector(3, 3)], [2,3,1], [2,3,1])
+    bs = NLLSsolver.BlockSparseMatrix{Int64}(sparse([0 0 0; 1 1 0; 0 1 1]' .> 0), [2,3,1], [2,3,1])
     NLLSsolver.block(bs, 2, 1) .= reshape(1:6, (3, 2))
     NLLSsolver.block(bs, 3, 2, 1, 3) .= SVector{3, Int64}(13:15)'
     NLLSsolver.block(bs, 2, 2, 3, 3) .= [7 8 9; 8 10 11; 9 11 12]

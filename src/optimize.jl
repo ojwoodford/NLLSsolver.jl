@@ -17,7 +17,7 @@ function optimize!(problem::NLLSProblem{VarTypes}, options::NLLSOptions=NLLSOpti
         return optimizeinternal!(problem, options, NLLSInternalSingleVar(unfixed, varlen, computehessian ? varlen : UInt(countcosts(resnum, problem.costs))), costgradient!, t)
     end
     # Multiple variables. Use a block sparse matrix
-    mvls = computehessian ? makesymmvls(problem.variables, problem.costs, unfixed, nblocks) : makemvls(problem.variables, problem.costs, unfixed, nblocks)
+    mvls = computehessian ? makesymmvls(problem, unfixed, nblocks) : makemvls(problem, unfixed, nblocks)
     return optimizeinternal!(problem, options, NLLSInternalMultiVar(mvls), costgradient!, t)
 end
 

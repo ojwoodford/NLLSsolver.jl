@@ -1,41 +1,11 @@
-using SparseArrays, Static
+using SparseArrays, Static, LinearAlgebra
 
-function addvarvarpairs!(pairs, costs::Vector, blockindices)
-    for cost in costs
-        if ndeps(cost) > 1
-            addvarvarpairs!(pairs, cost, blockindices)
-        end
-    end
-end
-
-function addvarvarpairs!(pairs, cost, blockindices)
-    blocks = blockindices[varindices(cost)]
-    blocks = blocks[blocks .!= 0]
-    if length(blocks) <= 1
-        return
-    end
-    blocks = sort!(blocks, rev=true)
-    @inbounds for (i, b) in enumerate(blocks)
-        @inbounds for b_ in @view blocks[i+1:end]
-            push!(pairs, SVector(b, b_))
-        end
-    end
-end
-
-function addresvarpairs!(pairs, resblocksizes, residuals::Vector, blockindices, ind)
-    for res in residuals
-        addresvarpairs!(pairs, resblocksizes, res, blockindices, ind)
+function getresblocksizes!(resblocksizes, residuals::Vector, ind::Int)::Int
+    @inbounds for res in residuals
+        resblocksizes[ind] = nres(res)
         ind += 1
     end
-end
-
-function addresvarpairs!(pairs, resblocksizes, residual, blockindices, ind)
-    blocks = blockindices[varindices(residual)]
-    blocks = blocks[blocks .!= 0]
-    @inbounds for b in blocks
-        push!(pairs, SVector(ind, b))
-    end
-    resblocksizes[ind] = nres(residual)
+    return ind
 end
 
 # Uni-variate linear system
@@ -72,32 +42,33 @@ struct MultiVariateLS
     end
 end
 
-function makemvls(vars, residuals, unfixed, nblocks)
+function makemvls(problem, unfixed, nblocks)
     # Multiple variables. Use a block sparse matrix
-    blockindices = zeros(UInt, length(vars))
+    blockindices = zeros(UInt, length(problem.variables))
     varblocksizes = zeros(UInt, nblocks)
-    resblocksizes = zeros(UInt, countcosts(resnum, residuals))
-    pairs = Vector{SVector{2, Int}}()
     nblocks = 0
     # Get the variable block sizes
     for (index, unfixed_) in enumerate(unfixed)
         if unfixed_
             nblocks += 1
             blockindices[index] = nblocks
-            N = nvars(vars[index])
-            varblocksizes[nblocks] = N
+            varblocksizes[nblocks] = nvars(problem.variables[index])
         end
     end
 
-    # Compute the residual-variable pairs
+    # Get the residual block sizes
     ind = 1
-    @inbounds for res in values(residuals)
-        addresvarpairs!(pairs, resblocksizes, res, blockindices, ind)
-        ind += length(res)
+    resblocksizes = zeros(UInt, countcosts(resnum, problem.costs))
+    @inbounds for res in values(problem.costs)
+        ind = getresblocksizes!(resblocksizes, res, ind)
     end
 
+    # Get the sparsity
+    sparsity = getvarcostmap(problem)
+    sparsity = sparsity[unfixed,:]
+
     # Construct the BSM
-    bsm = BlockSparseMatrix{Float64}(pairs, resblocksizes, varblocksizes)
+    bsm = BlockSparseMatrix{Float64}(sparsity, resblocksizes, varblocksizes)
 
     # Construct the sparse indices
     sparseindices = size(bsm, 2) > 1000 && 3 * nnz(bsm) < length(bsm) ? makesparseindices(bsm, false) : spzeros(0, 0)
@@ -106,29 +77,26 @@ function makemvls(vars, residuals, unfixed, nblocks)
     return MultiVariateLS(bsm, blockindices, sparseindices)
 end
 
-function makesymmvls(vars, costs, unfixed, nblocks)
+function makesymmvls(problem, unfixed, nblocks)
     # Multiple variables. Use a block sparse matrix
-    blockindices = zeros(UInt, length(vars))
+    blockindices = zeros(UInt, length(problem.variables))
     blocksizes = zeros(UInt, nblocks)
     nblocks = 0
-    pairs = Vector{SVector{2, Int}}()
     for (index, unfixed_) in enumerate(unfixed)
         if unfixed_
             nblocks += 1
             blockindices[index] = nblocks
-            N = nvars(vars[index])
-            blocksizes[nblocks] = N
-            push!(pairs, SVector(nblocks, nblocks))
+            blocksizes[nblocks] = nvars(problem.variables[index])
         end
     end
 
-    # Compute the off-diagonal pairs
-    @inbounds for cost in values(costs)
-        addvarvarpairs!(pairs, cost, blockindices)
-    end
+    # Compute the block sparsity
+    sparsity = getvarcostmap(problem)
+    sparsity = sparsity[unfixed,:]
+    sparsity = sparse(UpperTriangular(sparse(sparsity * sparsity' .> 0)))
 
     # Construct the BSM
-    bsm = BlockSparseMatrix{Float64}(pairs, blocksizes, blocksizes)
+    bsm = BlockSparseMatrix{Float64}(sparsity, blocksizes, blocksizes)
 
     # Construct the sparse indices
     sparseindices = size(bsm, 2) > 1000 && 3 * nnz(bsm) < length(bsm) ? makesparseindices(bsm, true) : spzeros(0, 0)
