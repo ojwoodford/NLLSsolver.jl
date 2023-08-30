@@ -35,7 +35,7 @@ struct BlockSparseMatrix{T}
         start = 1
         indices = Vector{Int}(undef, length(pairs_))
         for ind in eachindex(indices)
-            indices[ind] = start
+            @inbounds indices[ind] = start
             # Store the blocks rowwise
             start += convert(Int, rowblocksizes[pairs_[ind][1]]) * convert(Int, colblocksizes[pairs_[ind][2]])
         end
