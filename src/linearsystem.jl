@@ -58,7 +58,7 @@ function makemvls(problem, unfixed, nblocks)
 
     # Get the residual block sizes
     ind = 1
-    resblocksizes = zeros(UInt, countcosts(resnum, problem.costs))
+    resblocksizes = zeros(UInt, countcosts(costnum, problem.costs))
     @inbounds for res in values(problem.costs)
         ind = getresblocksizes!(resblocksizes, res, ind)
     end
