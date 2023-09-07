@@ -206,6 +206,30 @@ function getjacres(linsystem::MultiVariateLS)
     return Matrix(linsystem.A), linsystem.b
 end
 
+function getjacresdamped(linsystem::UniVariateLS, lambda)
+    return vcat(linsystem.A, I*lambda), vcat(linsystem.b, zeros(eltype(linsystem.b), size(linsystem.A, 2)))
+end
+
+function getjacresdamped(linsystem::MultiVariateLS, lambda)
+    if !isempty(linsystem.sparseindices)
+        ind = linsystem.sparseindices
+        colptr = ind.colptr .+ (0:ind.n)
+        nnz = length(ind.rowval)
+        rowval = Vector{Int}(undef, nnz+ind.n)
+        nzval = Vector{Float64}(undef, nnz+ind.n)
+        for i = 1:ind.n
+            inind = ind.colptr[i]:ind.colptr[i+1]-1
+            outind = colptr[i]:colptr[i+1]-2
+            @inbounds rowval[outind] .= view(ind.rowval, inind)
+            @inbounds rowval[colptr[i+1]-1] = ind.m + i
+            @inbounds nzval[outind] .= view(linsystem.A.data, view(ind.nzval, inind))
+            @inbounds nzval[colptr[i+1]-1] = Float64(lambda)
+        end
+        return SparseArrays.SparseMatrixCSC{Float64, Int}(ind.m+ind.n, ind.n, colptr, rowval, nzval), vcat(linsystem.b, zeros(eltype(linsystem.b), ind.n))
+    end
+    return hcat(Matrix(linsystem.A), I*lambda), vcat(linsystem.b, zeros(eltype(linsystem.b), size(linsystem.A, 2)))
+end
+
 function zero!(linsystem)
     fill!(linsystem.b, 0)
     zero!(linsystem.A)

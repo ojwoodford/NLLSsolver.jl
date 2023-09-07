@@ -1,7 +1,7 @@
 function optimize!(problem::NLLSProblem{VarTypes}, options::NLLSOptions=NLLSOptions(), unfixed=0)::NLLSResult where VarTypes
     t = Base.time_ns()
     @assert length(problem.variables) > 0
-    computehessian = !in(options.iterator, [gaussnewton])
+    computehessian = !in(options.iterator, [gaussnewton, levenbergmarquardttall])
     @assert computehessian || all(type_ -> type_ <: AbstractResidual, keys(problem.costs.data))
     costgradient! = computehessian ? costgradhess! : costresjac!
     # Copy the variables
@@ -47,6 +47,11 @@ function optimizeinternal!(problem::NLLSProblem{VarTypes}, options::NLLSOptions,
         # Gradient descent
         gddata = GradientDescentData(1.0)
         return optimizeinternal!(problem, options, data, gddata, costgradient!, (Base.time_ns() - starttimens) * 1.e-9)
+    end
+    if options.iterator == levenbergmarquardttall
+        # Levenberg-Marquardt
+        levmardata = LevMarJacData()
+        return optimizeinternal!(problem, options, data, levmardata, costgradient!, (Base.time_ns() - starttimens) * 1.e-9)
     end
     error("Iterator not recognized")
 end
