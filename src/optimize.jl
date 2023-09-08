@@ -19,8 +19,8 @@ end
 
 function optimizeinternal!(problem::NLLSProblem{VarTypes}, options::NLLSOptions, data, starttimens)::NLLSResult where VarTypes
     # Call the optimizer with the required iterator struct
-    if options.iterator == newton
-        # Gauss-Newton (optimize jacobian form)
+    if options.iterator == newton || options.iterator == gaussnewton
+        # Newton's method, using Gauss' approximation to the Hessian (optimizing Hessian form)
         newtondata = NewtonData()
         return optimizeinternal!(problem, options, data, newtondata, (Base.time_ns() - starttimens) * 1.e-9)
     end

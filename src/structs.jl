@@ -1,9 +1,9 @@
 using SparseArrays, Dates, Static
 import Printf.@printf
 
-@enum NLLSIterator newton levenbergmarquardt dogleg gradientdescent
+@enum NLLSIterator gaussnewton newton levenbergmarquardt dogleg gradientdescent
 function Base.String(iterator::NLLSIterator) 
-    if iterator == newton
+    if iterator == newton || iterator == gaussnewton
         return "Newton"
     end
     if iterator == levenbergmarquardt
@@ -30,6 +30,9 @@ struct NLLSOptions
     storetrajectory::Bool       # Indicates whether the step per outer iteration should be stored
 end
 function NLLSOptions(; maxiters=100, reldcost=1.e-15, absdcost=1.e-15, dstep=1.e-15, maxfails=3, iterator=levenbergmarquardt, callback=(cost, args...)->(cost, 0), storecosts=false, storetrajectory=false)
+    if iterator == gaussnewton
+        Base.depwarn("gaussnewton is deprecated. Use newton instead", :NLLSOptions)
+    end
     NLLSOptions(reldcost, absdcost, dstep, maxfails, maxiters, iterator, callback, storecosts, storetrajectory)
 end
 
