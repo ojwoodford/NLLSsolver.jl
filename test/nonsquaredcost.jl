@@ -60,9 +60,6 @@ Base.eltype(::LinearCostDynamic) = Float64
     NLLSsolver.addcost!(problem, LinearResidualDynamic(Vector(y), Matrix(X), 2))
     NLLSsolver.addcost!(problem, LinearCostDynamic(Vector(y), 2))
 
-    # Test we can't use GaussNewton
-    @test_throws AssertionError NLLSsolver.optimize!(problem, NLLSsolver.NLLSOptions(iterator=NLLSsolver.gaussnewton))
-
     # Optimize
     result = NLLSsolver.optimize!(problem, NLLSsolver.NLLSOptions(iterator=NLLSsolver.newton))
 

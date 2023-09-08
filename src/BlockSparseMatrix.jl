@@ -27,20 +27,21 @@ struct BlockSparseMatrix{T}
         return new(zeros(T, nnzvals), SparseArrays.spzeros(length(rbs), length(cbs)), SparseArrays.sparse(indicestransposed), rbs, cbs, sumrbs, sumcbs)
     end
 
-    function BlockSparseMatrix{T}(pairs::Vector{SVector{2, U}}, rowblocksizes, colblocksizes) where {T, U}
-        # Sort the indices for faster construction, and ensure unique
-        pairs_ = sort(pairs)
-        unique!(pairs_)
+    function BlockSparseMatrix{T}(sparsitytransposed::SparseArrays.SparseMatrixCSC{Bool, Int}, rowblocksizes, colblocksizes) where T
+        @assert (size(sparsitytransposed) == (length(colblocksizes), length(rowblocksizes)))
+        # Construct the block indices sparse matrix
+        indicestransposed = SparseArrays.SparseMatrixCSC{Int, Int}(sparsitytransposed.m, sparsitytransposed.n, sparsitytransposed.colptr, sparsitytransposed.rowval, Vector{Int}(undef, length(sparsitytransposed.rowval)))
         # Compute the block pointers and length of data storage
         start = 1
-        indices = Vector{Int}(undef, length(pairs_))
-        for ind in eachindex(indices)
-            indices[ind] = start
-            # Store the blocks rowwise
-            start += convert(Int, rowblocksizes[pairs_[ind][1]]) * convert(Int, colblocksizes[pairs_[ind][2]])
+        ind = 1
+        for row = 1:length(rowblocksizes)
+            rowwidth = convert(Int, @inbounds rowblocksizes[row])
+            for col in @inbounds view(sparsitytransposed.rowval, sparsitytransposed.colptr[row]:sparsitytransposed.colptr[row+1]-1)
+                @inbounds indicestransposed.nzval[ind] = start
+                ind +=1
+                start += rowwidth * convert(Int, @inbounds colblocksizes[col])
+            end
         end
-        # Initialize the block pointer sparse matrix
-        indicestransposed = SparseArrays.sparse([p[2] for p in pairs_], [p[1] for p in pairs_], indices, length(colblocksizes), length(rowblocksizes))
         # Construct the BlockSparseMatrix
         return BlockSparseMatrix{T}(start - 1, indicestransposed, rowblocksizes, colblocksizes)
     end
@@ -72,7 +73,6 @@ function updatelastrowsym!(bsm::BlockSparseMatrix{T}, rowindices, blocksz) where
         bsm.rowblocksizes[end] = blocksz_
         bsm.colblocksizes[end] = blocksz_
         bsm = BlockSparseMatrix{T}(bsm, bsm.m + diff)
-        
     end
     diff = length(rowindices) - (bsm.indicestransposed.colptr[end] - bsm.indicestransposed.colptr[end-1])
     if diff != 0

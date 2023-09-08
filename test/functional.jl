@@ -53,7 +53,7 @@ Base.eltype(::RosenbrockB) = Float64
     @test result.niterations == 1
 
     # Test optimization
-    for iter in [NLLSsolver.gaussnewton, NLLSsolver.newton, NLLSsolver.levenbergmarquardt, NLLSsolver.dogleg]
+    for iter in [NLLSsolver.newton, NLLSsolver.levenbergmarquardt, NLLSsolver.dogleg]
         # Set the start
         problem.variables[1] = -0.5
         problem.variables[2] = 2.5

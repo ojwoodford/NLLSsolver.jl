@@ -1,3 +1,5 @@
+using SparseArrays
+
 function update!(to::Vector, from::Vector, linsystem::MultiVariateLS, step)
     # Update each variable
     @inbounds for (i, j) in enumerate(linsystem.blockindices)
@@ -13,23 +15,6 @@ function update!(to::Vector, from::Vector, linsystem::UniVariateLS, step)
 end
 
 # Iterators assume that the linear problem has been constructed
-
-# Gauss-Newton optimization (undamped-Jacobian form)
-struct GaussNewtonData
-end
-
-function iterate!(::GaussNewtonData, data, problem::NLLSProblem, options::NLLSOptions)::Float64
-    jacobian, residual = getjacres(data.linsystem)
-    # Compute the step
-    data.timesolver += @elapsed data.step .= -linearsolve(jacobian, residual, options)
-    data.linearsolvers += 1
-    # Update the new variables
-    update!(problem.varnext, problem.variables, data.linsystem, data.step)
-    # Return the cost
-    data.timecost += @elapsed cost_ = cost(problem.varnext, problem.costs)
-    data.costcomputations += 1
-    return cost_
-end
 
 # Newton optimization (undamped-Hessian form)
 struct NewtonData
@@ -157,14 +142,14 @@ function iterate!(levmardata::LevMarData, data, problem::NLLSProblem, options::N
         if !(cost_ > data.bestcost) || (maximum(abs, data.step) < options.dstep)
             # Success (or convergence) - update lambda
             uniformscaling!(hessian, -lastlambda)
-            step_quality = 2.0 * (cost_ - data.bestcost) / (((data.step' * hessian) * 0.5 + gradient') * data.step)
-            levmardata.lambda *= step_quality < 1.966 ? 1 - (step_quality - 1) ^ 3 : 0.1
+            stepquality = (cost_ - data.bestcost) / (((data.step' * hessian) * 0.5 + gradient') * data.step)
+            levmardata.lambda *= stepquality < 0.983 ? 1 - (2 * stepquality - 1) ^ 3 : 0.1
             # Return the cost
             return cost_
         end
         # Failure - increase lambda
-        levmardata.lambda *= mu;
-        mu *= 2.;
+        levmardata.lambda *= mu
+        mu *= 2.
     end
 end
 
@@ -219,3 +204,4 @@ function iterate!(gddata::GradientDescentData, data, problem::NLLSProblem, optio
         multiplier ^= 2
     end
 end
+

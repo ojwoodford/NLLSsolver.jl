@@ -103,8 +103,11 @@ function updatevarcostmap!(varcostmap::SparseMatrixCSC{Bool, Int}, costvec::Vect
     if numres > 0
         @inbounds for cost in costvec
             ndeps_ = dynamic(ndeps(cost))
-            srange = SR(0, ndeps_-1)
-            varcostmap.rowval[srange.+rowind] .= sort(varindices(cost))
+            if ndeps_ == 1
+                varcostmap.rowval[rowind] = varindices(cost)[1]
+            else
+                varcostmap.rowval[SR(0, ndeps_-1).+rowind] .= sort(varindices(cost))
+            end
             rowind += ndeps_
             colind += 1
             varcostmap.colptr[colind] = rowind
@@ -139,6 +142,36 @@ function updatevarcostmap!(problem::NLLSProblem)
     retval = updatevarcostmap!(problem.varcostmap, problem.costs)
     problem.varcostmapvalid = true
     return retval
+end
+
+function getvarcostmap(problem::NLLSProblem)
+    if !problem.varcostmapvalid
+        updatevarcostmap!(problem)
+    end
+    return problem.varcostmap
+end
+
+function reordercostsforschur(problem::NLLSProblem, schurvars)
+    # Group residuals by Schur variable (i.e. variables to be factored out)
+    # Get the cost index per Schur variable (0 if none)
+    schurruns = Dict{DataType, Vector{Int}}()
+    costvarmap = sparse(view(getvarcostmap(problem), schurvars, :)')
+    schurvarpercost = sum(costvarmap; dims=2)
+    @assert all(x->(x<=1), schurvarpercost) "Each cost block can only depend on one schur variable at most"
+    schurvarpercost[schurvarpercost .> 0] = costvarmap.rowval
+    # Reorder each set of cost blocks such that blocks with Schur variables are grouped
+    startind = 0
+    for costs in values(problem.costs)
+        if !isempty(costs)
+            schurvarpercostsubset = view(schurvarpercost, startind+1:startind+length(costs))
+            startind += length(costs)
+            sortedorder = sortperm(schurvarpercostsubset)
+            permute!(schurvarpercostsubset, sortedorder)
+            schurruns[typeof(costs[1])] = runlengthencodesortedints(schurvarpercostsubset)
+            permute!(costs, sortedorder)
+        end
+    end
+    return schurruns
 end
 
 costnum(vec::Vector)  = length(vec)

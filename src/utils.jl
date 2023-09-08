@@ -27,3 +27,19 @@ bitiset(flags, bit) = (1 << (bit - 1)) & flags != 0
 @inline uniontotuple(T::DataType) = (T,)
 
 @inline sqnorm(x) = (x' * x)
+
+function runlengthencodesortedints(sortedints)
+    runindices = Vector{Int}(undef, sortedints[end]+2)
+    ind = 1
+    currval = 1
+    runindices[currval] = ind
+    for val in sortedints
+        while val >= currval
+            currval += 1
+            runindices[currval] = ind
+        end
+        ind += 1
+    end
+    runindices[currval+1] = ind
+    return runindices
+end

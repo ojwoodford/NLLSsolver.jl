@@ -72,7 +72,7 @@ function runoptimizers!(results, problem, start, iterators)
     end
 end
 
-function optimize2DProblem(problem, start, xrange, yrange; iterators=[NLLSsolver.gaussnewton, NLLSsolver.levenbergmarquardt, NLLSsolver.dogleg, NLLSsolver.gradientdescent])
+function optimize2DProblem(problem, start, xrange, yrange; iterators=[NLLSsolver.newton, NLLSsolver.levenbergmarquardt, NLLSsolver.dogleg, NLLSsolver.gradientdescent])
     # Compute the results 
     results = [OptimResult() for i in range(1, length(iterators))]
     runoptimizers!(results, problem, start, iterators)
