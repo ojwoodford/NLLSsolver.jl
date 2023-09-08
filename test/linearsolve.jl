@@ -10,5 +10,4 @@ using NLLSsolver, SparseArrays, Test
     # Test the solvers
     @test isapprox(NLLSsolver.symmetricsolve(A, b, "test"), x)
     @test isapprox(NLLSsolver.symmetricsolve(sparse(A), b, nothing), x)
-    @test isapprox(NLLSsolver.linearsolve(A, b, 1), x)
 end

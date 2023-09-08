@@ -33,7 +33,7 @@ Base.eltype(::NormResidual) = Float64
     NLLSsolver.addcost!(problem, NormResidual(length(X)))
 
     # Optimize
-    result = NLLSsolver.optimize!(problem, NLLSsolver.NLLSOptions(iterator=NLLSsolver.gaussnewton, storecosts=true))
+    result = NLLSsolver.optimize!(problem, NLLSsolver.NLLSOptions(iterator=NLLSsolver.newton, storecosts=true))
 
     # Check the result is collinear to X
     Y = problem.variables[1]

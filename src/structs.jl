@@ -1,11 +1,8 @@
 using SparseArrays, Dates, Static
 import Printf.@printf
 
-@enum NLLSIterator gaussnewton newton levenbergmarquardt dogleg gradientdescent levenbergmarquardttall
+@enum NLLSIterator newton levenbergmarquardt dogleg gradientdescent
 function Base.String(iterator::NLLSIterator) 
-    if iterator == gaussnewton
-        return "Gauss-Newton"
-    end
     if iterator == newton
         return "Newton"
     end
@@ -17,9 +14,6 @@ function Base.String(iterator::NLLSIterator)
     end
     if iterator == gradientdescent
         return "Gradient descent"
-    end
-    if iterator == levenbergmarquardttall
-        return "Levenberg-Marquardt using Jacobian linear system"
     end
     return "Unknown iterator"
 end

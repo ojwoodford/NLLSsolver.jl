@@ -16,23 +16,6 @@ end
 
 # Iterators assume that the linear problem has been constructed
 
-# Gauss-Newton optimization (undamped-Jacobian form)
-struct GaussNewtonData
-end
-
-function iterate!(::GaussNewtonData, data, problem::NLLSProblem, options::NLLSOptions)::Float64
-    jacobian, residual = getjacres(data.linsystem)
-    # Compute the step
-    data.timesolver += @elapsed data.step .= -linearsolve(jacobian, residual, options)
-    data.linearsolvers += 1
-    # Update the new variables
-    update!(problem.varnext, problem.variables, data.linsystem, data.step)
-    # Return the cost
-    data.timecost += @elapsed cost_ = cost(problem.varnext, problem.costs)
-    data.costcomputations += 1
-    return cost_
-end
-
 # Newton optimization (undamped-Hessian form)
 struct NewtonData
 end
@@ -167,60 +150,6 @@ function iterate!(levmardata::LevMarData, data, problem::NLLSProblem, options::N
         # Failure - increase lambda
         levmardata.lambda *= mu
         mu *= 2.
-    end
-end
-
-mutable struct LevMarJacData
-    lambda::Float64
-
-    function LevMarJacData()
-        return new(1.0)
-    end
-end
-
-function updatedamping!(jac::Matrix, lambda) 
-    n = size(jac, 1) - size(jac, 2)
-    for i in axes(jac, 2)
-        @inbounds jac[i+n,i] = lambda
-    end
-    return nothing
-end
-
-function updatedamping!(jac::SparseMatrixCSC, lambda)
-    for ind in view(jac.colptr, 2:jac.n+1)
-        @inbounds jac.nzval[ind-1] = lambda
-    end
-    return nothing
-end
-
-function iterate!(levmardata::LevMarJacData, data, problem::NLLSProblem, options::NLLSOptions)::Float64
-    @assert levmardata.lambda >= 0.
-    jac, res = getjacresdamped(data.linsystem, levmardata.lambda)
-    mu = 1.4142135623730951  # sqrt(2)
-    while true
-        # Solve the linear system
-        data.timesolver += @elapsed data.step .= -linearsolve(jac, res, options)
-        data.linearsolvers += 1
-        # Update the new variables
-        update!(problem.varnext, problem.variables, data.linsystem, data.step)
-        # Compute the cost
-        data.timecost += @elapsed cost_ = cost(problem.varnext, problem.costs)
-        data.costcomputations += 1
-        # Check for exit
-        if !(cost_ > data.bestcost) || (maximum(abs, data.step) < options.dstep)
-            # Success (or convergence) - update lambda
-            undampedind = 1:length(res)-size(jac, 2)
-            Jx = (jac * data.step)[undampedind]
-            stepquality = (cost_ - data.bestcost) / ((view(res, undampedind) + 0.5 * Jx)' * Jx)
-            levmardata.lambda *= stepquality < 0.983 ? sqrt(1 - (2 * stepquality - 1) ^ 3) : 0.31622776601683794 # sqrt(0.1)
-            # Return the cost
-            return cost_
-        end
-        # Failure - increase lambda
-        levmardata.lambda *= mu
-        mu *= 1.4142135623730951 # sqrt(2)
-        # Change the dampening
-        updatedamping!(jac, levmardata.lambda)
     end
 end
 

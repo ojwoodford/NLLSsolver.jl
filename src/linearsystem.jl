@@ -42,41 +42,6 @@ struct MultiVariateLS
     end
 end
 
-function makemvls(problem, unfixed, nblocks)
-    # Multiple variables. Use a block sparse matrix
-    blockindices = zeros(UInt, length(problem.variables))
-    varblocksizes = zeros(UInt, nblocks)
-    nblocks = 0
-    # Get the variable block sizes
-    for (index, unfixed_) in enumerate(unfixed)
-        if unfixed_
-            nblocks += 1
-            blockindices[index] = nblocks
-            varblocksizes[nblocks] = nvars(problem.variables[index])
-        end
-    end
-
-    # Get the residual block sizes
-    ind = 1
-    resblocksizes = zeros(UInt, countcosts(costnum, problem.costs))
-    @inbounds for res in values(problem.costs)
-        ind = getresblocksizes!(resblocksizes, res, ind)
-    end
-
-    # Get the sparsity
-    sparsity = getvarcostmap(problem)
-    sparsity = sparsity[unfixed,:]
-
-    # Construct the BSM
-    bsm = BlockSparseMatrix{Float64}(sparsity, resblocksizes, varblocksizes)
-
-    # Construct the sparse indices
-    sparseindices = size(bsm, 2) > 1000 && 3 * nnz(bsm) < length(bsm) ? makesparseindices(bsm, false) : spzeros(0, 0)
-
-    # Construct the MultiVariateLS
-    return MultiVariateLS(bsm, blockindices, sparseindices)
-end
-
 function makesymmvls(problem, unfixed, nblocks)
     # Multiple variables. Use a block sparse matrix
     blockindices = zeros(UInt, length(problem.variables))
@@ -109,12 +74,6 @@ function updatesymlinearsystem!(linsystem::UniVariateLS, g, H, unusedargs...)
     # Update the blocks in the problem
     linsystem.b .+= g
     linsystem.A .+= H
-end
-
-function updatelinearsystem!(linsystem::UniVariateLS, res, jac, ind, unusedargs...)
-    # Update the blocks in the problem
-    view(linsystem.b, SR(1, length(res)).+(ind-1)) .= res
-    view(linsystem.A, SR(1, length(res)).+(ind-1), :) .= jac
 end
 
 function updatesymA!(A, a, vars, varflags, blockindices)
@@ -162,24 +121,6 @@ function updatesymlinearsystem!(linsystem::MultiVariateLS, g::AbstractVector, H:
     updatesymA!(linsystem.A, H, vars, varflags, blockindices)
 end
 
-function updatelinearsystem!(linsystem::MultiVariateLS, res, jac, ind, vars, varflags, blockindices)
-    nres = length(res)
-    view(linsystem.b, SR(0, nres-1) .+ linsystem.boffsets[ind]) .= res
-    # Update the blocks in the problem A matrix
-    rows = linsystem.A.indicestransposed.colptr[ind]:linsystem.A.indicestransposed.colptr[ind+1]-1
-    dataptr = @inbounds view(linsystem.A.indicestransposed.nzval, rows)
-    rows = @inbounds view(linsystem.A.indicestransposed.rowval, rows)
-    loffset = static(0)
-    @unroll for i in 1:MAX_ARGS
-        if i <= length(vars) && bitiset(varflags, i)
-            nv = nvars(vars[i])
-            bi = blockindices[i]
-            view(linsystem.A.data, SR(0, nres*nv-1) .+ dataptr[findfirst(Base.Fix1(isequal, bi), rows)]) .= reshape(view(jac, :, SR(1, nv).+loffset), :)
-            loffset += nv
-        end
-    end
-end
-
 function uniformscaling!(linsystem, k)
     uniformscaling!(linsystem.A, k)
 end
@@ -193,41 +134,6 @@ function gethessgrad(linsystem::MultiVariateLS)
         return sparse(linsystem.A, linsystem.sparseindices), linsystem.b
     end
     return symmetrifyfull(linsystem.A), linsystem.b
-end
-
-function getjacres(linsystem::UniVariateLS)
-    return linsystem.A, linsystem.b
-end
-
-function getjacres(linsystem::MultiVariateLS)
-    if !isempty(linsystem.sparseindices)
-        return sparse(linsystem.A, linsystem.sparseindices), linsystem.b
-    end
-    return Matrix(linsystem.A), linsystem.b
-end
-
-function getjacresdamped(linsystem::UniVariateLS, lambda)
-    return vcat(linsystem.A, I*lambda), vcat(linsystem.b, zeros(eltype(linsystem.b), size(linsystem.A, 2)))
-end
-
-function getjacresdamped(linsystem::MultiVariateLS, lambda)
-    if !isempty(linsystem.sparseindices)
-        ind = linsystem.sparseindices
-        colptr = ind.colptr .+ (0:ind.n)
-        nnz = length(ind.rowval)
-        rowval = Vector{Int}(undef, nnz+ind.n)
-        nzval = Vector{Float64}(undef, nnz+ind.n)
-        for i = 1:ind.n
-            inind = ind.colptr[i]:ind.colptr[i+1]-1
-            outind = colptr[i]:colptr[i+1]-2
-            @inbounds rowval[outind] .= view(ind.rowval, inind)
-            @inbounds rowval[colptr[i+1]-1] = ind.m + i
-            @inbounds nzval[outind] .= view(linsystem.A.data, view(ind.nzval, inind))
-            @inbounds nzval[colptr[i+1]-1] = Float64(lambda)
-        end
-        return SparseArrays.SparseMatrixCSC{Float64, Int}(ind.m+ind.n, ind.n, colptr, rowval, nzval), vcat(linsystem.b, zeros(eltype(linsystem.b), ind.n))
-    end
-    return hcat(Matrix(linsystem.A), I*lambda), vcat(linsystem.b, zeros(eltype(linsystem.b), size(linsystem.A, 2)))
 end
 
 function zero!(linsystem)

@@ -6,27 +6,27 @@
 
 using NLLSsolver, Static, StaticArrays, GLMakie
 
-struct SimpleResidual <: NLLSsolver.AbstractAdaptiveResidual
+struct OffsetResidual <: NLLSsolver.AbstractAdaptiveResidual
     data::Float64
 end
-NLLSsolver.ndeps(::SimpleResidual) = static(2) # Residual depends on 2 variables
-NLLSsolver.nres(::SimpleResidual) = static(1) # Residual has length 1
-NLLSsolver.varindices(::SimpleResidual) = SVector(1, 2)
-NLLSsolver.getvars(::SimpleResidual, vars::Vector) = (vars[1]::NLLSsolver.ContaminatedGaussian{Float64}, vars[2]::Float64)
-NLLSsolver.computeresidual(res::SimpleResidual, mean) = mean - res.data
-NLLSsolver.computeresjac(varflags, res::SimpleResidual, mean) = mean - res.data, one(mean)
-Base.eltype(::SimpleResidual) = Float64
+NLLSsolver.ndeps(::OffsetResidual) = static(2) # Residual depends on 2 variables
+NLLSsolver.nres(::OffsetResidual) = static(1) # Residual has length 1
+NLLSsolver.varindices(::OffsetResidual) = SVector(1, 2)
+NLLSsolver.getvars(::OffsetResidual, vars::Vector) = (vars[1]::NLLSsolver.ContaminatedGaussian{Float64}, vars[2]::Float64)
+NLLSsolver.computeresidual(res::OffsetResidual, mean) = mean - res.data
+NLLSsolver.computeresjac(varflags, res::OffsetResidual, mean) = mean - res.data, one(mean)
+Base.eltype(::OffsetResidual) = Float64
 
 function generatedata(numinliers=100, numoutliers=200, inliersigma=1.0, outliersigma=10.0, offset=1.0, startsigma1=0.5, startsigma2=5.0, startinlierratio=0.6, startoffset=0.0)
     # Generate the test data
     points = offset .+ vcat(randn(numinliers) * inliersigma, randn(numoutliers) * outliersigma)
     
     # Create the problem
-    problem = NLLSsolver.NLLSProblem(Union{NLLSsolver.ContaminatedGaussian{Float64}, Float64}, SimpleResidual)
+    problem = NLLSsolver.NLLSProblem(Union{NLLSsolver.ContaminatedGaussian{Float64}, Float64}, OffsetResidual)
     NLLSsolver.addvariable!(problem, ContaminatedGaussian(startsigma1, startsigma2, startinlierratio))
     NLLSsolver.addvariable!(problem, startoffset)
     for p in points
-        NLLSsolver.addcost!(problem, SimpleResidual(p))
+        NLLSsolver.addcost!(problem, OffsetResidual(p))
     end
 
     # Optimize the cost

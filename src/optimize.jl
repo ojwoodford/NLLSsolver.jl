@@ -1,9 +1,6 @@
 function optimize!(problem::NLLSProblem{VarTypes}, options::NLLSOptions=NLLSOptions(), unfixed=0)::NLLSResult where VarTypes
     t = Base.time_ns()
     @assert length(problem.variables) > 0
-    computehessian = !in(options.iterator, [gaussnewton, levenbergmarquardttall])
-    @assert computehessian || all(type_ -> type_ <: AbstractResidual, keys(problem.costs.data))
-    costgradient! = computehessian ? costgradhess! : costresjac!
     # Copy the variables
     if length(problem.variables) != length(problem.varnext)
         problem.varnext = copy(problem.variables)
@@ -14,52 +11,41 @@ function optimize!(problem::NLLSProblem{VarTypes}, options::NLLSOptions=NLLSOpti
     if nblocks == 1
         # One unfixed variable
         varlen = UInt(nvars(problem.variables[unfixed]))
-        return optimizeinternal!(problem, options, NLLSInternalSingleVar(unfixed, varlen, computehessian ? varlen : UInt(countcosts(resnum, problem.costs))), costgradient!, t)
+        return optimizeinternal!(problem, options, NLLSInternalSingleVar(unfixed, varlen, varlen), t)
     end
     # Multiple variables. Use a block sparse matrix
-    mvls = computehessian ? makesymmvls(problem, unfixed, nblocks) : makemvls(problem, unfixed, nblocks)
-    return optimizeinternal!(problem, options, NLLSInternalMultiVar(mvls), costgradient!, t)
+    return optimizeinternal!(problem, options, NLLSInternalMultiVar(makesymmvls(problem, unfixed, nblocks)), t)
 end
 
-function optimizeinternal!(problem::NLLSProblem{VarTypes}, options::NLLSOptions, data, costgradient!, starttimens)::NLLSResult where VarTypes
+function optimizeinternal!(problem::NLLSProblem{VarTypes}, options::NLLSOptions, data, starttimens)::NLLSResult where VarTypes
     # Call the optimizer with the required iterator struct
-    if options.iterator == gaussnewton
-        # Gauss-Newton (optimize jacobian form)
-        gaussnewtondata = GaussNewtonData()
-        return optimizeinternal!(problem, options, data, gaussnewtondata, costgradient!, (Base.time_ns() - starttimens) * 1.e-9)
-    end
     if options.iterator == newton
         # Gauss-Newton (optimize jacobian form)
         newtondata = NewtonData()
-        return optimizeinternal!(problem, options, data, newtondata, costgradient!, (Base.time_ns() - starttimens) * 1.e-9)
+        return optimizeinternal!(problem, options, data, newtondata, (Base.time_ns() - starttimens) * 1.e-9)
     end
     if options.iterator == levenbergmarquardt
         # Levenberg-Marquardt
         levmardata = LevMarData()
-        return optimizeinternal!(problem, options, data, levmardata, costgradient!, (Base.time_ns() - starttimens) * 1.e-9)
+        return optimizeinternal!(problem, options, data, levmardata, (Base.time_ns() - starttimens) * 1.e-9)
     end
     if options.iterator == dogleg
         # Dogleg
         doglegdata = DoglegData()
-        return optimizeinternal!(problem, options, data, doglegdata, costgradient!, (Base.time_ns() - starttimens) * 1.e-9)
+        return optimizeinternal!(problem, options, data, doglegdata, (Base.time_ns() - starttimens) * 1.e-9)
     end
     if options.iterator == gradientdescent
         # Gradient descent
         gddata = GradientDescentData(1.0)
-        return optimizeinternal!(problem, options, data, gddata, costgradient!, (Base.time_ns() - starttimens) * 1.e-9)
-    end
-    if options.iterator == levenbergmarquardttall
-        # Levenberg-Marquardt
-        levmardata = LevMarJacData()
-        return optimizeinternal!(problem, options, data, levmardata, costgradient!, (Base.time_ns() - starttimens) * 1.e-9)
+        return optimizeinternal!(problem, options, data, gddata, (Base.time_ns() - starttimens) * 1.e-9)
     end
     error("Iterator not recognized")
 end
 
-function optimizeinternal!(problem::NLLSProblem{VarTypes}, options::NLLSOptions, data, iteratedata, costgradient!, timeinit)::NLLSResult where VarTypes
+function optimizeinternal!(problem::NLLSProblem{VarTypes}, options::NLLSOptions, data, iteratedata, timeinit)::NLLSResult where VarTypes
     t = @elapsed begin
         # Initialize the linear problem
-        data.timegradient += @elapsed data.bestcost = costgradient!(data.linsystem, problem.variables, problem.costs)
+        data.timegradient += @elapsed data.bestcost = costgradhess!(data.linsystem, problem.variables, problem.costs)
         data.gradientcomputations += 1
         # Initialize the results
         startcost = data.bestcost
@@ -121,7 +107,7 @@ function optimizeinternal!(problem::NLLSProblem{VarTypes}, options::NLLSOptions,
             # Construct the linear problem
             data.timegradient += @elapsed begin
                 zero!(data.linsystem)
-                costgradient!(data.linsystem, problem.variables, problem.costs)
+                costgradhess!(data.linsystem, problem.variables, problem.costs)
             end
             data.gradientcomputations += 1
         end
