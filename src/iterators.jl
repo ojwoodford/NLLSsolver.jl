@@ -161,47 +161,25 @@ end
 
 function iterate!(gddata::GradientDescentData, data, problem::NLLSProblem, options::NLLSOptions)::Float64
     unused, gradient = gethessgrad(data.linsystem)
-    # Test the current step
+    # Evaluate the current step size
     data.step .= -gradient * gddata.step
     update!(problem.varnext, problem.variables, data.linsystem, data.step)
     data.timecost += @elapsed costc = cost(problem.varnext, problem.costs)
     data.costcomputations += 1
-    multiplier = 1.2
-    if costc < data.bestcost
-        # Test a larger step
-        data.step *= multiplier
-        update!(problem.varnext, problem.variables, data.linsystem, data.step)
-        data.timecost += @elapsed cost_ = cost(problem.varnext, problem.costs)
-        data.costcomputations += 1
-        if cost_ < costc
-            costc = cost_
-            gddata.step *= multiplier
-            multiplier ^= 2
-        else
-            multiplier = 1.0 / multiplier
-            data.step *= multiplier
-        end
-    else
-        multiplier = 1.0 / multiplier
-    end
     while true
-        # Set the step
-        # Update the reduced variables
-        data.step *= multiplier
+        # Compute the expected cost
+        coststep = data.step' * gradient
+        costdiff = data.bestcost + coststep - costc
+        # Compute the optimal step size assuming quadratic fit
+        gddata.step *= 0.5 * coststep / costdiff
+        # Evaluate the new step size
+        data.step .= -gradient * gddata.step
         update!(problem.varnext, problem.variables, data.linsystem, data.step)
-        # Compute the cost
-        data.timecost += @elapsed cost_ = cost(problem.varnext, problem.costs)
+        data.timecost += @elapsed costc = cost(problem.varnext, problem.costs)
         data.costcomputations += 1
         # Check we found a lower cost
-        if (costc <= data.bestcost) && (cost_ >= costc)
-            # Higher cost found. Return the lowest cost
-            data.step *= 1.0 / multiplier
-            update!(problem.varnext, problem.variables, data.linsystem, data.step)
+        if costc <= data.bestcost
             return costc
         end
-        costc = cost_
-        gddata.step *= multiplier
-        multiplier ^= 2
     end
 end
-
