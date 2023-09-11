@@ -42,7 +42,7 @@ function costgradhess!(linsystem, vars::Vector, cost::AbstractCost)
     end
 
     # No unfixed variables, so just return the cost
-    return computecost(cost, v)
+    return computecost(cost, v...)
 end
 
 costgradhess!(linsystem, vars::Vector, costs::CostStruct)::Float64 = sum(fixallbutlast(costgradhess!, linsystem, vars), costs)
