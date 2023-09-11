@@ -1,17 +1,29 @@
-function optimize!(problem::NLLSProblem, options::NLLSOptions=NLLSOptions(), unfixed=0)::NLLSResult
-    t = Base.time_ns()
-    @assert length(problem.variables) > 0
+
+# Uni-variate optimization (single unfixed variable)
+function optimize!(problem::NLLSProblem, options::NLLSOptions, unfixed::Integer, type::Type=typeof(problem.variables[unfixed]), t=Base.time_ns())::NLLSResult
     # Copy the variables
     if length(problem.variables) != length(problem.varnext)
         problem.varnext = copy(problem.variables)
     end
+    # One unfixed variable
+    varlen = UInt(nvars(problem.variables[unfixed]))
+    return optimizeinternal!(problem, options, NLLSInternalSingleVar(UInt(unfixed), varlen, varlen), t)
+end
+
+# Multi-variate optimization
+optimize!(problem::NLLSProblem, options::NLLSOptions, unfixed::Type) = optimize!(problem, options, typeof.(variables).==unfixed)
+function optimize!(problem::NLLSProblem, options::NLLSOptions=NLLSOptions(), unfixed::AbstractVector=trues(length(problem.variables)))::NLLSResult
+    t = Base.time_ns()
+    @assert length(problem.variables) > 0
     # Compute the number of free variables (nblocks)
-    nblocks, unfixed = getnblocks(unfixed, problem.variables)
-    # Pre-allocate the temporary data
+    nblocks = sum(unfixed)
     if nblocks == 1
         # One unfixed variable
-        varlen = UInt(nvars(problem.variables[unfixed]))
-        return optimizeinternal!(problem, options, NLLSInternalSingleVar(unfixed, varlen, varlen), t)
+        return optimize!(problem, options, findfirst(unfixed), typeof(problem.variables[unfixed]), t)
+    end
+    # Copy the variables
+    if length(problem.variables) != length(problem.varnext)
+        problem.varnext = copy(problem.variables)
     end
     # Multiple variables. Use a block sparse matrix
     return optimizeinternal!(problem, options, NLLSInternalMultiVar(makesymmvls(problem, unfixed, nblocks)), t)
@@ -139,36 +151,4 @@ end
 
 function updatetobest!(problem::NLLSProblem, data::NLLSInternalSingleVar)
     problem.varbest[data.linsystem.varindex] = problem.variables[data.linsystem.varindex]
-end
-
-function getnblocks(unfixed, variables)
-    # Compute the number of free variables (nblocks)
-    if isa(unfixed, DataType)
-        unfixed = typeof.(variables) .== unfixed
-    end
-    unfixed_ = UInt(0)
-    if isa(unfixed, Number)
-        unfixed_ = UInt(unfixed)
-        if unfixed_ > 0
-            nblocks = UInt(1)
-        else
-            nblocks = UInt(length(variables))
-            if nblocks == 1
-                unfixed_ = UInt(1)
-            else
-                unfixed = trues(nblocks)
-            end
-        end
-    else
-        @assert length(unfixed) == length(variables)
-        nblocks = UInt(sum(unfixed))
-        @assert nblocks > 0
-    end
-    if nblocks == 1
-        if unfixed_ == 0
-            unfixed_ = UInt(findfirst(unfixed))
-        end
-        return nblocks, unfixed_
-    end
-    return nblocks, unfixed
 end
