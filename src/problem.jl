@@ -24,6 +24,11 @@ NLLSProblem(VT::Union{DataType, Union}, CT::Union{DataType, Union}) = NLLSProble
 NLLSProblem(v::Vector{VT}) where VT = NLLSProblem{VT, Any}(v)
 NLLSProblem(v::Vector{VT}, r::CostStruct{CT}) where {VT, CT} = NLLSProblem{VT, CT}(v, r)
 
+function Base.show(io::IO, x::NLLSProblem)
+    print(io, "NLLSProblem with ", length(x.variables), " variable blocks of total dimension ", UInt(sum(nvars, x.variables)), 
+       ", and\n                 ", countcosts(costnum, x.costs), " residual blocks of total dimension ", countcosts(resnum, x.costs), ".")
+end
+
 function selectcosts!(outcosts::CostStruct, incosts::Vector, unfixed::Integer)
     selectcosts!(outcosts, incosts, [i for (i, r) in enumerate(incosts) if in(unfixed, varindices(r))])
 end
