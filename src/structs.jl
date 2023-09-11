@@ -50,7 +50,7 @@ end
 struct NLLSResult
     startcost::Float64                      # The function cost prior to minimization
     bestcost::Float64                       # The lowest function cost achieved
-    timetotal::Float64                      # The time (in seconds) to run the optimization (excluding initialization)
+    timetotal::Float64                      # The total time (in seconds) taken to run the optimization
     timeinit::Float64                       # The time (in seconds) to initialize the internal data structures
     timecost::Float64                       # Time (in seconds) spent computing the cost
     timegradient::Float64                   # Time (in seconds) spent computing the residual gradients and constructing the linear problems
@@ -65,20 +65,19 @@ struct NLLSResult
 end
 
 function Base.show(io::IO, x::NLLSResult)
-    timetotal = x.timetotal + x.timeinit
-    otherstuff = x.timetotal - x.timecost - x.timegradient - x.timesolver
+    otherstuff = x.timetotal - x.timecost - x.timegradient - x.timesolver - x.timeinit
     @printf(io, "NLLSsolver optimization took %f seconds and %d iterations to reduce the cost from %f to %f (a %.2f%% reduction), using:
    %d cost computations in %f seconds (%.2f%% of total time),
    %d gradient computations in %f seconds (%.2f%% of total time),
    %d linear solver computations in %f seconds (%.2f%% of total time),
    %f seconds for initialization (%.2f%% of total time), and
    %f seconds for other stuff (%.2f%% of total time).\n", 
-            timetotal, x.niterations, x.startcost, x.bestcost, 100*(1-x.bestcost/x.startcost), 
-            x.costcomputations, x.timecost, 100*x.timecost/timetotal,
-            x.gradientcomputations, x.timegradient, 100*x.timegradient/timetotal,
-            x.linearsolvers, x.timesolver, 100*x.timesolver/timetotal,
-            x.timeinit, 100*x.timeinit/timetotal,
-            otherstuff, 100*otherstuff/timetotal)
+            x.timetotal, x.niterations, x.startcost, x.bestcost, 100*(1-x.bestcost/x.startcost), 
+            x.costcomputations, x.timecost, 100*x.timecost/x.timetotal,
+            x.gradientcomputations, x.timegradient, 100*x.timegradient/x.timetotal,
+            x.linearsolvers, x.timesolver, 100*x.timesolver/x.timetotal,
+            x.timeinit, 100*x.timeinit/x.timetotal,
+            otherstuff, 100*otherstuff/x.timetotal)
     if 0 != x.termination           ; println(io, "Reason(s) for termination:"); end
     if 0 != x.termination & (1 << 0); println(io, "   Cost is infinite."); end
     if 0 != x.termination & (1 << 1); println(io, "   Cost is NaN."); end
