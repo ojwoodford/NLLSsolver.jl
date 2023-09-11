@@ -182,3 +182,7 @@ function iterate!(gddata::GradientDescentData, data, problem::NLLSProblem, optio
     gddata.step *= 2
     return costc
 end
+
+printoutcallback(cost, problem, data, iteratedata::LevMarData) = printoutcallback(cost, problem, data, 1.0/iteratedata.lambda)
+printoutcallback(cost, problem, data, iteratedata::DoglegData) = printoutcallback(cost, problem, data, iteratedata.trustradius)
+printoutcallback(cost, problem, data, iteratedata::GradientDescentData) = printoutcallback(cost, problem, data, iteratedata.step)

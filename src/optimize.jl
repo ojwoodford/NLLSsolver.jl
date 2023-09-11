@@ -112,7 +112,7 @@ function optimizeinternal!(problem::NLLSProblem, options::NLLSOptions, data, ite
         # Call the per iteration solver
         cost = iterate!(iteratedata, data, problem, options)::Float64
         # Call the user-defined callback
-        cost, terminate = options.callback(cost, problem, data)::Tuple{Float64, Int}
+        cost, terminate = options.callback(cost, problem, data, iteratedata)::Tuple{Float64, Int}
         # Store the cost if necessary
         if options.storecosts
             push!(costs, cost)

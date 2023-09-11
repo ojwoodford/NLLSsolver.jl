@@ -12,7 +12,7 @@ NLLSsolver.computeresidual(res::SimpleResidual, mean) = mean - res.data
 NLLSsolver.computeresjac(varflags, res::SimpleResidual, mean) = mean - res.data, SVector(one(mean))'
 Base.eltype(::SimpleResidual) = Float64
 
-function emcallback(cost, problem, data)
+function emcallback(cost, problem, data, trailingargs...)
     # Compute the squared errors
     squarederrors = [NLLSsolver.computeresidual(res, problem.varnext[res.varind]) ^ 2 for res in problem.costs.data[SimpleResidual]]
     # Optimize the kernel parameters
