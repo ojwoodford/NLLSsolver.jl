@@ -14,7 +14,7 @@ export update, nvars # Variable interface
 export nres, ndeps, varindices, getvars # Residual interface
 export robustkernel, robustify, robustifydcost, robustifydkernel # Robustifier interface
 export cost, computeresidual, computeresjac, computecost, computecostgradhess # Compute the objective
-export optimize!, printoutcallback  # Optimize the objective
+export optimize!, optimizesingles!, printoutcallback  # Optimize the objective
 export rodrigues, project, epipolarerror, proj2orthonormal # Multi-view geometry helper functions
 export ideal2image, image2ideal, pixel2image, image2pixel, ideal2distorted, distorted2ideal, convertlens
 

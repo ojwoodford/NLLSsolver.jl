@@ -1,6 +1,6 @@
 
 # Uni-variate optimization (single unfixed variable)
-function optimize!(problem::NLLSProblem, options::NLLSOptions, unfixed::Integer, type::Type=typeof(problem.variables[unfixed]), t=Base.time_ns())::NLLSResult
+function optimize!(problem::NLLSProblem, options::NLLSOptions, unfixed::Integer, type::DataType=typeof(problem.variables[unfixed]), t::UInt64=Base.time_ns())::NLLSResult
     # Copy the variables
     if length(problem.variables) != length(problem.varnext)
         problem.varnext = copy(problem.variables)
@@ -29,7 +29,45 @@ function optimize!(problem::NLLSProblem, options::NLLSOptions=NLLSOptions(), unf
     return optimizeinternal!(problem, options, NLLSInternalMultiVar(makesymmvls(problem, unfixed, nblocks)), t)
 end
 
-function optimizeinternal!(problem::NLLSProblem, options::NLLSOptions, data, starttimens)::NLLSResult
+# Optimize one variable at a time
+function optimizesingles!(problem::NLLSProblem, options::NLLSOptions, unfixed::DataType)::NLLSResult
+    t = Base.time_ns()
+    # Compute initial cost
+    timecost = @elapsed startcost = cost(problem)
+    # Initialize stats
+    timeinit = 0.0
+    timegradient = 0.0
+    timesolver = 0.0
+    iternum = 0
+    costcomputations = 2 # Count final cost computation here
+    gradientcomputations = 0
+    linearsolvers = 0
+    # Optimize each variable of the given type, in sequence
+    for (ind, var) in enumerate(problem.variables)
+        # Skip variables of a different type
+        if !isa(var, unfixed)
+            continue
+        end
+        # Construct the subset of residuals that depend
+        timeinit += @elapsed subprob = subproblem(problem, ind)
+        # Optimize the subproblem
+        result = optimize!(subprob, options, ind, unfixed)
+        # Accumulate stats
+        timeinit += result.timeinit
+        timecost += result.timecost
+        timegradient += result.timegradient
+        timesolver += result.timesolver
+        iternum += result.niterations
+        costcomputations += result.costcomputations
+        gradientcomputations += result.gradientcomputations
+        linearsolvers += result.linearsolvers
+    end
+    # Compute final cost
+    timecost += @elapsed endcost = cost(problem)
+    return NLLSResult(startcost, endcost, (Base.time_ns() - t)*1.e-9, timeinit, timecost, timegradient, timesolver, 0, iternum, costcomputations, gradientcomputations, linearsolvers, Vector{Float64}(), Vector{Vector{Float64}}())
+end
+
+function optimizeinternal!(problem::NLLSProblem, options::NLLSOptions, data, starttimens::UInt64)::NLLSResult
     # Call the optimizer with the required iterator struct
     if options.iterator == newton || options.iterator == gaussnewton
         # Newton's method, using Gauss' approximation to the Hessian (optimizing Hessian form)
@@ -54,7 +92,7 @@ function optimizeinternal!(problem::NLLSProblem, options::NLLSOptions, data, sta
     error("Iterator not recognized")
 end
 
-function optimizeinternal!(problem::NLLSProblem, options::NLLSOptions, data, iteratedata, timeinit)::NLLSResult
+function optimizeinternal!(problem::NLLSProblem, options::NLLSOptions, data, iteratedata, timeinit::Float64)::NLLSResult
     t = @elapsed begin
         # Initialize the linear problem
         data.timegradient += @elapsed data.bestcost = costgradhess!(data.linsystem, problem.variables, problem.costs)
