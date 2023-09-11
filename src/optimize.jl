@@ -50,9 +50,9 @@ function optimizesingles!(problem::NLLSProblem, options::NLLSOptions, type::Data
             continue
         end
         # Construct the subset of residuals that depend on this variable
-        # subprobinit += @elapsed_ns subprob = subproblem(problem, ind)
+        subprobinit += @elapsed_ns subprob = subproblem(problem, ind)
         # Optimize the subproblem
-        result = optimize!(problem, options, ind, type)
+        result = optimize!(subprob, options, ind, type)
         # Accumulate stats
         timeinit += result.timeinit
         timecost += result.timecost

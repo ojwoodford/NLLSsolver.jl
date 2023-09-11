@@ -106,7 +106,7 @@ mutable struct NLLSInternalSingleVar
     subsetfun
 
     function NLLSInternalSingleVar(unfixed::UInt, varlen::Integer, n::Integer)
-        return new(0., 0, 0, 0, 0, 0, 0, 0, Vector(undef, varlen), UniVariateLS(unfixed, varlen, n), vec->map(res->any(varindices(res).==unfixed), vec))
+        return new(0., 0, 0, 0, 0, 0, 0, 0, Vector(undef, varlen), UniVariateLS(unfixed, varlen, n), wholevec)
     end
 end
 
