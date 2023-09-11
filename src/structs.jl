@@ -103,11 +103,14 @@ mutable struct NLLSInternalSingleVar
     linearsolvers::Int
     step::Vector{Float64}
     linsystem::UniVariateLS
+    subsetfun
 
     function NLLSInternalSingleVar(unfixed::UInt, varlen::Integer, n::Integer)
-        return new(0., 0, 0, 0, 0, 0, 0, 0, Vector(undef, varlen), UniVariateLS(unfixed, varlen, n))
+        return new(0., 0, 0, 0, 0, 0, 0, 0, Vector(undef, varlen), UniVariateLS(unfixed, varlen, n), vec->map(res->any(varindices(res).==unfixed), vec))
     end
 end
+
+wholevec(v) = 1:length(v)
 
 mutable struct NLLSInternalMultiVar
     bestcost::Float64
@@ -120,14 +123,9 @@ mutable struct NLLSInternalMultiVar
     linearsolvers::Int
     step::Vector{Float64}
     linsystem::MultiVariateLS
-
-    # Maps of dependencies
-    varresmap::SparseMatrixCSC{Bool, Int}
-    resvarmap::SparseMatrixCSC{Bool, Int}
-    varvarmap::SparseMatrixCSC{Bool, Int}
-    mapsvalid::Bool
+    subsetfun
 
     function NLLSInternalMultiVar(mvls)
-        return new(0., 0, 0, 0, 0, 0, 0, 0, Vector{Float64}(undef, size(mvls.A, 2)), mvls)
+        return new(0., 0, 0, 0, 0, 0, 0, 0, Vector{Float64}(undef, size(mvls.A, 2)), mvls, wholevec)
     end
 end

@@ -4,6 +4,7 @@ import IfElse: ifelse
 
 cost(problem::NLLSProblem) = cost(problem.variables, problem.costs)
 cost(vars::Vector, costs::CostStruct)::Float64 = sum(Base.Fix1(computecost, vars), costs)
+cost(vars::Vector, costs::CostStruct, subsetfun)::Float64 = sumsubset(Base.Fix1(computecost, vars), subsetfun, costs)
 computecost(vars::Vector, cost::AbstractCost)::Float64 = computecost(cost, getvars(cost, vars)...)
 
 function gradhesshelper!(linsystem, costblock::AbstractCost, vars, blockind, varflags)::Float64
@@ -46,3 +47,4 @@ function costgradhess!(linsystem, vars::Vector, cost::AbstractCost)
 end
 
 costgradhess!(linsystem, vars::Vector, costs::CostStruct)::Float64 = sum(fixallbutlast(costgradhess!, linsystem, vars), costs)
+costgradhess!(linsystem, vars::Vector, costs::CostStruct, subsetfun)::Float64 = sumsubset(fixallbutlast(costgradhess!, linsystem, vars), subsetfun, costs)

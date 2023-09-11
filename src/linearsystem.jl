@@ -15,7 +15,7 @@ struct UniVariateLS
     varindex::UInt
 
     function UniVariateLS(unfixed, varlen, costnum=varlen)
-        return new(zeros(Float64, costnum, varlen), zeros(Float64, costnum), unfixed)
+        return new(zeros(Float64, costnum, varlen), zeros(Float64, costnum), UInt(unfixed))
     end
 end
 

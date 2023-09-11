@@ -6,7 +6,7 @@ function optimize!(problem::NLLSProblem, options::NLLSOptions, unfixed::Integer,
         problem.varnext = copy(problem.variables)
     end
     # One unfixed variable
-    varlen = UInt(nvars(problem.variables[unfixed]))
+    varlen = dynamic(nvars(problem.variables[unfixed]::type))
     return optimizeinternal!(problem, options, NLLSInternalSingleVar(UInt(unfixed), varlen, varlen), starttime)
 end
 
@@ -30,7 +30,7 @@ function optimize!(problem::NLLSProblem, options::NLLSOptions=NLLSOptions(), unf
 end
 
 # Optimize one variable at a time
-function optimizesingles!(problem::NLLSProblem, options::NLLSOptions, unfixed::DataType)::NLLSResult
+function optimizesingles!(problem::NLLSProblem, options::NLLSOptions, type::DataType)::NLLSResult
     starttime = Base.time_ns()
     # Compute initial cost
     timecost = @elapsed startcost = cost(problem)
@@ -46,13 +46,13 @@ function optimizesingles!(problem::NLLSProblem, options::NLLSOptions, unfixed::D
     # Optimize each variable of the given type, in sequence
     for (ind, var) in enumerate(problem.variables)
         # Skip variables of a different type
-        if !isa(var, unfixed)
+        if !isa(var, type)
             continue
         end
-        # Construct the subset of residuals that depend
-        subprobinit += @elapsed_ns subprob = subproblem(problem, ind)
+        # Construct the subset of residuals that depend on this variable
+        # subprobinit += @elapsed_ns subprob = subproblem(problem, ind)
         # Optimize the subproblem
-        result = optimize!(subprob, options, ind, unfixed)
+        result = optimize!(problem, options, ind, type)
         # Accumulate stats
         timeinit += result.timeinit
         timecost += result.timecost
@@ -96,7 +96,7 @@ end
 function optimizeinternal!(problem::NLLSProblem, options::NLLSOptions, data, iteratedata, starttime::UInt64)::NLLSResult
     timeinit = Base.time_ns() - starttime
     # Initialize the linear problem
-    data.timegradient += @elapsed_ns data.bestcost = costgradhess!(data.linsystem, problem.variables, problem.costs)
+    data.timegradient += @elapsed_ns data.bestcost = costgradhess!(data.linsystem, problem.variables, problem.costs, data.subsetfun)
     data.gradientcomputations += 1
     # Initialize the results
     startcost = data.bestcost
