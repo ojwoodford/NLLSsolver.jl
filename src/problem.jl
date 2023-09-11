@@ -26,7 +26,7 @@ NLLSProblem(v::Vector{VT}, r::CostStruct{CT}) where {VT, CT} = NLLSProblem{VT, C
 
 function Base.show(io::IO, x::NLLSProblem)
     print(io, "NLLSProblem with ", length(x.variables), " variable blocks of total dimension ", UInt(sum(nvars, x.variables)), 
-       ", and\n                 ", countcosts(costnum, x.costs), " residual blocks of total dimension ", countcosts(resnum, x.costs), ".")
+           ",\n             and ", countcosts(costnum, x.costs), " residual blocks of total dimension ", countcosts(resnum, x.costs), ".")
 end
 
 function selectcosts!(outcosts::CostStruct, incosts::Vector, unfixed::Integer)
