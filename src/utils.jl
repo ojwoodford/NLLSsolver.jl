@@ -46,7 +46,6 @@ end
 
 macro elapsed_ns(ex)
     quote
-        Base.Experimental.@force_compile
         local t0 = Base.time_ns()
         $(esc(ex))
         Base.time_ns() - t0
