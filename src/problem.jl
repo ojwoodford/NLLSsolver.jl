@@ -61,7 +61,7 @@ function subproblem(problem::NLLSProblem{VT, CT}, resind::Vector) where {VT, CT}
         while lastind < len && resind[lastind+1] <= lastres
             lastind += 1
         end
-        selectcosts!(coststruct, costs, resind[firstind+1:lastind].-firstind)
+        selectcosts!(coststruct, costs, view(resind, firstind+1:lastind) .- firstind)
         firstres = lastres
         firstind = lastind
     end

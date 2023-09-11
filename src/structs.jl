@@ -79,7 +79,7 @@ function Base.show(io::IO, x::NLLSResult)
             x.linearsolvers, x.timesolver, 100*x.timesolver/timetotal,
             x.timeinit, 100*x.timeinit/timetotal,
             otherstuff, 100*otherstuff/timetotal)
-    println(io, "Reason(s) for termination:")
+    if 0 != x.termination           ; println(io, "Reason(s) for termination:"); end
     if 0 != x.termination & (1 << 0); println(io, "   Cost is infinite."); end
     if 0 != x.termination & (1 << 1); println(io, "   Cost is NaN."); end
     if 0 != x.termination & (1 << 2); println(io, "   Relative decrease in cost below threshold."); end
