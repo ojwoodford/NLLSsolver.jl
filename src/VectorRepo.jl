@@ -53,10 +53,33 @@ end
 # @inline Base.iterate(vr::VectorRepo, T::DataType) = (get(vr, T), nothing)
 # @inline Base.iterate(::VectorRepo, ::Nothing) = nothing
 
-# Derive other functionality using the values
+# Sum reduction
 @inline Base.sum(fun, vr::VectorRepo{Any}; init=0.0) = sum(fixallbutlast(vrsum, fun, init), values(vr.data); init=init)
 @inline vrsum(fun, init, v::Vector) = sum(fun, v; init=init)
 # Static dispatch if types are known
 @inline Base.sum(fun, vr::VectorRepo{T}; init=0.0) where T = vrsum(fun, vr, init, T)
 @inline vrsum(fun, vr::VectorRepo, init, T::Union) = vrsum(fun, vr, init, T.a) + vrsum(fun, vr, init, T.b)
 @inline vrsum(fun, vr::VectorRepo, init, T::DataType) = sum(fun, get(vr, T); init=init)
+
+# Sum reduction over a subset of the elements
+@inline sumsubset(fun, subsetfun, vr::VectorRepo{Any}) = sum(fixallbutlast(sumsubset, fun, subsetfun), values(vr.data); init=0.0)
+@inline sumsubset(fun, subsetfun, vr::VectorRepo{T}) where T = sumsubset(fun, subsetfun, vr, T)
+@inline sumsubset(fun, subsetfun, vr::VectorRepo, T::Union) = sumsubset(fun, subsetfun, vr, T.a) + sumsubset(fun, subsetfun, vr, T.b)
+@inline sumsubset(fun, subsetfun, vr::VectorRepo, T::DataType) = sumsubset(fun, subsetfun, get(vr, T))
+@inline sumsubset(fun, subsetfun, vector) = sumsubset(fun, subsetfun(vector), vector)
+function sumsubset(fun, subset::Union{BitVector, Vector{Bool}}, vector)::Float64
+    total = 0.0
+    for (ind, val) in enumerate(subset)
+        if val
+            total += fun(vector[ind])
+        end
+    end
+    return total
+end
+function sumsubset(fun, subset::Union{UnitRange, Vector{Int}}, vector)::Float64
+    total = 0.0
+    for ind in subset
+        total += fun(vector[ind])
+    end
+    return total
+end
