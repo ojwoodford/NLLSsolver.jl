@@ -18,7 +18,7 @@ function emcallback(cost, problem, data)
     # Optimize the kernel parameters
     problem.varnext[1] = NLLSsolver.optimize(problem.varnext[1], squarederrors)
     # Recompute the cost
-    data.timecost += @elapsed newcost = NLLSsolver.cost(problem.varnext, problem.costs)
+    data.timecost += NLLSsolver.@elapsed_ns newcost = NLLSsolver.cost(problem.varnext, problem.costs)
     data.costcomputations += 1
     # Return cost and do not trigger termination
     return newcost, 0

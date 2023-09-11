@@ -43,3 +43,11 @@ function runlengthencodesortedints(sortedints)
     runindices[currval+1] = ind
     return runindices
 end
+
+macro elapsed_ns(ex)
+    quote
+        local t0 = Base.time_ns()
+        $(esc(ex))
+        Base.time_ns() - t0
+    end
+end

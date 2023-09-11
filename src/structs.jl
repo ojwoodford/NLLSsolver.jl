@@ -95,9 +95,9 @@ end
 
 mutable struct NLLSInternalSingleVar
     bestcost::Float64
-    timecost::Float64
-    timegradient::Float64
-    timesolver::Float64
+    timecost::UInt64
+    timegradient::UInt64
+    timesolver::UInt64
     iternum::Int
     costcomputations::Int
     gradientcomputations::Int
@@ -106,15 +106,15 @@ mutable struct NLLSInternalSingleVar
     linsystem::UniVariateLS
 
     function NLLSInternalSingleVar(unfixed::UInt, varlen::Integer, n::Integer)
-        return new(0., 0., 0., 0., 0, 0, 0, 0, Vector(undef, varlen), UniVariateLS(unfixed, varlen, n))
+        return new(0., 0, 0, 0, 0, 0, 0, 0, Vector(undef, varlen), UniVariateLS(unfixed, varlen, n))
     end
 end
 
 mutable struct NLLSInternalMultiVar
     bestcost::Float64
-    timecost::Float64
-    timegradient::Float64
-    timesolver::Float64
+    timecost::UInt64
+    timegradient::UInt64
+    timesolver::UInt64
     iternum::Int
     costcomputations::Int
     gradientcomputations::Int
@@ -129,6 +129,6 @@ mutable struct NLLSInternalMultiVar
     mapsvalid::Bool
 
     function NLLSInternalMultiVar(mvls)
-        return new(0., 0., 0., 0., 0, 0, 0, 0, Vector{Float64}(undef, size(mvls.A, 2)), mvls)
+        return new(0., 0, 0, 0, 0, 0, 0, 0, Vector{Float64}(undef, size(mvls.A, 2)), mvls)
     end
 end
