@@ -6,12 +6,12 @@ struct VectorRepo{T}
 end
 VectorRepo() = VectorRepo{Any}()
 
-@inline function Base.get(vr::VectorRepo{T}, type::DataType) where T
+@inline function Base.get(vr::VectorRepo{T}, type::DataType)::Vector{type} where T
     @assert type<:T "Invalid type"
     return haskey(vr.data, type) ? vr.data[type]::Vector{type} : Vector{type}()
 end
 
-@inline function Base.get!(vr::VectorRepo{T}, type::DataType) where T
+@inline function Base.get!(vr::VectorRepo{T}, type::DataType)::Vector{type} where T
     @assert type<:T "Invalid type"
     return get!(vr.data, type, Vector{type}())::Vector{type}
 end
@@ -66,8 +66,8 @@ end
 @inline sumsubset(fun, subsetfun, vr::VectorRepo{T}) where T = sumsubset(fun, subsetfun, vr, T)
 @inline sumsubset(fun, subsetfun, vr::VectorRepo, T::Union) = sumsubset(fun, subsetfun, vr, T.a) + sumsubset(fun, subsetfun, vr, T.b)
 @inline sumsubset(fun, subsetfun, vr::VectorRepo, T::DataType) = sumsubset(fun, subsetfun, get(vr, T))
-@inline sumsubset(fun, subsetfun, vector) = sumsubset(fun, subsetfun(vector), vector)
-function sumsubset(fun, subset::Union{BitVector, Vector{Bool}}, vector)::Float64
+@inline sumsubset(fun, subsetfun::Function, vector::Vector) = sumsubset(fun, subsetfun(vector), vector)
+function sumsubset(fun, subset::Union{BitVector, Vector{Bool}}, vector::Vector)::Float64
     total = 0.0
     for (ind, val) in enumerate(subset)
         if val
@@ -76,7 +76,7 @@ function sumsubset(fun, subset::Union{BitVector, Vector{Bool}}, vector)::Float64
     end
     return total
 end
-function sumsubset(fun, subset::Union{UnitRange, Vector{Int}}, vector)::Float64
+function sumsubset(fun, subset, vector::Vector)::Float64
     total = 0.0
     for ind in subset
         total += fun(vector[ind])
