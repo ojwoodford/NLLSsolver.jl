@@ -19,7 +19,8 @@ function optimize!(problem::NLLSProblem, options::NLLSOptions=NLLSOptions(), unf
     nblocks = sum(unfixed)
     if nblocks == 1
         # One unfixed variable
-        return optimize!(problem, options, findfirst(unfixed), typeof(problem.variables[unfixed]), starttime)
+        unfixed = findfirst(unfixed)
+        return optimize!(problem, options, unfixed, typeof(problem.variables[unfixed]), starttime)
     end
     # Copy the variables
     if length(problem.variables) != length(problem.varnext)
