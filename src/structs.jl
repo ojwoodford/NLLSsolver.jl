@@ -36,6 +36,17 @@ function NLLSOptions(; maxiters=100, reldcost=1.e-15, absdcost=1.e-15, dstep=1.e
     NLLSOptions(reldcost, absdcost, dstep, maxfails, maxiters, iterator, callback, storecosts, storetrajectory)
 end
 
+# Utility callback that prints out per-iteration results
+function printoutcallback(cost, problem, data)
+    if data.iternum == 1
+        # First iteration, so print out column headers and the zeroth iteration (i.e. start) values
+        println("iter      cost      cost_change    |step|")
+        @printf("% 4d % 8e  % 4.3e   % 3.2e\n", 0, data.bestcost, 0, 0)
+    end
+    @printf("% 4d % 8e  % 4.3e   % 3.2e\n", data.iternum, cost, data.bestcost-cost, norm(data.step))
+    return cost, 0
+end
+
 struct NLLSResult
     startcost::Float64                      # The function cost prior to minimization
     bestcost::Float64                       # The lowest function cost achieved

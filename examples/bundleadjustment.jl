@@ -115,7 +115,7 @@ function optimizeBALproblem(name)
     # Compute the starting AUC
     println("   Start AUC: ", computeauc(problem, 2.0))
     # Optimize the cost
-    result = NLLSsolver.optimize!(problem, NLLSsolver.NLLSOptions(iterator=NLLSsolver.levenbergmarquardt, reldcost=1.0e-6))
+    result = NLLSsolver.optimize!(problem, NLLSsolver.NLLSOptions(iterator=NLLSsolver.levenbergmarquardt, reldcost=1.0e-6, callback=NLLSsolver.printoutcallback))
     # Compute the final AUC
     println("   Final AUC: ", computeauc(problem, 2.0))
     # Print out the solver summary
