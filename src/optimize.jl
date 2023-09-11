@@ -1,4 +1,4 @@
-function optimize!(problem::NLLSProblem{VarTypes}, options::NLLSOptions=NLLSOptions(), unfixed=0)::NLLSResult where VarTypes
+function optimize!(problem::NLLSProblem, options::NLLSOptions=NLLSOptions(), unfixed=0)::NLLSResult
     t = Base.time_ns()
     @assert length(problem.variables) > 0
     # Copy the variables
@@ -17,7 +17,7 @@ function optimize!(problem::NLLSProblem{VarTypes}, options::NLLSOptions=NLLSOpti
     return optimizeinternal!(problem, options, NLLSInternalMultiVar(makesymmvls(problem, unfixed, nblocks)), t)
 end
 
-function optimizeinternal!(problem::NLLSProblem{VarTypes}, options::NLLSOptions, data, starttimens)::NLLSResult where VarTypes
+function optimizeinternal!(problem::NLLSProblem, options::NLLSOptions, data, starttimens)::NLLSResult
     # Call the optimizer with the required iterator struct
     if options.iterator == newton || options.iterator == gaussnewton
         # Newton's method, using Gauss' approximation to the Hessian (optimizing Hessian form)
@@ -42,7 +42,7 @@ function optimizeinternal!(problem::NLLSProblem{VarTypes}, options::NLLSOptions,
     error("Iterator not recognized")
 end
 
-function optimizeinternal!(problem::NLLSProblem{VarTypes}, options::NLLSOptions, data, iteratedata, timeinit)::NLLSResult where VarTypes
+function optimizeinternal!(problem::NLLSProblem, options::NLLSOptions, data, iteratedata, timeinit)::NLLSResult
     t = @elapsed begin
         # Initialize the linear problem
         data.timegradient += @elapsed data.bestcost = costgradhess!(data.linsystem, problem.variables, problem.costs)
