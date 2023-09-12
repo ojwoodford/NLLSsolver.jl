@@ -1,14 +1,6 @@
 
 # Uni-variate optimization (single unfixed variable)
-function optimize!(problem::NLLSProblem, options::NLLSOptions, unfixed::Integer, type::DataType=typeof(problem.variables[unfixed]), starttime::UInt64=Base.time_ns())::NLLSResult
-    # Copy the variables
-    if length(problem.variables) != length(problem.varnext)
-        problem.varnext = copy(problem.variables)
-    end
-    # One unfixed variable
-    varlen = dynamic(nvars(problem.variables[unfixed]::type))
-    return optimizeinternal!(problem, options, NLLSInternalSingleVar(UInt(unfixed), varlen, varlen), starttime)
-end
+optimize!(problem::NLLSProblem, options::NLLSOptions, unfixed::Integer, starttimens=Base.time_ns())::NLLSResult = optimizeinternal!(problem, options, NLLSInternalSingleVar(UInt(unfixed), nvars(problem.variables[unfixed])), starttimens)
 
 # Multi-variate optimization
 optimize!(problem::NLLSProblem, options::NLLSOptions, unfixed::Type) = optimize!(problem, options, typeof.(variables).==unfixed)
@@ -20,11 +12,7 @@ function optimize!(problem::NLLSProblem, options::NLLSOptions=NLLSOptions(), unf
     if nblocks == 1
         # One unfixed variable
         unfixed = findfirst(unfixed)
-        return optimize!(problem, options, unfixed, typeof(problem.variables[unfixed]), starttime)
-    end
-    # Copy the variables
-    if length(problem.variables) != length(problem.varnext)
-        problem.varnext = copy(problem.variables)
+        return optimize!(problem, options, unfixed, starttime)
     end
     # Multiple variables. Use a block sparse matrix
     return optimizeinternal!(problem, options, NLLSInternalMultiVar(makesymmvls(problem, unfixed, nblocks)), starttime)
@@ -53,7 +41,7 @@ function optimizesingles!(problem::NLLSProblem, options::NLLSOptions, type::Data
         # Construct the subset of residuals that depend on this variable
         subprobinit += @elapsed_ns subprob = subproblem(problem, ind)
         # Optimize the subproblem
-        result = optimize!(subprob, options, ind, type)
+        result = optimize!(subprob, options, ind)
         # Accumulate stats
         timeinit += result.timeinit
         timecost += result.timecost
@@ -70,6 +58,10 @@ function optimizesingles!(problem::NLLSProblem, options::NLLSOptions, type::Data
 end
 
 function optimizeinternal!(problem::NLLSProblem, options::NLLSOptions, data, starttimens::UInt64)::NLLSResult
+    # Copy the variables
+    if length(problem.variables) != length(problem.varnext)
+        problem.varnext = copy(problem.variables)
+    end
     # Call the optimizer with the required iterator struct
     if options.iterator == newton || options.iterator == gaussnewton
         # Newton's method, using Gauss' approximation to the Hessian (optimizing Hessian form)
@@ -130,7 +122,7 @@ function optimizeinternal!(problem::NLLSProblem, options::NLLSOptions, data, ite
                 if length(problem.variables) == length(problem.varbest)
                     updatetobest!(problem, data)
                 else
-                    problem.varbest = copy(problem.variables)
+                    problem.varbest = deepcopy(problem.variables)
                 end
             end
         end
@@ -138,10 +130,10 @@ function optimizeinternal!(problem::NLLSProblem, options::NLLSOptions, data, ite
         updatefromnext!(problem, data)
         if options.storetrajectory
             # Store the variable trajectory (as update vectors)
-            push!(trajectory, copy(data.step))
+            push!(trajectory, copy(data.linsystem.x))
         end
         # Check for termination
-        maxstep = maximum(abs, data.step)
+        maxstep = maximum(abs, data.linsystem.x)
         converged = 0
         converged |= isinf(cost)                                     << 0 # Cost is infinite
         converged |= isnan(cost)                                     << 1 # Cost is NaN
@@ -178,7 +170,7 @@ end
 function updatefrombest!(problem::NLLSProblem, ::NLLSInternalMultiVar)
     problem.variables, problem.varbest = problem.varbest, problem.variables
 end
-updatetobest!(problem::NLLSProblem, data::NLLSInternalMultiVar) = updatefrombest!(problem::NLLSProblem, data::NLLSInternalMultiVar)
+updatetobest!(problem::NLLSProblem, data::NLLSInternalMultiVar) = updatefrombest!(problem, data)
 
 function updatefromnext!(problem::NLLSProblem, data::NLLSInternalSingleVar)
     problem.variables[data.linsystem.varindex] = problem.varnext[data.linsystem.varindex]

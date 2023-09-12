@@ -1,4 +1,5 @@
 using SparseArrays, Dates, Static
+import IfElse.ifelse
 import Printf.@printf
 
 @enum NLLSIterator gaussnewton newton levenbergmarquardt dogleg gradientdescent
@@ -43,7 +44,7 @@ function printoutcallback(cost, problem, data, trailingargs...)
         println("iter      cost      cost_change    |step|")
         @printf("% 4d % 8e  % 4.3e   % 3.2e\n", 0, data.bestcost, 0, 0)
     end
-    @printf("% 4d % 8e  % 4.3e   % 3.2e\n", data.iternum, cost, data.bestcost-cost, norm(data.step))
+    @printf("% 4d % 8e  % 4.3e   % 3.2e\n", data.iternum, cost, data.bestcost-cost, norm(data.linsystem.x))
     return cost, 0
 end
 function printoutcallback(cost, data, trradius::Float64)
@@ -52,7 +53,7 @@ function printoutcallback(cost, data, trradius::Float64)
         println("iter      cost      cost_change    |step|    tr_radius")
         @printf("% 4d % 8e  % 4.3e   % 3.2e   % 2.1e\n", 0, data.bestcost, 0, 0, trradius)
     end
-    @printf("% 4d % 8e  % 4.3e   % 3.2e   % 2.1e\n", data.iternum, cost, data.bestcost-cost, norm(data.step), trradius)
+    @printf("% 4d % 8e  % 4.3e   % 3.2e   % 2.1e\n", data.iternum, cost, data.bestcost-cost, norm(data.linsystem.x), trradius)
     return cost, 0
 end
 
@@ -101,7 +102,7 @@ function Base.show(io::IO, x::NLLSResult)
     if 0 != userflags; println(io, "   Terminated by user-defined callback, with flags: ", string(userflags, base=2)); end
 end
 
-mutable struct NLLSInternalSingleVar
+mutable struct NLLSInternalSingleVar{LSType}
     bestcost::Float64
     timecost::UInt64
     timegradient::UInt64
@@ -110,14 +111,14 @@ mutable struct NLLSInternalSingleVar
     costcomputations::Int
     gradientcomputations::Int
     linearsolvers::Int
-    step::Vector{Float64}
-    linsystem::UniVariateLS
+    linsystem::LSType
     subsetfun
 
-    function NLLSInternalSingleVar(unfixed::UInt, varlen::Integer, n::Integer)
-        return new(0., 0, 0, 0, 0, 0, 0, 0, Vector(undef, varlen), UniVariateLS(unfixed, varlen, n), wholevec)
+    function NLLSInternalSingleVar(linsystem::LSType) where LSType
+        return new{LSType}(0., 0, 0, 0, 0, 0, 0, 0, linsystem, wholevec)
     end
 end
+@inline NLLSInternalSingleVar(unfixed::UInt, varlen) = NLLSInternalSingleVar(ifelse(is_static(varlen), UniVariateLSstatic{dynamic(varlen), dynamic(varlen*varlen)}(unfixed), UniVariateLS(unfixed, dynamic(varlen))))
 
 wholevec(v) = 1:length(v)
 
@@ -130,11 +131,10 @@ mutable struct NLLSInternalMultiVar
     costcomputations::Int
     gradientcomputations::Int
     linearsolvers::Int
-    step::Vector{Float64}
     linsystem::MultiVariateLS
     subsetfun
 
     function NLLSInternalMultiVar(mvls)
-        return new(0., 0, 0, 0, 0, 0, 0, 0, Vector{Float64}(undef, size(mvls.A, 2)), mvls, wholevec)
+        return new(0., 0, 0, 0, 0, 0, 0, 0, mvls, wholevec)
     end
 end

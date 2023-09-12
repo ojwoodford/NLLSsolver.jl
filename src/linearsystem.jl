@@ -1,4 +1,4 @@
-using SparseArrays, Static, LinearAlgebra
+using SparseArrays, Static, StaticArrays, LinearAlgebra
 
 function getresblocksizes!(resblocksizes, residuals::Vector, ind::Int)::Int
     @inbounds for res in residuals
@@ -12,10 +12,22 @@ end
 struct UniVariateLS
     A::Matrix{Float64}
     b::Vector{Float64}
+    x::Vector{Float64}
     varindex::UInt
 
-    function UniVariateLS(unfixed, varlen, costnum=varlen)
-        return new(zeros(Float64, costnum, varlen), zeros(Float64, costnum), UInt(unfixed))
+    function UniVariateLS(unfixed, varlen)
+        return new(zeros(Float64, varlen, varlen), zeros(Float64, varlen), Vector{Float64}(undef, varlen), UInt(unfixed))
+    end
+end
+
+struct UniVariateLSstatic{N, N2}
+    A::MMatrix{N, N, Float64, N2}
+    b::MVector{N, Float64}
+    x::MVector{N, Float64}
+    varindex::UInt
+
+    function UniVariateLSstatic{N, N2}(unfixed) where {N, N2}
+        return new(zeros(MMatrix{N, N, Float64, N2}), zeros(MVector{N, Float64}), MVector{N, Float64}(undef), UInt(unfixed))
     end
 end
 
@@ -29,16 +41,16 @@ end
 struct MultiVariateLS
     A::BlockSparseMatrix{Float64}
     b::Vector{Float64}
+    x::Vector{Float64}
     blockindices::Vector{UInt} # One for each variable
     boffsets::Vector{UInt} # One per block in b
-    soloffsets::Vector{UInt} # One for each unfixed variable
     sparseindices::SparseMatrixCSC{Int, Int} # Indices for turning block sparse matrix into sparse matrix
 
     function MultiVariateLS(A::BlockSparseMatrix, blockindices, sparseindices=spzeros(0, 0))
+        @assert A.rowblocksizes==A.columnblocksizes
         boffsets = computestartindices(A.rowblocksizes)
         blen = boffsets[end] + A.rowblocksizes[end] - 1
-        soloffsets = A.rowblocksizes == A.columnblocksizes ? boffsets : computestartindices(A.columnblocksizes)
-        return new(A, zeros(Float64, blen), blockindices, boffsets, soloffsets, sparseindices)
+        return new(A, zeros(Float64, blen), Vector{Float64}(undef, blen), blockindices, boffsets, sparseindices)
     end
 end
 
@@ -70,7 +82,7 @@ function makesymmvls(problem, unfixed, nblocks)
     return MultiVariateLS(bsm, blockindices, sparseindices)
 end
 
-function updatesymlinearsystem!(linsystem::UniVariateLS, g, H, unusedargs...)
+function updatesymlinearsystem!(linsystem::Union{UniVariateLS, UniVariateLSstatic}, g, H, unusedargs...)
     # Update the blocks in the problem
     linsystem.b .+= g
     linsystem.A .+= H
@@ -125,7 +137,7 @@ function uniformscaling!(linsystem, k)
     uniformscaling!(linsystem.A, k)
 end
 
-function gethessgrad(linsystem::UniVariateLS)
+function gethessgrad(linsystem::Union{UniVariateLS, UniVariateLSstatic})
     return linsystem.A, linsystem.b
 end
 
@@ -145,7 +157,7 @@ function getoffsets(block, linsystem::MultiVariateLS)
     return linsystem.blockindices[varindices(block)]
 end
 
-function getoffsets(block, linsystem::UniVariateLS)
+function getoffsets(block, linsystem::Union{UniVariateLS, UniVariateLSstatic})
     varind = varindices(block)
     if isa(varind, Number)
         return SVector(UInt(varind == linsystem.varindex))
