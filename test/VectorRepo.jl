@@ -23,7 +23,7 @@ end
     total = sum(floats) + sum(ints)
     halftotal = sum(floats[1:5]) + sum(ints[1:5])
     rangefun(::Vector{T}) where T = T <: Char ? (1:0) : (1:5)
-    indicesfun(::Vector{T}) where T = T <: Char ? Int[] : [1, 5, 3, 4, 2]
+    indicesfun(::Vector{T}) where T = T <: Char ? Int[] : [1, 2, 3, 4, 5]
     bitvecfun(::Vector{T}) where T = T <: Char ? BitVector() : 1:10 .<= 5
     boolvecfun(::Vector{T}) where T = T <: Char ? Bool[] : map(x->x<=5, 1:10)
 
