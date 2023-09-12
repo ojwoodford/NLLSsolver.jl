@@ -1,19 +1,5 @@
 using SparseArrays
 
-function update!(to::Vector, from::Vector, linsystem::MultiVariateLS)
-    # Update each variable
-    @inbounds for (i, j) in enumerate(linsystem.blockindices)
-        if j != 0
-            to[i] = update(from[i], linsystem.x, linsystem.boffsets[j])
-        end
-    end
-end
-
-function update!(to::Vector, from::Vector, linsystem::Union{UniVariateLS, UniVariateLSstatic})
-    # Update one variable
-    to[linsystem.varindex] = update(from[linsystem.varindex], linsystem.x)
-end
-
 # Iterators assume that the linear problem has been constructed
 
 # Newton optimization (undamped-Hessian form)
@@ -112,6 +98,8 @@ function iterate!(doglegdata::DoglegData, data, problem::NLLSProblem, options::N
     end
 end
 
+printoutcallback(cost, problem, data, iteratedata::DoglegData) = printoutcallback(cost, data, iteratedata.trustradius)
+
 # Levenberg-Marquardt optimization
 mutable struct LevMarData
     lambda::Float64
@@ -153,16 +141,17 @@ function iterate!(levmardata::LevMarData, data, problem::NLLSProblem, options::N
     end
 end
 
+printoutcallback(cost, problem, data, iteratedata::LevMarData) = printoutcallback(cost, data, 1.0/iteratedata.lambda)
 
 # Gradient descent optimization
 mutable struct GradientDescentData
-    step::Float64
+    stepsize::Float64
 end
 
 function iterate!(gddata::GradientDescentData, data, problem::NLLSProblem, options::NLLSOptions)::Float64
-    unused, gradient = gethessgrad(data.linsystem)
+    gradient = getgrad(data.linsystem)
     # Evaluate the current step size
-    data.linsystem.x .= -gradient * gddata.step
+    data.linsystem.x .= -gradient * gddata.stepsize
     update!(problem.varnext, problem.variables, data.linsystem)
     data.timecost += @elapsed_ns costc = cost(problem.varnext, problem.costs)
     data.costcomputations += 1
@@ -172,17 +161,15 @@ function iterate!(gddata::GradientDescentData, data, problem::NLLSProblem, optio
         coststep = data.linsystem.x' * gradient
         costdiff = data.bestcost + coststep - costc
         # Compute the optimal step size assuming quadratic fit
-        gddata.step *= 0.5 * coststep / costdiff
+        gddata.stepsize *= 0.5 * coststep / costdiff
         # Evaluate the new step size
-        data.linsystem.x .= -gradient * gddata.step
+        data.linsystem.x .= -gradient * gddata.stepsize
         update!(problem.varnext, problem.variables, data.linsystem)
         data.timecost += @elapsed_ns costc = cost(problem.varnext, problem.costs)
         data.costcomputations += 1
     end
-    gddata.step *= 2
+    gddata.stepsize *= 2
     return costc
 end
 
-printoutcallback(cost, problem, data, iteratedata::LevMarData) = printoutcallback(cost, data, 1.0/iteratedata.lambda)
-printoutcallback(cost, problem, data, iteratedata::DoglegData) = printoutcallback(cost, data, iteratedata.trustradius)
-printoutcallback(cost, problem, data, iteratedata::GradientDescentData) = printoutcallback(cost, data, iteratedata.step)
+printoutcallback(cost, problem, data, iteratedata::GradientDescentData) = printoutcallback(cost, data, iteratedata.stepsize)

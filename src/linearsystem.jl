@@ -133,14 +133,10 @@ function updatesymlinearsystem!(linsystem::MultiVariateLS, g::AbstractVector, H:
     updatesymA!(linsystem.A, H, vars, varflags, blockindices)
 end
 
-function uniformscaling!(linsystem, k)
-    uniformscaling!(linsystem.A, k)
-end
+uniformscaling!(linsystem, k) = uniformscaling!(linsystem.A, k)
 
-function gethessgrad(linsystem::Union{UniVariateLS, UniVariateLSstatic})
-    return linsystem.A, linsystem.b
-end
-
+getgrad(linsystem) = linsystem.b
+gethessgrad(linsystem::Union{UniVariateLS, UniVariateLSstatic}) = (linsystem.A, linsystem.b)
 function gethessgrad(linsystem::MultiVariateLS)
     if !isempty(linsystem.sparseindices)
         return sparse(linsystem.A, linsystem.sparseindices), linsystem.b
@@ -153,14 +149,25 @@ function zero!(linsystem)
     zero!(linsystem.A)
 end
 
-function getoffsets(block, linsystem::MultiVariateLS)
-    return @inbounds(linsystem.blockindices[varindices(block)])
-end
-
+getoffsets(block, linsystem::MultiVariateLS) = @inbounds(linsystem.blockindices[varindices(block)])
 function getoffsets(block, linsystem::Union{UniVariateLS, UniVariateLSstatic})
     varind = varindices(block)
     if isa(varind, Number)
         return SVector(UInt(varind == linsystem.varindex))
     end
     return convert.(UInt, varind .== linsystem.varindex)
+end
+
+function update!(to::Vector, from::Vector, linsystem::MultiVariateLS, step=linsystem.x)
+    # Update each variable
+    @inbounds for (i, j) in enumerate(linsystem.blockindices)
+        if j != 0
+            to[i] = update(from[i], step, linsystem.boffsets[j])
+        end
+    end
+end
+
+@inline function update!(to::Vector, from::Vector, linsystem::Union{UniVariateLS, UniVariateLSstatic}, step=linsystem.x)
+    # Update one variable
+    to[linsystem.varindex] = update(from[linsystem.varindex], step)
 end
