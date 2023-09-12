@@ -154,7 +154,7 @@ function zero!(linsystem)
 end
 
 function getoffsets(block, linsystem::MultiVariateLS)
-    return linsystem.blockindices[varindices(block)]
+    return @inbounds(linsystem.blockindices[varindices(block)])
 end
 
 function getoffsets(block, linsystem::Union{UniVariateLS, UniVariateLSstatic})
