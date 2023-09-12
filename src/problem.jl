@@ -39,7 +39,7 @@ end
 
 function selectcosts!(outcosts::CostStruct, incosts::Vector{T}, vec::Vector) where T
     if !isempty(vec)
-        outcosts.data[T] = incosts[vec]
+        outcosts.data[T] = @inbounds incosts[vec]
     end
 end
 
@@ -54,24 +54,28 @@ function subproblem(problem::NLLSProblem{VT, CT}, unfixed) where {VT, CT}
     return NLLSProblem{VT, CT}(problem.variables, coststruct, problem.varnext, problem.varbest)
 end
 
-function subproblem(problem::NLLSProblem{VT, CT}, resind::Vector) where {VT, CT}
-    # Copy costs that have unfixed inputs
-    coststruct = CostStruct{CT}()
-    firstres = 0
-    firstind = 0
-    len = length(resind)
-    for costs in values(problem.costs)
-        lastres = firstres + length(costs)
-        lastind = firstind
-        while lastind < len && resind[lastind+1] <= lastres
-            lastind += 1
-        end
-        selectcosts!(coststruct, costs, view(resind, firstind+1:lastind) .- firstind)
-        firstres = lastres
-        firstind = lastind
+function selectcosts!(outcosts::CostStruct, incosts::Vector{T}, costindices, lastcost, index) where T
+    tocostvec = get!(outcosts, T)::Vector{T}
+    empty!(tocostvec)
+    firstind = lastcost
+    lastcost += length(incosts)
+    len = length(costindices)
+    while index <= len && @inbounds(costindices[index]) <= lastcost
+        push!(tocostvec, @inbounds(incosts[costindices[index]-firstind]))
+        index += 1
     end
-    # Create the new problem (note that variables are SHARED)
-    return NLLSProblem{VT, CT}(problem.variables, coststruct, problem.varnext, problem.varbest)
+    return lastcost, index
+end
+
+function subproblem!(to::NLLSProblem{VT, CT}, from::NLLSProblem{VT, CT}, costindices::AbstractVector) where {VT, CT}
+    # Copy costs that have unfixed inputs
+    lastcost = 0
+    index = 1
+    for costs in values(from.costs)
+        lastcost, index = selectcosts!(to.costs, costs, costindices, lastcost, index)
+    end
+    # Return the sub-problem
+    return to
 end
 
 function addcost!(problem::NLLSProblem, cost::Cost) where Cost <: AbstractCost

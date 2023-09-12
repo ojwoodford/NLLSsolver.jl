@@ -19,19 +19,22 @@ function optimize!(problem::NLLSProblem, options::NLLSOptions=NLLSOptions(), unf
 end
 
 # Optimize one variable at a time
-function optimizesingles!(problem::NLLSProblem, options::NLLSOptions, type::DataType)::NLLSResult
+function optimizesingles!(problem::NLLSProblem{VT, CT}, options::NLLSOptions, type::DataType)::NLLSResult where {VT, CT}
     starttime = Base.time_ns()
     # Compute initial cost
     timecost = @elapsed startcost = cost(problem)
     # Initialize stats
-    subprobinit = UInt64(0)
-    timeinit = 0.0
-    timegradient = 0.0
-    timesolver = 0.0
-    iternum = 0
-    costcomputations = 2 # Count final cost computation here
-    gradientcomputations = 0
-    linearsolvers = 0
+    subprobinit = @elapsed_ns begin
+        timeinit = 0.0
+        timegradient = 0.0
+        timesolver = 0.0
+        iternum = 0
+        costcomputations = 2 # Count final cost computation here
+        gradientcomputations = 0
+        linearsolvers = 0
+        subprob = NLLSProblem{VT, CT}(problem.variables, CostStruct{CT}())
+        costindices = sparse(getvarcostmap(problem)')
+    end
     # Optimize each variable of the given type, in sequence
     for (ind, var) in enumerate(problem.variables)
         # Skip variables of a different type
@@ -39,7 +42,7 @@ function optimizesingles!(problem::NLLSProblem, options::NLLSOptions, type::Data
             continue
         end
         # Construct the subset of residuals that depend on this variable
-        subprobinit += @elapsed_ns subprob = subproblem(problem, ind)
+        subprobinit += @elapsed_ns subproblem!(subprob, problem, @inbounds(view(costindices.rowval, costindices.colptr[ind]:costindices.colptr[ind+1]-1)))
         # Optimize the subproblem
         result = optimize!(subprob, options, ind)
         # Accumulate stats
@@ -89,7 +92,7 @@ end
 function optimizeinternal!(problem::NLLSProblem, options::NLLSOptions, data, iteratedata, starttime::UInt64)::NLLSResult
     timeinit = Base.time_ns() - starttime
     # Initialize the linear problem
-    data.timegradient += @elapsed_ns data.bestcost = costgradhess!(data.linsystem, problem.variables, problem.costs, data.subsetfun)
+    data.timegradient += @elapsed_ns data.bestcost = costgradhess!(data.linsystem, problem.variables, problem.costs)
     data.gradientcomputations += 1
     # Initialize the results
     startcost = data.bestcost
@@ -173,13 +176,13 @@ end
 updatetobest!(problem::NLLSProblem, data::NLLSInternalMultiVar) = updatefrombest!(problem, data)
 
 function updatefromnext!(problem::NLLSProblem, data::NLLSInternalSingleVar)
-    problem.variables[data.linsystem.varindex] = problem.varnext[data.linsystem.varindex]
+    @inbounds problem.variables[data.linsystem.varindex] = problem.varnext[data.linsystem.varindex]
 end
 
 function updatefrombest!(problem::NLLSProblem, data::NLLSInternalSingleVar)
-    problem.variables[data.linsystem.varindex] = problem.varbest[data.linsystem.varindex]
+    @inbounds problem.variables[data.linsystem.varindex] = problem.varbest[data.linsystem.varindex]
 end
 
 function updatetobest!(problem::NLLSProblem, data::NLLSInternalSingleVar)
-    problem.varbest[data.linsystem.varindex] = problem.variables[data.linsystem.varindex]
+    @inbounds problem.varbest[data.linsystem.varindex] = problem.variables[data.linsystem.varindex]
 end

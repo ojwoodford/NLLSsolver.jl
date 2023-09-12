@@ -112,15 +112,12 @@ mutable struct NLLSInternalSingleVar{LSType}
     gradientcomputations::Int
     linearsolvers::Int
     linsystem::LSType
-    subsetfun
 
     function NLLSInternalSingleVar(linsystem::LSType) where LSType
-        return new{LSType}(0., 0, 0, 0, 0, 0, 0, 0, linsystem, wholevec)
+        return new{LSType}(0., 0, 0, 0, 0, 0, 0, 0, linsystem)
     end
 end
 @inline NLLSInternalSingleVar(unfixed::UInt, varlen) = NLLSInternalSingleVar(ifelse(is_static(varlen), UniVariateLSstatic{dynamic(varlen), dynamic(varlen*varlen)}(unfixed), UniVariateLS(unfixed, dynamic(varlen))))
-
-wholevec(v) = 1:length(v)
 
 mutable struct NLLSInternalMultiVar
     bestcost::Float64
@@ -132,9 +129,8 @@ mutable struct NLLSInternalMultiVar
     gradientcomputations::Int
     linearsolvers::Int
     linsystem::MultiVariateLS
-    subsetfun
 
     function NLLSInternalMultiVar(mvls)
-        return new(0., 0, 0, 0, 0, 0, 0, 0, mvls, wholevec)
+        return new(0., 0, 0, 0, 0, 0, 0, 0, mvls)
     end
 end
