@@ -1,9 +1,19 @@
-using LDLFactorizations, LinearSolve
+using LDLFactorizations, LinearAlgebra, LinearSolve, StaticArrays
 
-@inline function symmetricsolve(A::SparseMatrixCSC, b::AbstractVector, options)
-    return ldl(A) \ b
+symmetricsolve(A::SparseMatrixCSC, b::AbstractVector, options) = ldl(A) \ b
+
+function symmetricsolve(A::StaticMatrix, b::AbstractVector, options)
+    cholfac = StaticArrays._cholesky(Size(A), A, false)
+    if issuccess(cholfac)
+        return cholfac \ b
+    end
+    return qr(A) \ b
 end
 
-@inline function symmetricsolve(A::AbstractMatrix, b::AbstractVector, options)
-    return Symmetric(A) \ b
+function symmetricsolve(A::AbstractMatrix, b::AbstractVector, options)
+    cholfac = cholesky(A; check=false)
+    if issuccess(cholfac)
+        return cholfac \ b
+    end
+    return qr(A) \ b
 end
