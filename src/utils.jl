@@ -51,3 +51,12 @@ macro elapsed_ns(ex)
         Base.time_ns() - t0
     end
 end
+
+function Base.cumsum!(A::AbstractVector)
+    total = zero(eltype(A))
+    for ind in eachindex(A)
+        total += @inbounds A[ind]
+        @inbounds A[ind] = total
+    end
+    return A
+end
