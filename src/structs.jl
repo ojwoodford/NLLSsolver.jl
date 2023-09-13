@@ -102,7 +102,7 @@ function Base.show(io::IO, x::NLLSResult)
     if 0 != userflags; println(io, "   Terminated by user-defined callback, with flags: ", string(userflags, base=2)); end
 end
 
-mutable struct NLLSInternalSingleVar{LSType}
+mutable struct NLLSInternal{LSType}
     bestcost::Float64
     timecost::UInt64
     timegradient::UInt64
@@ -113,24 +113,11 @@ mutable struct NLLSInternalSingleVar{LSType}
     linearsolvers::Int
     linsystem::LSType
 
-    function NLLSInternalSingleVar(linsystem::LSType) where LSType
+    function NLLSInternal(linsystem::LSType) where LSType
         return new{LSType}(0., 0, 0, 0, 0, 0, 0, 0, linsystem)
     end
 end
-@inline NLLSInternalSingleVar(unfixed::UInt, varlen) = NLLSInternalSingleVar(ifelse(is_static(varlen), UniVariateLSstatic{dynamic(varlen), dynamic(varlen*varlen)}(unfixed), UniVariateLS(unfixed, dynamic(varlen))))
+NLLSInternal(unfixed::UInt, varlen) = NLLSInternal(ifelse(is_static(varlen), UniVariateLSstatic{dynamic(varlen), dynamic(varlen*varlen)}(unfixed), UniVariateLSdynamic(unfixed, dynamic(varlen))))
 
-mutable struct NLLSInternalMultiVar
-    bestcost::Float64
-    timecost::UInt64
-    timegradient::UInt64
-    timesolver::UInt64
-    iternum::Int
-    costcomputations::Int
-    gradientcomputations::Int
-    linearsolvers::Int
-    linsystem::MultiVariateLS
-
-    function NLLSInternalMultiVar(mvls)
-        return new(0., 0, 0, 0, 0, 0, 0, 0, mvls)
-    end
-end
+NLLSInternalMultiVar = Union{NLLSInternal{MultiVariateLSdense}, NLLSInternal{MultiVariateLSsparse}}
+NLLSInternalSingleVar = Union{NLLSInternal{UniVariateLSstatic{N, N2}}, NLLSInternal{UniVariateLSdynamic}} where {N, N2}

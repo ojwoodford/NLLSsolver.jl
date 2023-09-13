@@ -45,6 +45,7 @@ include("visualgeometry/geometry.jl")
 
 # Types
 include("BlockSparseMatrix.jl")
+include("BlockDenseMatrix.jl")
 include("linearsystem.jl")
 include("structs.jl")
 

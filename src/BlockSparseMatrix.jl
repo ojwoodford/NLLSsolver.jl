@@ -80,7 +80,6 @@ function updatelastrowsym!(bsm::BlockSparseMatrix{T}, rowindices, blocksz) where
     return bsm
 end
 
-
 function uniformscaling!(M::AbstractMatrix, k)
     LinearAlgebra.checksquare(M)
     for i in axes(M, 1)
@@ -100,19 +99,17 @@ function uniformscaling!(M::BlockSparseMatrix, k)
 end
 
 zero!(bsm::BlockSparseMatrix) = fill!(bsm.data, 0)
-@inline block(bsm::BlockSparseMatrix, i, j, ::StaticInt{rows}, ::StaticInt{cols}) where {rows, cols} = SizedMatrix{rows, cols}(view(bsm.data, SR(0, rows*cols-1).+bsm.indicestransposed[j,i]))
-@inline block(bsm::BlockSparseMatrix, i, j, rows::Integer, cols::Integer) = reshape(view(bsm.data, SR(0, rows*cols-1).+bsm.indicestransposed[j,i]), (rows, cols))
-@inline block(bsm::BlockSparseMatrix, i, j, ::StaticInt{rows}, cols::Integer) where rows = HybridArray{Tuple{rows, StaticArrays.Dynamic()}}(block(bsm, i, j, rows, cols))
-@inline block(bsm::BlockSparseMatrix, i, j) = block(bsm, i, j, bsm.rowblocksizes[i], bsm.columnblocksizes[j])
+block(bsm::BlockSparseMatrix, i, j, ::StaticInt{rows}, ::StaticInt{cols}) where {rows, cols} = SizedMatrix{rows, cols}(view(bsm.data, SR(0, rows*cols-1).+bsm.indicestransposed[j,i]))
+block(bsm::BlockSparseMatrix, i, j, rows::Integer, cols::Integer) = reshape(view(bsm.data, SR(0, rows*cols-1).+bsm.indicestransposed[j,i]), (rows, cols))
+block(bsm::BlockSparseMatrix, i, j, ::StaticInt{rows}, cols::Integer) where rows = HybridArray{Tuple{rows, StaticArrays.Dynamic()}}(block(bsm, i, j, rows, cols))
+block(bsm::BlockSparseMatrix, i, j) = block(bsm, i, j, bsm.rowblocksizes[i], bsm.columnblocksizes[j])
 Base.size(bsm::BlockSparseMatrix) = (bsm.m, bsm.n)
 Base.size(bsm::BlockSparseMatrix, dim) = dim == 1 ? bsm.m : (dim == 2 ? bsm.n : 1)
 Base.length(bsm::BlockSparseMatrix) = bsm.m * bsm.n
-@inline function Base.eltype(::BlockSparseMatrix{T}) where T
-    return T
-end
+Base.eltype(::BlockSparseMatrix{T}) where T = T
 SparseArrays.nnz(bsm::BlockSparseMatrix) = length(bsm.data)
 
-@inline zero!(aa::AbstractArray) = fill!(aa, 0)
+zero!(aa::AbstractArray) = fill!(aa, 0)
 SparseArrays.nnz(aa::AbstractArray) = length(aa)
 
 function makesparseindices(bsm::BlockSparseMatrix, symmetrify::Bool=false)

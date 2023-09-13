@@ -1,6 +1,6 @@
 
 # Uni-variate optimization (single unfixed variable)
-optimize!(problem::NLLSProblem, options::NLLSOptions, unfixed::Integer, starttimens=Base.time_ns())::NLLSResult = optimizeinternal!(problem, options, NLLSInternalSingleVar(UInt(unfixed), nvars(problem.variables[unfixed])), starttimens)
+optimize!(problem::NLLSProblem, options::NLLSOptions, unfixed::Integer, starttimens=Base.time_ns())::NLLSResult = optimizeinternal!(problem, options, NLLSInternal(UInt(unfixed), nvars(problem.variables[unfixed])), starttimens)
 
 # Multi-variate optimization
 optimize!(problem::NLLSProblem, options::NLLSOptions, unfixed::Type) = optimize!(problem, options, typeof.(variables).==unfixed)
@@ -15,7 +15,7 @@ function optimize!(problem::NLLSProblem, options::NLLSOptions=NLLSOptions(), unf
         return optimize!(problem, options, unfixed, starttime)
     end
     # Multiple variables. Use a block sparse matrix
-    return optimizeinternal!(problem, options, NLLSInternalMultiVar(makesymmvls(problem, unfixed, nblocks)), starttime)
+    return optimizeinternal!(problem, options, NLLSInternal(makesymmvls(problem, unfixed, nblocks)), starttime)
 end
 
 # Optimize one variable at a time
@@ -60,7 +60,7 @@ function optimizesingles!(problem::NLLSProblem{VT, CT}, options::NLLSOptions, ty
     return NLLSResult(startcost, endcost, (Base.time_ns() - starttime)*1.e-9, timeinit + subprobinit*1.e-9, timecost, timegradient, timesolver, 0, iternum, costcomputations, gradientcomputations, linearsolvers, Vector{Float64}(), Vector{Vector{Float64}}())
 end
 
-function optimizeinternal!(problem::NLLSProblem, options::NLLSOptions, data, starttimens::UInt64)::NLLSResult
+function optimizeinternal!(problem::NLLSProblem, options::NLLSOptions, data::NLLSInternal, starttimens::UInt64)::NLLSResult
     # Copy the variables
     if length(problem.variables) != length(problem.varnext)
         problem.varnext = copy(problem.variables)

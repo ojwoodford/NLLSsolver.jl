@@ -9,13 +9,13 @@ function getresblocksizes!(resblocksizes, residuals::Vector, ind::Int)::Int
 end
 
 # Uni-variate linear system
-struct UniVariateLS
+struct UniVariateLSdynamic
     A::Matrix{Float64}
     b::Vector{Float64}
     x::Vector{Float64}
     varindex::UInt
 
-    function UniVariateLS(unfixed, varlen)
+    function UniVariateLSdynamic(unfixed, varlen)
         return new(zeros(Float64, varlen, varlen), zeros(Float64, varlen), Vector{Float64}(undef, varlen), UInt(unfixed))
     end
 end
@@ -31,28 +31,59 @@ struct UniVariateLSstatic{N, N2}
     end
 end
 
+UniVariateLS = Union{UniVariateLSdynamic, UniVariateLSstatic{N, N2}} where {N, N2}
+
 function computestartindices(blocksizes)
-    startind = circshift(blocksizes, 1)
+    startind = Vector{Int}(undef, length(blocksizes))
     startind[1] = 1
-    return cumsum(startind)
+    @inbounds startind[2:end] .= view(blocksizes, 1:length(blocksizes)-1)
+    return cumsum!(startind)
 end
 
 # Multi-variate linear system
-struct MultiVariateLS
+struct MultiVariateLSsparse
     A::BlockSparseMatrix{Float64}
     b::Vector{Float64}
     x::Vector{Float64}
     blockindices::Vector{UInt} # One for each variable
     boffsets::Vector{UInt} # One per block in b
-    sparseindices::SparseMatrixCSC{Int, Int} # Indices for turning block sparse matrix into sparse matrix
+    hessian::SparseMatrixCSC{Float64, Int} # Storage for sparse hessian
+    sparseindices::Vector{Int}
 
-    function MultiVariateLS(A::BlockSparseMatrix, blockindices, sparseindices=spzeros(0, 0))
+    function MultiVariateLSsparse(A::BlockSparseMatrix, blockindices)
         @assert A.rowblocksizes==A.columnblocksizes
         boffsets = computestartindices(A.rowblocksizes)
         blen = boffsets[end] + A.rowblocksizes[end] - 1
-        return new(A, zeros(Float64, blen), Vector{Float64}(undef, blen), blockindices, boffsets, sparseindices)
+        sparseindices = makesparseindices(A, true)
+        hessian = SparseMatrixCSC{Float64, Int}(sparseindices.m, sparseindices.n, sparseindices.colptr, sparseindices.rowval, Vector{Float64}(undef, length(sparseindices.nzval)))
+        return new(A, zeros(Float64, blen), Vector{Float64}(undef, blen), blockindices, boffsets, hessian, sparseindices.nzval)
     end
 end
+
+struct MultiVariateLSdense
+    A::BlockDenseMatrix{Float64}
+    b::Vector{Float64}
+    x::Vector{Float64}
+    blockindices::Vector{UInt} # One for each variable
+    boffsets::Vector{UInt} # One per block in b
+
+    function MultiVariateLSdense(blocksizes, blockindices)
+        boffsets = computestartindices(blocksizes)
+        blen = boffsets[end] + blocksizes[end]
+        push!(boffsets, blen)
+        blen -= 1
+        return new(BlockDenseMatrix{Float64}(boffsets), zeros(Float64, blen), Vector{Float64}(undef, blen), blockindices, boffsets)
+    end
+
+    function MultiVariateLSdense(from::MultiVariateLSdense, fromblock::Integer)
+        # Crop an existing linear system
+        boffsets = view(from.A.rowblockoffsets, 1:fromblock)
+        blen = boffsets[end] - 1
+        return new(BlockDenseMatrix{Float64}(boffsets), zeros(Float64, blen), Vector{Float64}(undef, blen), blockindices, boffsets)
+    end
+end
+
+MultiVariateLS = Union{MultiVariateLSsparse, MultiVariateLSdense}
 
 function makesymmvls(problem, unfixed, nblocks)
     # Multiple variables. Use a block sparse matrix
@@ -67,22 +98,28 @@ function makesymmvls(problem, unfixed, nblocks)
         end
     end
 
-    # Compute the block sparsity
-    sparsity = getvarcostmap(problem)
-    sparsity = sparsity[unfixed,:]
-    sparsity = sparse(UpperTriangular(sparse(sparsity * sparsity' .> 0)))
+    # Decide whether to have a sparse or a dense system
+    if sum(blocksizes) > 1000
+        # Compute the block sparsity
+        sparsity = getvarcostmap(problem)
+        sparsity = sparsity[unfixed,:]
+        sparsity = triu(sparse(sparsity * sparsity' .> 0))
 
-    # Construct the BSM
-    bsm = BlockSparseMatrix{Float64}(sparsity, blocksizes, blocksizes)
+        # Check sparsity level
+        if nnz(sparsity) * 4 < length(sparsity)
+            # Construct the BSM
+            bsm = BlockSparseMatrix{Float64}(sparsity, blocksizes, blocksizes)
 
-    # Construct the sparse indices
-    sparseindices = size(bsm, 2) > 1000 && 3 * nnz(bsm) < length(bsm) ? makesparseindices(bsm, true) : spzeros(0, 0)
+            # Construct the sparse MultiVariateLS
+            return MultiVariateLSsparse(bsm, blockindices)
+        end
+    end
 
-    # Construct the MultiVariateLS
-    return MultiVariateLS(bsm, blockindices, sparseindices)
+    # Construct the dense MultiVariateLS
+    return MultiVariateLSdense(blocksizes, blockindices)
 end
 
-function updatesymlinearsystem!(linsystem::Union{UniVariateLS, UniVariateLSstatic}, g, H, unusedargs...)
+function updatesymlinearsystem!(linsystem::UniVariateLS, g, H, unusedargs...)
     # Update the blocks in the problem
     linsystem.b .+= g
     linsystem.A .+= H
@@ -96,18 +133,18 @@ function updatesymA!(A, a, vars, varflags, blockindices)
             nvi = nvars(vars[i])
             rangei = SR(1, nvi) .+ loffseti
             loffseti += nvi
-            block(A, blockindices[i], blockindices[i], nvi, nvi) .+= @inbounds view(a, rangei, rangei)
+            @inbounds block(A, blockindices[i], blockindices[i], nvi, nvi) .+= view(a, rangei, rangei)
 
             loffsetj = static(0)
             @unroll for j in 1:i-1
                 if bitiset(varflags, j)
-                    nvj = nvars(vars[j])
+                    @inbounds nvj = nvars(vars[j])
                     rangej = SR(1, nvj) .+ loffsetj
                     loffsetj += nvj
-                    if blockindices[i] >= blockindices[j] # Make sure the BSM is lower triangular
-                        block(A, blockindices[i], blockindices[j], nvi, nvj) .+= @inbounds view(a, rangei, rangej)
+                    if @inbounds blockindices[i] >= blockindices[j] # Make sure the block matrix is lower triangular
+                        @inbounds block(A, blockindices[i], blockindices[j], nvi, nvj) .+= view(a, rangei, rangej)
                     else
-                        block(A, blockindices[j], blockindices[i], nvj, nvi) .+= @inbounds view(a, rangej, rangei)
+                        @inbounds block(A, blockindices[j], blockindices[i], nvj, nvi) .+= view(a, rangej, rangei)
                     end
                 end
             end
@@ -136,13 +173,15 @@ end
 uniformscaling!(linsystem, k) = uniformscaling!(linsystem.A, k)
 
 getgrad(linsystem) = linsystem.b
-gethessgrad(linsystem::Union{UniVariateLS, UniVariateLSstatic}) = (linsystem.A, linsystem.b)
-function gethessgrad(linsystem::MultiVariateLS)
-    if !isempty(linsystem.sparseindices)
-        return sparse(linsystem.A, linsystem.sparseindices), linsystem.b
+gethessgrad(linsystem::UniVariateLS) = (linsystem.A, linsystem.b)
+function gethessgrad(linsystem::MultiVariateLSsparse)
+    # Fill sparse hessian
+    for i in eachindex(linsystem.sparseindices)
+        @inbounds linsystem.hessian.nzval[i] = linsystem.A.data[linsystem.sparseindices[i]]
     end
-    return symmetrifyfull(linsystem.A), linsystem.b
+    return linsystem.hessian, linsystem.b
 end
+gethessgrad(linsystem::MultiVariateLSdense) = symmetrifyfull(linsystem.A), linsystem.b
 
 function zero!(linsystem)
     fill!(linsystem.b, 0)
@@ -150,7 +189,7 @@ function zero!(linsystem)
 end
 
 getoffsets(block, linsystem::MultiVariateLS) = @inbounds(linsystem.blockindices[varindices(block)])
-function getoffsets(block, linsystem::Union{UniVariateLS, UniVariateLSstatic})
+function getoffsets(block, linsystem::UniVariateLS)
     varind = varindices(block)
     if isa(varind, Number)
         return SVector(UInt(varind == linsystem.varindex))
@@ -160,14 +199,14 @@ end
 
 function update!(to::Vector, from::Vector, linsystem::MultiVariateLS, step=linsystem.x)
     # Update each variable
-    @inbounds for (i, j) in enumerate(linsystem.blockindices)
+    for (i, j) in enumerate(linsystem.blockindices)
         if j != 0
-            to[i] = update(from[i], step, linsystem.boffsets[j])
+            @inbounds to[i] = update(from[i], step, linsystem.boffsets[j])
         end
     end
 end
 
-@inline function update!(to::Vector, from::Vector, linsystem::Union{UniVariateLS, UniVariateLSstatic}, step=linsystem.x)
+@inline function update!(to::Vector, from::Vector, linsystem::UniVariateLS, step=linsystem.x)
     # Update one variable
-    to[linsystem.varindex] = update(from[linsystem.varindex], step)
+    @inbounds to[linsystem.varindex] = update(from[linsystem.varindex], step)
 end
