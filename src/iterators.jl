@@ -1,5 +1,7 @@
 using SparseArrays
 
+negate!(x) = @.(x = -x)
+
 # Iterators assume that the linear problem has been constructed
 
 # Newton optimization (undamped-Hessian form)
@@ -9,7 +11,7 @@ end
 function iterate!(::NewtonData, data, problem::NLLSProblem, options::NLLSOptions)::Float64
     hessian, gradient = gethessgrad(data.linsystem)
     # Compute the step
-    data.timesolver += @elapsed_ns data.linsystem.x .= -symmetricsolve(hessian, gradient, options)
+    data.timesolver += @elapsed_ns negate!(symmetricsolve!(data.linsystem.x, hessian, gradient, options))
     data.linearsolvers += 1
     # Update the new variables
     update!(problem.varnext, problem.variables, data.linsystem)
@@ -43,7 +45,7 @@ function iterate!(doglegdata::DoglegData, data, problem::NLLSProblem, options::N
         end
         if alpha < doglegdata.trustradius
             # Compute the Newton step
-            data.linsystem.x .= -symmetricsolve(hessian, gradient, options)
+            negate!(symmetricsolve!(data.linsystem.x, hessian, gradient, options))
             beta = norm(data.linsystem.x)
             data.linearsolvers += 1
         end
@@ -119,7 +121,7 @@ function iterate!(levmardata::LevMarData, data, problem::NLLSProblem, options::N
         uniformscaling!(hessian, levmardata.lambda - lastlambda)
         lastlambda = levmardata.lambda
         # Solve the linear system
-        data.timesolver += @elapsed_ns data.linsystem.x .= -symmetricsolve(hessian, gradient, options)
+        data.timesolver += @elapsed_ns negate!(symmetricsolve!(data.linsystem.x, hessian, gradient, options))
         data.linearsolvers += 1
         # Update the new variables
         update!(problem.varnext, problem.variables, data.linsystem)

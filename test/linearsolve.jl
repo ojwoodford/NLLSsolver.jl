@@ -8,6 +8,8 @@ using NLLSsolver, SparseArrays, Test
     b = A * x
 
     # Test the solvers
-    @test isapprox(NLLSsolver.symmetricsolve(A, b, "test"), x)
-    @test isapprox(NLLSsolver.symmetricsolve(sparse(A), b, nothing), x)
+    y = zeros(length(b))
+    @test isapprox(NLLSsolver.symmetricsolve!(y, A, b, "test"), x)
+    y = zeros(length(b))
+    @test isapprox(NLLSsolver.symmetricsolve!(y, sparse(A), b, nothing), x)
 end
