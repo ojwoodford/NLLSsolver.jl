@@ -8,7 +8,7 @@ function try_cholesky!(x::StaticVector, A::StaticMatrix, b::StaticVector)
     # Handle this issue with StaticArrays cholesky: https://github.com/JuliaArrays/StaticArrays.jl/issues/1194
     cholfac = StaticArrays._cholesky(Size(A), A, false)
     if issuccess(cholfac)
-        return ldiv!(x, cholfac, b)
+        return x .= cholfac \ b
     end
     # Handle this issue with StaticArrays qr: https://github.com/JuliaArrays/StaticArrays.jl/issues/1192
     return x .= A \ b
