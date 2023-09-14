@@ -1,4 +1,5 @@
 using SparseArrays, Dates, Static
+import IfElse.ifelse
 import Printf.@printf
 
 @enum NLLSIterator gaussnewton newton levenbergmarquardt dogleg gradientdescent
@@ -36,10 +37,30 @@ function NLLSOptions(; maxiters=100, reldcost=1.e-15, absdcost=1.e-15, dstep=1.e
     NLLSOptions(reldcost, absdcost, dstep, maxfails, maxiters, iterator, callback, storecosts, storetrajectory)
 end
 
+# Utility callback that prints out per-iteration results
+function printoutcallback(cost, problem, data, trailingargs...)
+    if data.iternum == 1
+        # First iteration, so print out column headers and the zeroth iteration (i.e. start) values
+        println("iter      cost      cost_change    |step|")
+        @printf("% 4d % 8e  % 4.3e   % 3.2e\n", 0, data.bestcost, 0, 0)
+    end
+    @printf("% 4d % 8e  % 4.3e   % 3.2e\n", data.iternum, cost, data.bestcost-cost, norm(data.linsystem.x))
+    return cost, 0
+end
+function printoutcallback(cost, data, trradius::Float64)
+    if data.iternum == 1
+        # First iteration, so print out column headers and the zeroth iteration (i.e. start) values
+        println("iter      cost      cost_change    |step|    tr_radius")
+        @printf("% 4d % 8e  % 4.3e   % 3.2e   % 2.1e\n", 0, data.bestcost, 0, 0, trradius)
+    end
+    @printf("% 4d % 8e  % 4.3e   % 3.2e   % 2.1e\n", data.iternum, cost, data.bestcost-cost, norm(data.linsystem.x), trradius)
+    return cost, 0
+end
+
 struct NLLSResult
     startcost::Float64                      # The function cost prior to minimization
     bestcost::Float64                       # The lowest function cost achieved
-    timetotal::Float64                      # The time (in seconds) to run the optimization (excluding initialization)
+    timetotal::Float64                      # The total time (in seconds) taken to run the optimization
     timeinit::Float64                       # The time (in seconds) to initialize the internal data structures
     timecost::Float64                       # Time (in seconds) spent computing the cost
     timegradient::Float64                   # Time (in seconds) spent computing the residual gradients and constructing the linear problems
@@ -54,21 +75,20 @@ struct NLLSResult
 end
 
 function Base.show(io::IO, x::NLLSResult)
-    timetotal = x.timetotal + x.timeinit
-    otherstuff = x.timetotal - x.timecost - x.timegradient - x.timesolver
+    otherstuff = x.timetotal - x.timecost - x.timegradient - x.timesolver - x.timeinit
     @printf(io, "NLLSsolver optimization took %f seconds and %d iterations to reduce the cost from %f to %f (a %.2f%% reduction), using:
    %d cost computations in %f seconds (%.2f%% of total time),
    %d gradient computations in %f seconds (%.2f%% of total time),
    %d linear solver computations in %f seconds (%.2f%% of total time),
    %f seconds for initialization (%.2f%% of total time), and
    %f seconds for other stuff (%.2f%% of total time).\n", 
-            timetotal, x.niterations, x.startcost, x.bestcost, 100*(1-x.bestcost/x.startcost), 
-            x.costcomputations, x.timecost, 100*x.timecost/timetotal,
-            x.gradientcomputations, x.timegradient, 100*x.timegradient/timetotal,
-            x.linearsolvers, x.timesolver, 100*x.timesolver/timetotal,
-            x.timeinit, 100*x.timeinit/timetotal,
-            otherstuff, 100*otherstuff/timetotal)
-    println(io, "Reason(s) for termination:")
+            x.timetotal, x.niterations, x.startcost, x.bestcost, 100*(1-x.bestcost/x.startcost), 
+            x.costcomputations, x.timecost, 100*x.timecost/x.timetotal,
+            x.gradientcomputations, x.timegradient, 100*x.timegradient/x.timetotal,
+            x.linearsolvers, x.timesolver, 100*x.timesolver/x.timetotal,
+            x.timeinit, 100*x.timeinit/x.timetotal,
+            otherstuff, 100*otherstuff/x.timetotal)
+    if 0 != x.termination           ; println(io, "Reason(s) for termination:"); end
     if 0 != x.termination & (1 << 0); println(io, "   Cost is infinite."); end
     if 0 != x.termination & (1 << 1); println(io, "   Cost is NaN."); end
     if 0 != x.termination & (1 << 2); println(io, "   Relative decrease in cost below threshold."); end
@@ -82,42 +102,22 @@ function Base.show(io::IO, x::NLLSResult)
     if 0 != userflags; println(io, "   Terminated by user-defined callback, with flags: ", string(userflags, base=2)); end
 end
 
-mutable struct NLLSInternalSingleVar
+mutable struct NLLSInternal{LSType}
     bestcost::Float64
-    timecost::Float64
-    timegradient::Float64
-    timesolver::Float64
+    timecost::UInt64
+    timegradient::UInt64
+    timesolver::UInt64
     iternum::Int
     costcomputations::Int
     gradientcomputations::Int
     linearsolvers::Int
-    step::Vector{Float64}
-    linsystem::UniVariateLS
+    linsystem::LSType
 
-    function NLLSInternalSingleVar(unfixed::UInt, varlen::Integer, n::Integer)
-        return new(0., 0., 0., 0., 0, 0, 0, 0, Vector(undef, varlen), UniVariateLS(unfixed, varlen, n))
+    function NLLSInternal(linsystem::LSType) where LSType
+        return new{LSType}(0., 0, 0, 0, 0, 0, 0, 0, linsystem)
     end
 end
+NLLSInternal(unfixed::UInt, varlen) = NLLSInternal(ifelse(is_static(varlen), UniVariateLSstatic{dynamic(varlen), dynamic(varlen*varlen)}(unfixed), UniVariateLSdynamic(unfixed, dynamic(varlen))))
 
-mutable struct NLLSInternalMultiVar
-    bestcost::Float64
-    timecost::Float64
-    timegradient::Float64
-    timesolver::Float64
-    iternum::Int
-    costcomputations::Int
-    gradientcomputations::Int
-    linearsolvers::Int
-    step::Vector{Float64}
-    linsystem::MultiVariateLS
-
-    # Maps of dependencies
-    varresmap::SparseMatrixCSC{Bool, Int}
-    resvarmap::SparseMatrixCSC{Bool, Int}
-    varvarmap::SparseMatrixCSC{Bool, Int}
-    mapsvalid::Bool
-
-    function NLLSInternalMultiVar(mvls)
-        return new(0., 0., 0., 0., 0, 0, 0, 0, Vector{Float64}(undef, size(mvls.A, 2)), mvls)
-    end
-end
+NLLSInternalMultiVar = Union{NLLSInternal{MultiVariateLSdense}, NLLSInternal{MultiVariateLSsparse}}
+NLLSInternalSingleVar = Union{NLLSInternal{UniVariateLSstatic{N, N2}}, NLLSInternal{UniVariateLSdynamic}} where {N, N2}

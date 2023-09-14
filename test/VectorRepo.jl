@@ -21,6 +21,11 @@ end
     floats = rand(10) * 100
     ints = convert(Vector{Int}, ceil.(floats))
     total = sum(floats) + sum(ints)
+    halftotal = sum(floats[1:5]) + sum(ints[1:5])
+    rangefun(::Vector{T}) where T = T <: Char ? (1:0) : (1:5)
+    indicesfun(::Vector{T}) where T = T <: Char ? Int[] : [1, 2, 3, 4, 5]
+    bitvecfun(::Vector{T}) where T = T <: Char ? BitVector() : 1:10 .<= 5
+    boolvecfun(::Vector{T}) where T = T <: Char ? Bool[] : map(x->x<=5, 1:10)
 
     # Construct repos and test the sum reduction
     # Any container
@@ -30,6 +35,12 @@ end
     @test isapprox(sum(i->π*i, vr1), total * π)
     vec = values(vr1)
     @test length(vec) == 2 && any(Base.Fix2(isa, Vector{Float64}), vec) && any(Base.Fix2(isa, Vector{Int}), vec)
+
+    # Test subset reductions
+    @test NLLSsolver.sumsubset(identity, rangefun, vr1) == halftotal
+    @test NLLSsolver.sumsubset(identity, indicesfun, vr1) == halftotal
+    @test NLLSsolver.sumsubset(identity, bitvecfun, vr1) == halftotal
+    @test NLLSsolver.sumsubset(identity, boolvecfun, vr1) == halftotal
 
     # Union container
     vr2 = NLLSsolver.VectorRepo{Union{Float64, Int, Char}}()
@@ -42,4 +53,10 @@ end
     valuetup = values(vr2)
     @test isa(valuetup, Tuple) && length(valuetup) == 3
     @test any(Base.Fix2(isa, Vector{Float64}), valuetup) && any(Base.Fix2(isa, Vector{Int}), valuetup) && any(Base.Fix2(isa, Vector{Char}), valuetup)
+
+    # Test subset reductions
+    @test NLLSsolver.sumsubset(identity, rangefun, vr2) == halftotal
+    @test NLLSsolver.sumsubset(identity, indicesfun, vr2) == halftotal
+    @test NLLSsolver.sumsubset(identity, bitvecfun, vr2) == halftotal
+    @test NLLSsolver.sumsubset(identity, boolvecfun, vr2) == halftotal
 end

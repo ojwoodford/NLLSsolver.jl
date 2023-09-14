@@ -5,29 +5,38 @@ using NLLSsolver, SparseArrays, StaticArrays, Test, Random
     blocksizes = [1, 1, 2, 2, 3, 3, 3, 3, 2, 2, 1, 1]
     fromblock = 7
     rows = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 2, 6, 7, 9, 8, 7, 8, 10, 12, 4, 9, 10, 11, 6, 6, 11, 12]
-    cols = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 1, 1, 1, 1, 2, 3, 3, 3,  4,  3, 5, 5,  5,  5, 4, 6,  6]
+    cols = [1, 2, 3, 2, 5, 6, 7, 8, 9, 10, 11, 12, 1, 1, 1, 1, 2, 3, 3, 3,  4,  3, 5, 5,  5,  5, 4, 6,  6]
     
     # Intitialize a sparse linear system randomly
-    from = NLLSsolver.MultiVariateLS(NLLSsolver.BlockSparseMatrix{Float64}(sparse(cols, rows, trues(length(rows))), blocksizes, blocksizes), 1:length(blocksizes))
+    from = NLLSsolver.MultiVariateLSsparse(NLLSsolver.BlockSparseMatrix{Float64}(sparse(cols, rows, trues(length(rows))), blocksizes, blocksizes), 1:length(blocksizes))
     Random.seed!(1)
     from.A.data .= randn(length(from.A.data))
     from.b .= randn(length(from.b))
     # Make the diagonal blocks symmetric
     for (ind, sz) in enumerate(blocksizes)
-        diagblock = NLLSsolver.block(from.A, ind, ind, sz, sz)
-        diagblock .= diagblock + diagblock'
+        if NLLSsolver.validblock(from.A, ind, ind)
+            diagblock = NLLSsolver.block(from.A, ind, ind, sz, sz)
+            diagblock .= diagblock + diagblock'
+        end
     end
 
     # Construct the cropped system
-    to = NLLSsolver.constructcrop(from, fromblock)
-    NLLSsolver.initcrop!(to, from)
+    to_d = NLLSsolver.constructcrop(from, fromblock)
+    @test isa(to_d, NLLSsolver.MultiVariateLSdense)
+    to_s = NLLSsolver.constructcrop(from, fromblock, true)
+    @test isa(to_s, NLLSsolver.MultiVariateLSsparse)
+    NLLSsolver.initcrop!(to_d, from)
+    NLLSsolver.initcrop!(to_s, from)
 
-    # Check that the crop is correct
+    # Check that the crops are correct
     hessian = NLLSsolver.symmetrifyfull(from.A)
     croplen = sum(blocksizes[1:fromblock-1])
-    @test view(hessian, 1:croplen, 1:croplen) == NLLSsolver.symmetrifyfull(to.A)
-    @test view(from.b, 1:croplen) == to.b
-    @test all((to.boffsets .+ blocksizes[1:fromblock-1]) .<= (length(to.b) + 1))
+    @test view(hessian, 1:croplen, 1:croplen) == NLLSsolver.symmetrifyfull(to_d.A)
+    @test view(from.b, 1:croplen) == to_d.b
+    @test all((to_d.boffsets[1:end-1] .+ blocksizes[1:fromblock-1]) .<= (length(to_d.b) + 1))
+    @test view(hessian, 1:croplen, 1:croplen) == NLLSsolver.symmetrifyfull(to_s.A)
+    @test view(from.b, 1:croplen) == to_s.b
+    @test all((to_s.boffsets .+ blocksizes[1:fromblock-1]) .<= (length(to_s.b) + 1))
 
     # Compute the ground truth reduced system
     N = size(hessian, 2)
@@ -37,20 +46,27 @@ using NLLSsolver, SparseArrays, StaticArrays, Test, Random
 
     # Compute the marginalized system using dynamic block sizes
     for block in fromblock:length(from.A.rowblocksizes)
-        NLLSsolver.marginalize!(to, from, block, Int(from.A.rowblocksizes[block]))
+        NLLSsolver.marginalize!(to_d, from, block, Int(from.A.rowblocksizes[block]))
+        NLLSsolver.marginalize!(to_s, from, block, Int(from.A.rowblocksizes[block]))
     end
 
-    # Check that the result is correct
-    @test isapprox(hessian, NLLSsolver.symmetrifyfull(to.A); rtol=1.e-13)
-    @test isapprox(gradient, to.b; rtol=1.e-13)
+    # Check that the results are correct
+    @test isapprox(hessian, NLLSsolver.symmetrifyfull(to_d.A); rtol=1.e-13)
+    @test isapprox(gradient, to_d.b; rtol=1.e-13)
+    @test isapprox(hessian, NLLSsolver.symmetrifyfull(to_s.A); rtol=1.e-13)
+    @test isapprox(gradient, to_s.b; rtol=1.e-13)
 
-    # Reset the 'to' system
-    NLLSsolver.initcrop!(to, from)
+    # Reset the 'to' systems
+    NLLSsolver.initcrop!(to_d, from)
+    NLLSsolver.initcrop!(to_s, from)
 
-    # Compute the marginalized system using fixed block sizes
-    NLLSsolver.marginalize!(to, from)
+    # Compute the marginalized system using static block sizes
+    NLLSsolver.marginalize!(to_d, from)
+    NLLSsolver.marginalize!(to_s, from)
 
-    # Check that the result is correct
-    @test isapprox(hessian, NLLSsolver.symmetrifyfull(to.A); rtol=1.e-13)
-    @test isapprox(gradient, to.b; rtol=1.e-13)
+    # Check that the results are correct
+    @test isapprox(hessian, NLLSsolver.symmetrifyfull(to_d.A); rtol=1.e-13)
+    @test isapprox(gradient, to_d.b; rtol=1.e-13)
+    @test isapprox(hessian, NLLSsolver.symmetrifyfull(to_s.A); rtol=1.e-13)
+    @test isapprox(gradient, to_s.b; rtol=1.e-13)
 end

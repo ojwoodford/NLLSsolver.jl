@@ -37,14 +37,17 @@ function computerescostgradhess(varflags, residual, kernel, vars)
         cost, dc, d2c = robustifydcost(kernel, cost)
 
         # IRLS reweighting of Hessian
-        H *= dc
-        if d2c < 0
-            # Second order correction
+        if dc != 1
+            H *= dc
+        end
+        # Second order correction
+        if d2c != 0
             H += ((2 * d2c) * g) * g'
         end
-
         # IRLS reweighting of gradient
-        g *= dc
+        if dc != 1
+            g *= dc
+        end
 
         # Return the cost
         return 0.5 * Float64(cost), g, H
@@ -58,14 +61,17 @@ function computerescostgradhess(varflags, residual, kernel, vars)
     dkdv = g * view(d2c, kernelvarind, nvars(kernel)+1)'
 
     # IRLS reweighting of Hessian
-    H *= dc[end]
-    if d2c[end] < 0
-        # Second order correction
+    if dc[end] != 1
+        H *= dc[end]
+    end
+    # Second order correction
+    if d2c[end] != 0
         H += ((2 * d2c[end]) * g) * g'
     end
-    
     # IRLS reweighting of gradient
-    g *= dc[end]
+    if dc[end] != 1
+        g *= dc[end]
+    end
 
     # Add on the kernel derivative blocks
     g = vcat(view(dc, kernelvarind), g)

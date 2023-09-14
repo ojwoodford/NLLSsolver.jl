@@ -73,6 +73,17 @@ function makeBALproblem(data)
     return problem
 end
 
+function loadBALproblem(name)
+    # Create the problem
+    t = @elapsed begin
+        data = loadbaldataset(name)
+        problem = makeBALproblem(data)
+    end
+    show(data)
+    println("Data loading and problem construction took ", t, " seconds.")
+    return problem
+end
+
 # Compute the Area Under Curve for reprojection errors, truncated at a given threshold
 function computeauc(problem, threshold=10.0, residuals=problem.costs.data[BALResidual{Float64}])
     # Compute all the errors
@@ -104,22 +115,18 @@ function computeauc(problem, threshold=10.0, residuals=problem.costs.data[BALRes
 end
 
 # Function to optimize a BAL problem
-function optimizeBALproblem(name)
-    # Create the problem
-    t = @elapsed begin
-        data = loadbaldataset(name)
-        problem = makeBALproblem(data)
-    end
-    show(data)
-    println("Data loading and problem construction took ", t, " seconds.")
+optimizeBALproblem(name::String) = optimizeBALproblem(loadBALproblem(name))
+function optimizeBALproblem(problem::NLLSsolver.NLLSProblem)
     # Compute the starting AUC
     println("   Start AUC: ", computeauc(problem, 2.0))
     # Optimize the cost
-    result = NLLSsolver.optimize!(problem, NLLSsolver.NLLSOptions(iterator=NLLSsolver.levenbergmarquardt, reldcost=1.0e-6))
+    result = NLLSsolver.optimize!(problem, NLLSsolver.NLLSOptions(iterator=NLLSsolver.levenbergmarquardt, reldcost=1.0e-6, callback=NLLSsolver.printoutcallback))
     # Compute the final AUC
     println("   Final AUC: ", computeauc(problem, 2.0))
     # Print out the solver summary
     display(result)
+    # Return the optimized problem
+    return problem
 end
 
-optimizeBALproblem("problem-16-22106")
+optimizeBALproblem("problem-16-22106");

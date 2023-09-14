@@ -1,18 +1,6 @@
 using SparseArrays
 
-function update!(to::Vector, from::Vector, linsystem::MultiVariateLS, step)
-    # Update each variable
-    @inbounds for (i, j) in enumerate(linsystem.blockindices)
-        if j != 0
-            to[i] = update(from[i], step, linsystem.soloffsets[j])
-        end
-    end
-end
-
-function update!(to::Vector, from::Vector, linsystem::UniVariateLS, step)
-    # Update one variable
-    to[linsystem.varindex] = update(from[linsystem.varindex], step)
-end
+negate!(x) = @.(x = -x)
 
 # Iterators assume that the linear problem has been constructed
 
@@ -23,12 +11,12 @@ end
 function iterate!(::NewtonData, data, problem::NLLSProblem, options::NLLSOptions)::Float64
     hessian, gradient = gethessgrad(data.linsystem)
     # Compute the step
-    data.timesolver += @elapsed data.step .= -symmetricsolve(hessian, gradient, options)
+    data.timesolver += @elapsed_ns negate!(solve!(data.linsystem, options))
     data.linearsolvers += 1
     # Update the new variables
-    update!(problem.varnext, problem.variables, data.linsystem, data.step)
+    update!(problem.varnext, problem.variables, data.linsystem)
     # Return the cost
-    data.timecost += @elapsed cost_ = cost(problem.varnext, problem.costs)
+    data.timecost += @elapsed_ns cost_ = cost(problem.varnext, problem.costs)
     data.costcomputations += 1
     return cost_
 end
@@ -44,7 +32,7 @@ end
 
 function iterate!(doglegdata::DoglegData, data, problem::NLLSProblem, options::NLLSOptions)::Float64
     hessian, gradient = gethessgrad(data.linsystem)
-    data.timesolver += @elapsed begin
+    data.timesolver += @elapsed_ns begin
         # Compute the Cauchy step
         gnorm2 = gradient' * gradient
         a = gnorm2 / ((gradient' * hessian) * gradient + floatmin(eltype(gradient)))
@@ -57,8 +45,8 @@ function iterate!(doglegdata::DoglegData, data, problem::NLLSProblem, options::N
         end
         if alpha < doglegdata.trustradius
             # Compute the Newton step
-            data.step .= -symmetricsolve(hessian, gradient, options)
-            beta = norm(data.step)
+            negate!(solve!(data.linsystem, options))
+            beta = norm(data.linsystem.x)
             data.linearsolvers += 1
         end
     end
@@ -67,7 +55,7 @@ function iterate!(doglegdata::DoglegData, data, problem::NLLSProblem, options::N
         # Determine the step
         if !(alpha < doglegdata.trustradius)
             # Along first leg
-            data.step .= (doglegdata.trustradius / alpha) * cauchy
+            data.linsystem.x .= (doglegdata.trustradius / alpha) * cauchy
             linear_approx = doglegdata.trustradius * (2 * alpha - doglegdata.trustradius) / (2 * a)
         else
             # Along second leg
@@ -77,9 +65,9 @@ function iterate!(doglegdata::DoglegData, data, problem::NLLSProblem, options::N
             else
                 # Find the point along the Cauchy -> Newton line on the trust
                 # region circumference
-                data.step .-= cauchy
-                sq_leg = data.step' * data.step
-                c = cauchy' * data.step
+                data.linsystem.x .-= cauchy
+                sq_leg = data.linsystem.x' * data.linsystem.x
+                c = cauchy' * data.linsystem.x
                 trsq = doglegdata.trustradius * doglegdata.trustradius - alpha2
                 step = sqrt(c * c + sq_leg * trsq)
                 if c <= 0
@@ -87,30 +75,32 @@ function iterate!(doglegdata::DoglegData, data, problem::NLLSProblem, options::N
                 else
                     step = trsq / (c + step)
                 end
-                data.step .*= step
-                data.step .+= cauchy
+                data.linsystem.x .*= step
+                data.linsystem.x .+= cauchy
                 linear_approx = 0.5 * (a * (1 - step) ^ 2 * gnorm2) + step * (2 - step) * cost_
             end
         end
         # Update the new variables
-        update!(problem.varnext, problem.variables, data.linsystem, data.step)
+        update!(problem.varnext, problem.variables, data.linsystem)
         # Compute the cost
-        data.timecost += @elapsed cost_ = cost(problem.varnext, problem.costs)
+        data.timecost += @elapsed_ns cost_ = cost(problem.varnext, problem.costs)
         data.costcomputations += 1
         # Update trust region radius
         mu = (data.bestcost - cost_) / linear_approx
         if mu > 0.375
-            doglegdata.trustradius = max(doglegdata.trustradius, 3 * norm(data.step))
+            doglegdata.trustradius = max(doglegdata.trustradius, 3 * norm(data.linsystem.x))
         elseif mu < 0.125
             doglegdata.trustradius *= 0.5
         end
         # Check for exit
-        if !(cost_ > data.bestcost) || (maximum(abs, data.step) < options.dstep)
+        if !(cost_ > data.bestcost) || (maximum(abs, data.linsystem.x) < options.dstep)
             # Return the cost
             return cost_
         end
     end
 end
+
+printoutcallback(cost, problem, data, iteratedata::DoglegData) = printoutcallback(cost, data, iteratedata.trustradius)
 
 # Levenberg-Marquardt optimization
 mutable struct LevMarData
@@ -131,18 +121,18 @@ function iterate!(levmardata::LevMarData, data, problem::NLLSProblem, options::N
         uniformscaling!(hessian, levmardata.lambda - lastlambda)
         lastlambda = levmardata.lambda
         # Solve the linear system
-        data.timesolver += @elapsed data.step .= -symmetricsolve(hessian, gradient, options)
+        data.timesolver += @elapsed_ns negate!(solve!(data.linsystem, options))
         data.linearsolvers += 1
         # Update the new variables
-        update!(problem.varnext, problem.variables, data.linsystem, data.step)
+        update!(problem.varnext, problem.variables, data.linsystem)
         # Compute the cost
-        data.timecost += @elapsed cost_ = cost(problem.varnext, problem.costs)
+        data.timecost += @elapsed_ns cost_ = cost(problem.varnext, problem.costs)
         data.costcomputations += 1
         # Check for exit
-        if !(cost_ > data.bestcost) || (maximum(abs, data.step) < options.dstep)
+        if !(cost_ > data.bestcost) || (maximum(abs, data.linsystem.x) < options.dstep)
             # Success (or convergence) - update lambda
             uniformscaling!(hessian, -lastlambda)
-            stepquality = (cost_ - data.bestcost) / (((data.step' * hessian) * 0.5 + gradient') * data.step)
+            stepquality = (cost_ - data.bestcost) / (((data.linsystem.x' * hessian) * 0.5 + gradient') * data.linsystem.x)
             levmardata.lambda *= stepquality < 0.983 ? 1 - (2 * stepquality - 1) ^ 3 : 0.1
             # Return the cost
             return cost_
@@ -153,55 +143,35 @@ function iterate!(levmardata::LevMarData, data, problem::NLLSProblem, options::N
     end
 end
 
+printoutcallback(cost, problem, data, iteratedata::LevMarData) = printoutcallback(cost, data, 1.0/iteratedata.lambda)
 
 # Gradient descent optimization
 mutable struct GradientDescentData
-    step::Float64
+    stepsize::Float64
 end
 
 function iterate!(gddata::GradientDescentData, data, problem::NLLSProblem, options::NLLSOptions)::Float64
-    unused, gradient = gethessgrad(data.linsystem)
-    # Test the current step
-    data.step .= -gradient * gddata.step
-    update!(problem.varnext, problem.variables, data.linsystem, data.step)
-    data.timecost += @elapsed costc = cost(problem.varnext, problem.costs)
+    gradient = getgrad(data.linsystem)
+    # Evaluate the current step size
+    data.linsystem.x .= -gradient * gddata.stepsize
+    update!(problem.varnext, problem.variables, data.linsystem)
+    data.timecost += @elapsed_ns costc = cost(problem.varnext, problem.costs)
     data.costcomputations += 1
-    multiplier = 1.2
-    if costc < data.bestcost
-        # Test a larger step
-        data.step *= multiplier
-        update!(problem.varnext, problem.variables, data.linsystem, data.step)
-        data.timecost += @elapsed cost_ = cost(problem.varnext, problem.costs)
+    # Iterate until we find a lower cost
+    while costc > data.bestcost
+        # Compute the expected cost
+        coststep = data.linsystem.x' * gradient
+        costdiff = data.bestcost + coststep - costc
+        # Compute the optimal step size assuming quadratic fit
+        gddata.stepsize *= 0.5 * coststep / costdiff
+        # Evaluate the new step size
+        data.linsystem.x .= -gradient * gddata.stepsize
+        update!(problem.varnext, problem.variables, data.linsystem)
+        data.timecost += @elapsed_ns costc = cost(problem.varnext, problem.costs)
         data.costcomputations += 1
-        if cost_ < costc
-            costc = cost_
-            gddata.step *= multiplier
-            multiplier ^= 2
-        else
-            multiplier = 1.0 / multiplier
-            data.step *= multiplier
-        end
-    else
-        multiplier = 1.0 / multiplier
     end
-    while true
-        # Set the step
-        # Update the reduced variables
-        data.step *= multiplier
-        update!(problem.varnext, problem.variables, data.linsystem, data.step)
-        # Compute the cost
-        data.timecost += @elapsed cost_ = cost(problem.varnext, problem.costs)
-        data.costcomputations += 1
-        # Check we found a lower cost
-        if (costc <= data.bestcost) && (cost_ >= costc)
-            # Higher cost found. Return the lowest cost
-            data.step *= 1.0 / multiplier
-            update!(problem.varnext, problem.variables, data.linsystem, data.step)
-            return costc
-        end
-        costc = cost_
-        gddata.step *= multiplier
-        multiplier ^= 2
-    end
+    gddata.stepsize *= 2
+    return costc
 end
 
+printoutcallback(cost, problem, data, iteratedata::GradientDescentData) = printoutcallback(cost, data, iteratedata.stepsize)

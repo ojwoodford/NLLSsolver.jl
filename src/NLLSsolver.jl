@@ -9,12 +9,12 @@ export EuclideanVector, ZeroToInfScalar, ZeroToOneScalar # Concrete general vari
 export Rotation3DR, Rotation3DL, Point3D, Pose3D, EffPose3D, UnitPose3D # Concrete 3D geometry variable types
 export SimpleCamera, NoDistortionCamera, ExtendedUnifiedCamera, BarrelDistortion, EULensDistortion # Concrete camera sensor & lens variable types
 # Functions
-export addcost!, addvariable!, updatevarcostmap!, subproblem, nvars, nres # Construct a problem
+export addcost!, addvariable!, updatevarcostmap!, subproblem, subproblem!, nvars, nres # Construct a problem
 export update, nvars # Variable interface
 export nres, ndeps, varindices, getvars # Residual interface
 export robustkernel, robustify, robustifydcost, robustifydkernel # Robustifier interface
 export cost, computeresidual, computeresjac, computecost, computecostgradhess # Compute the objective
-export optimize!  # Optimize the objective
+export optimize!, printoutcallback  # Optimize the objective
 export rodrigues, project, epipolarerror, proj2orthonormal # Multi-view geometry helper functions
 export ideal2image, image2ideal, pixel2image, image2pixel, ideal2distorted, distorted2ideal, convertlens
 
@@ -45,6 +45,7 @@ include("visualgeometry/geometry.jl")
 
 # Types
 include("BlockSparseMatrix.jl")
+include("BlockDenseMatrix.jl")
 include("linearsystem.jl")
 include("structs.jl")
 
