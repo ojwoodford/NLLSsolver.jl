@@ -120,8 +120,8 @@ function constructcrop(from::MultiVariateLSsparse, fromblock, forcesparse=false)
         # Compute the crop sparsity
         cacheindices(from.A)
         toblock = fromblock - 1
-        cropsparsity = view(from.A.indices, :, 1:toblock) .+ view(from.A.indicestransposed, :, 1:toblock)
-        cropsparsity = sparse(triu(cropsparsity' * cropsparsity))
+        cropsparsity = view(from.A.indices + from.A.indicestransposed, :, 1:toblock) # Do view before sum when this issue is fixed: https://github.com/JuliaSparse/SparseArrays.jl/issues/441
+        cropsparsity = triu(cropsparsity' * cropsparsity)
 
         # Check sparsity level
         if forcesparse || nnz(cropsparsity) * 4 < length(cropsparsity)
