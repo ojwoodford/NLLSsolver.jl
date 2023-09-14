@@ -23,6 +23,8 @@ using NLLSsolver, SparseArrays, StaticArrays, Test
     @test size(b) == (8, 6)
     @test length(b) == 48
     @test nnz(b) == 13
+    @test NLLSsolver.validblock(bs, 2, 1)
+    @test !NLLSsolver.validblock(bs, 1, 2)
 
     m = Matrix(b)
     @test typeof(m) == Matrix{Float64}

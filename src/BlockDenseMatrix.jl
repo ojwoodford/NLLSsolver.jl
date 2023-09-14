@@ -15,6 +15,7 @@ block(bdm::BlockDenseMatrix, i, j, ::StaticInt{rows}, ::StaticInt{cols}) where {
 block(bdm::BlockDenseMatrix, i, j, rows::Integer, cols::Integer) = view(bdm.data, SR(0, rows-1).+bdm.rowblockoffsets[i], SR(0, cols-1).+bdm.columnblockoffsets[j])
 block(bdm::BlockDenseMatrix, i, j, ::StaticInt{rows}, cols::Integer) where rows = HybridArray{Tuple{rows, StaticArrays.Dynamic()}}(block(bdm, i, j, rows, cols))
 block(bdm::BlockDenseMatrix, i, j) = block(bdm, i, j, bdm.rowblockoffsets[i+1]-bdm.rowblockoffsets[i], bdm.columnblockoffsets[j+1]-bdm.columnblockoffsets[j])
+validblock(::BlockDenseMatrix, ::Integer, ::Integer) = true
 Base.size(bdm::BlockDenseMatrix) = size(bdm.data)
 Base.size(bdm::BlockDenseMatrix, dim) = size(bdm.data, dim)
 Base.length(bdm::BlockDenseMatrix) = length(bdm.data)

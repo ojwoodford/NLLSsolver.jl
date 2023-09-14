@@ -103,6 +103,7 @@ block(bsm::BlockSparseMatrix, i, j, ::StaticInt{rows}, ::StaticInt{cols}) where 
 block(bsm::BlockSparseMatrix, i, j, rows::Integer, cols::Integer) = reshape(view(bsm.data, SR(0, rows*cols-1).+bsm.indicestransposed[j,i]), (rows, cols))
 block(bsm::BlockSparseMatrix, i, j, ::StaticInt{rows}, cols::Integer) where rows = HybridArray{Tuple{rows, StaticArrays.Dynamic()}}(block(bsm, i, j, rows, cols))
 block(bsm::BlockSparseMatrix, i, j) = block(bsm, i, j, bsm.rowblocksizes[i], bsm.columnblocksizes[j])
+validblock(bsm::BlockSparseMatrix, i, j) = bsm.indicestransposed[j,i] != 0
 Base.size(bsm::BlockSparseMatrix) = (bsm.m, bsm.n)
 Base.size(bsm::BlockSparseMatrix, dim) = dim == 1 ? bsm.m : (dim == 2 ? bsm.n : 1)
 Base.length(bsm::BlockSparseMatrix) = bsm.m * bsm.n
@@ -130,7 +131,7 @@ function makesparseindices(bsm::BlockSparseMatrix, symmetrify::Bool=false)
         sprows = bsm.indices.colptr[col_]:bsm.indices.colptr[col_+1]-1
         if symmetrify
             sprows_ = bsm.indicestransposed.colptr[col_]:bsm.indicestransposed.colptr[col_+1]-1-(!isempty(sprows) && bsm.indices.rowval[sprows[1]] == col_)
-            @assert isempty(sprows) || isempty(sprows_) || sprows[1] > sprows_[end] # BSM must be lower triangular for symmetrification
+            @assert(isempty(sprows) || isempty(sprows_) || sprows[1] > sprows_[end], "BSM must be lower triangular for symmetrification")
         end
         for innercol in 0:colblocksize-1
             if symmetrify
