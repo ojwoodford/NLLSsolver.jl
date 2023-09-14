@@ -1,5 +1,9 @@
 using LDLFactorizations, LinearAlgebra, LinearSolve, StaticArrays
 
+# Fix for when ldiv! isn't supported
+import LinearAlgebra.ldiv!
+ldiv!(x, A, b) = x .= ldiv(A, b)
+
 symmetricsolve!(x::AbstractVector, A::SparseMatrixCSC, b::AbstractVector, options) = ldiv!(x, ldl(A), b)
 
 function symmetricsolve!(x::AbstractVector, A::StaticMatrix, b::AbstractVector, options)
