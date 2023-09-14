@@ -103,10 +103,10 @@ function initcrop!(to::MultiVariateLSdense, from::MultiVariateLSsparse, frombloc
     # Copy over all the cropped bits
     @inbounds to.b .= view(from.b, 1:lastindex(to.b))
     @inbounds for row = 1:fromblock-1
-        lenr = from.A.rowblocksizes[row]
+        lenr = Int(from.A.rowblocksizes[row])
         for colind = from.A.indicestransposed.colptr[row]:from.A.indicestransposed.colptr[row+1]-1
             col = from.A.indicestransposed.rowval[colind]
-            lenc = from.A.columnblocksizes[col]
+            lenc = Int(from.A.columnblocksizes[col])
             block(to.A, row, col, lenr, lenc) .= reshape(view(from.A.data, (0:lenr*lenc-1) .+ from.A.indicestransposed.nzval[colind]), lenr, lenc)
         end
     end 
