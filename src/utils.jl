@@ -54,9 +54,9 @@ end
 
 function Base.cumsum!(A::AbstractVector)
     total = zero(eltype(A))
-    for ind in eachindex(A)
-        total += @inbounds A[ind]
-        @inbounds A[ind] = total
+    @inbounds for ind in eachindex(A)
+        total += A[ind]
+        A[ind] = total
     end
     return A
 end

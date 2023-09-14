@@ -93,8 +93,7 @@ function initcrop!(to::MultiVariateLSsparse, from::MultiVariateLSsparse, fromblo
     zero!(to)
     # Copy over all the cropped bits
     to.b .= view(from.b, 1:lastindex(to.b))
-    cacheindices(from.A)
-    endind = from.A.indices.nzval[from.A.indices.colptr[fromblock]] - 1
+    endind = from.A.indicestransposed.nzval[from.A.indicestransposed.colptr[fromblock]] - 1
     view(to.A.data, 1:endind) .= view(from.A.data, 1:endind)
 end
 
@@ -102,13 +101,13 @@ function initcrop!(to::MultiVariateLSdense, from::MultiVariateLSsparse, frombloc
     # Reset the linear system to all zeros
     zero!(to)
     # Copy over all the cropped bits
-    to.b .= view(from.b, 1:lastindex(to.b))
-    for row = 1:fromblock-1
-        lenr = @inbounds from.A.rowblocksizes[row]
-        for colind = @inbounds from.A.indicestransposed.colptr[row]:from.A.indicestransposed.colptr[row+1]-1
-            col = @inbounds from.A.indicestransposed.rowval[colind]
-            lenc = @inbounds from.A.columnblocksizes[col]
-            @inbounds block(to.A, row, col, lenr, lenc) .= reshape(view(from.A.data, (0:lenr*lenc-1) .+ from.A.indicestransposed.nzval[colind]), lenr, lenc)
+    @inbounds to.b .= view(from.b, 1:lastindex(to.b))
+    @inbounds for row = 1:fromblock-1
+        lenr = from.A.rowblocksizes[row]
+        for colind = from.A.indicestransposed.colptr[row]:from.A.indicestransposed.colptr[row+1]-1
+            col = from.A.indicestransposed.rowval[colind]
+            lenc = from.A.columnblocksizes[col]
+            block(to.A, row, col, lenr, lenc) .= reshape(view(from.A.data, (0:lenr*lenc-1) .+ from.A.indicestransposed.nzval[colind]), lenr, lenc)
         end
     end 
 end
@@ -117,19 +116,19 @@ function constructcrop(from::MultiVariateLSsparse, fromblock, forcesparse=false)
     toblocksizes = view(from.A.rowblocksizes, 1:fromblock-1)
 
     # Decide whether to have a sparse or a dense system
-    if forcesparse || sum(toblocksizes) > 1000
+    @inbounds if forcesparse || sum(toblocksizes) > 1000
         # Compute the crop sparsity
         cacheindices(from.A)
         toblock = fromblock - 1
-        cropsparsity = view(from.A.indices, :, 1:toblock)
-        cropsparsity = triu(cropsparsity' * cropsparsity)
+        cropsparsity = view(from.A.indices, :, 1:toblock) .+ view(from.A.indicestransposed, :, 1:toblock)
+        cropsparsity = sparse(triu(cropsparsity' * cropsparsity))
 
         # Check sparsity level
         if forcesparse || nnz(cropsparsity) * 4 < length(cropsparsity)
             # Add any missing blocks to the cropped region
             start = from.A.indicestransposed.nzval[from.A.indicestransposed.colptr[fromblock]]
             blocksizes = convert.(Int, @inbounds view(from.A.rowblocksizes, 1:toblock))
-            @inbounds for c = 1:toblock
+            for c = 1:toblock
                 nc = blocksizes[c]
                 for rind = cropsparsity.colptr[c]:cropsparsity.colptr[c+1]-1
                     r = cropsparsity.rowval[rind]

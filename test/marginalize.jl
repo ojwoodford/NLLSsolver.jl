@@ -5,7 +5,7 @@ using NLLSsolver, SparseArrays, StaticArrays, Test, Random
     blocksizes = [1, 1, 2, 2, 3, 3, 3, 3, 2, 2, 1, 1]
     fromblock = 7
     rows = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 2, 6, 7, 9, 8, 7, 8, 10, 12, 4, 9, 10, 11, 6, 6, 11, 12]
-    cols = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 1, 1, 1, 1, 2, 3, 3, 3,  4,  3, 5, 5,  5,  5, 4, 6,  6]
+    cols = [1, 2, 3, 2, 5, 6, 7, 8, 9, 10, 11, 12, 1, 1, 1, 1, 2, 3, 3, 3,  4,  3, 5, 5,  5,  5, 4, 6,  6]
     
     # Intitialize a sparse linear system randomly
     from = NLLSsolver.MultiVariateLSsparse(NLLSsolver.BlockSparseMatrix{Float64}(sparse(cols, rows, trues(length(rows))), blocksizes, blocksizes), 1:length(blocksizes))
@@ -14,8 +14,10 @@ using NLLSsolver, SparseArrays, StaticArrays, Test, Random
     from.b .= randn(length(from.b))
     # Make the diagonal blocks symmetric
     for (ind, sz) in enumerate(blocksizes)
-        diagblock = NLLSsolver.block(from.A, ind, ind, sz, sz)
-        diagblock .= diagblock + diagblock'
+        if NLLSsolver.validblock(from.A, ind, ind)
+            diagblock = NLLSsolver.block(from.A, ind, ind, sz, sz)
+            diagblock .= diagblock + diagblock'
+        end
     end
 
     # Construct the cropped system

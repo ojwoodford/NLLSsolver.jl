@@ -113,56 +113,77 @@ SparseArrays.nnz(bsm::BlockSparseMatrix) = length(bsm.data)
 zero!(aa::AbstractArray) = fill!(aa, 0)
 SparseArrays.nnz(aa::AbstractArray) = length(aa)
 
+function cumsum1!(A, B)
+    total = A[1]
+    @inbounds for ind in eachindex(B)
+        total += B[ind]
+        A[ind+1] = total
+    end
+    return A
+end
+
+function diagonalblockspace(indices, blocksizes)
+    total = Int(0)
+    @inbounds for col = 1:length(indices.colptr)-1
+        ind = indices.colptr[col]
+        if indices.colptr[col+1] > ind
+            row = indices.rowval[ind]
+            @assert(row >= col, "BSM must be lower triangular for symmetrification")
+            if row == col
+                bs = Int(blocksizes[row])
+                total += bs * bs
+            end
+        end
+    end
+    return total
+end
+
 function makesparseindices(bsm::BlockSparseMatrix, symmetrify::Bool=false)
     @assert !symmetrify || bsm.rowblocksizes == bsm.columnblocksizes
     # Preallocate arrays
     cacheindices(bsm)
-    nzvals = symmetrify ? length(bsm.data) * 2 - sum((Vector(diag(bsm.indices)) .!= 0) .* (bsm.rowblocksizes .^ 2)) : length(bsm.data)
+    nzvals = symmetrify ? length(bsm.data) * 2 - diagonalblockspace(bsm.indices, bsm.rowblocksizes) : length(bsm.data)
     rows = Vector{Int}(undef, nzvals)
     indices = Vector{Int}(undef, nzvals)
-    startrow = cumsum(bsm.rowblocksizes) .+ 1
-    pushfirst!(startrow, UInt(1))
+    startrow = Vector{Int}(undef, length(bsm.rowblocksizes)+1)
+    startrow[1] = 1
+    cumsum1!(startrow, bsm.rowblocksizes)
     cols = Vector{Int}(undef, symmetrify ? startrow[end] : sum(bsm.columnblocksizes)+1)
     # Sparsify each block column
-    ind = 0
+    ind = 1
     col = 1
     @inbounds cols[1] = 1
-    for (col_, colblocksize) in enumerate(bsm.columnblocksizes)
-        sprows = bsm.indices.colptr[col_]:bsm.indices.colptr[col_+1]-1
-        if symmetrify
-            sprows_ = bsm.indicestransposed.colptr[col_]:bsm.indicestransposed.colptr[col_+1]-1-(!isempty(sprows) && bsm.indices.rowval[sprows[1]] == col_)
-            @assert(isempty(sprows) || isempty(sprows_) || sprows[1] > sprows_[end], "BSM must be lower triangular for symmetrification")
-        end
+    @inbounds for (col_, colblocksize) in enumerate(bsm.columnblocksizes)
+        lower_rows = bsm.indices.colptr[col_]:bsm.indices.colptr[col_+1]-1
+        upper_rows = symmetrify ? (bsm.indicestransposed.colptr[col_]:bsm.indicestransposed.colptr[col_+1]-1-(!isempty(lower_rows) && bsm.indices.rowval[lower_rows[1]] == col_)) : 1:0
         for innercol in 0:colblocksize-1
-            if symmetrify
-                # Above diagonal blocks (transposed)
-                for r in sprows_
-                    @inbounds row = bsm.indicestransposed.rowval[r]
-                    @inbounds s = startrow[row]
-                    @inbounds c = bsm.rowblocksizes[row]
-                    @inbounds v = bsm.indicestransposed.nzval[r] + innercol
-                    for i in 0:c-1
-                        ind += 1
-                        @inbounds rows[ind] = s + i
-                        @inbounds indices[ind] = v
-                        v += colblocksize
-                    end
+            # Above diagonal blocks if symmetrifying (transposed)
+            for r in upper_rows
+                row = bsm.indicestransposed.rowval[r]
+                s = startrow[row]
+                c = bsm.rowblocksizes[row]
+                v = bsm.indicestransposed.nzval[r] + innercol
+                for i in 0:c-1
+                    rows[ind] = s + i
+                    indices[ind] = v
+                    ind += 1
+                    v += colblocksize
                 end
             end
-            # Below diagonal blocks (if symmetrifying)
-            for r in sprows
-                @inbounds row = bsm.indices.rowval[r]
-                @inbounds s = startrow[row]
-                @inbounds c = bsm.rowblocksizes[row]
-                @inbounds v = bsm.indices.nzval[r] + innercol * c
+            # Diagonal and below diagonal blocks
+            for r in lower_rows
+                row = bsm.indices.rowval[r]
+                s = startrow[row]
+                c = bsm.rowblocksizes[row]
+                v = bsm.indices.nzval[r] + innercol * c
                 for i in 0:c-1
+                    rows[ind] = s + i
+                    indices[ind] = v + i
                     ind += 1
-                    @inbounds rows[ind] = s + i
-                    @inbounds indices[ind] = v + i
                 end
             end
             col += 1
-            @inbounds cols[col] = ind + 1
+            cols[col] = ind
         end
     end
     # Construct the sparse matrix
