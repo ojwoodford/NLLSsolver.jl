@@ -1,4 +1,4 @@
-using LDLFactorizations, LinearAlgebra, LinearSolve, StaticArrays
+using LDLFactorizations, LinearAlgebra, StaticArrays
 
 # Fix for when ldiv! isn't supported
 import LinearAlgebra.ldiv!
