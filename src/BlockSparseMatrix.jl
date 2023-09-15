@@ -99,11 +99,11 @@ function uniformscaling!(M::BlockSparseMatrix, k)
 end
 
 zero!(bsm::BlockSparseMatrix) = fill!(bsm.data, 0)
-block(bsm::BlockSparseMatrix, i, j, ::StaticInt{rows}, ::StaticInt{cols}) where {rows, cols} = SizedMatrix{rows, cols}(view(bsm.data, SR(0, rows*cols-1).+bsm.indicestransposed[j,i]))
-block(bsm::BlockSparseMatrix, i, j, rows::Integer, cols::Integer) = reshape(view(bsm.data, SR(0, rows*cols-1).+bsm.indicestransposed[j,i]), (rows, cols))
+block(bsm::BlockSparseMatrix, i, j, ::StaticInt{rows}, ::StaticInt{cols}) where {rows, cols} = @inbounds SizedMatrix{rows, cols}(view(bsm.data, SR(0, rows*cols-1).+bsm.indicestransposed[j,i]))
+block(bsm::BlockSparseMatrix, i, j, rows::Integer, cols::Integer) = @inbounds reshape(view(bsm.data, SR(0, rows*cols-1).+bsm.indicestransposed[j,i]), (rows, cols))
 block(bsm::BlockSparseMatrix, i, j, ::StaticInt{rows}, cols::Integer) where rows = HybridArray{Tuple{rows, StaticArrays.Dynamic()}}(block(bsm, i, j, rows, cols))
-block(bsm::BlockSparseMatrix, i, j) = block(bsm, i, j, bsm.rowblocksizes[i], bsm.columnblocksizes[j])
-validblock(bsm::BlockSparseMatrix, i, j) = bsm.indicestransposed[j,i] != 0
+block(bsm::BlockSparseMatrix, i, j) = @inbounds block(bsm, i, j, bsm.rowblocksizes[i], bsm.columnblocksizes[j])
+validblock(bsm::BlockSparseMatrix, i, j) = @inbounds bsm.indicestransposed[j,i] != 0
 Base.size(bsm::BlockSparseMatrix) = (bsm.m, bsm.n)
 Base.size(bsm::BlockSparseMatrix, dim) = dim == 1 ? bsm.m : (dim == 2 ? bsm.n : 1)
 Base.length(bsm::BlockSparseMatrix) = bsm.m * bsm.n
