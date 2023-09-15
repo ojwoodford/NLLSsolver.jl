@@ -1,4 +1,4 @@
-using SparseArrays, Static, StaticArrays, LinearAlgebra
+using SparseArrays, Static, StaticArrays, LinearAlgebra, LDLFactorizations
 
 function getresblocksizes!(resblocksizes, residuals::Vector, ind::Int)::Int
     @inbounds for res in residuals
@@ -49,6 +49,7 @@ struct MultiVariateLSsparse
     boffsets::Vector{UInt} # One per block in b
     hessian::SparseMatrixCSC{Float64, Int} # Storage for sparse hessian
     sparseindices::Vector{Int}
+    ldlfac::LDLFactorizations.LDLFactorization{Float64, Int, Int, Int}
 
     function MultiVariateLSsparse(A::BlockSparseMatrix, blockindices)
         @assert A.rowblocksizes==A.columnblocksizes
@@ -56,7 +57,7 @@ struct MultiVariateLSsparse
         blen = boffsets[end] + A.rowblocksizes[end] - 1
         sparseindices = makesparseindices(A, true)
         hessian = SparseMatrixCSC{Float64, Int}(sparseindices.m, sparseindices.n, sparseindices.colptr, sparseindices.rowval, Vector{Float64}(undef, length(sparseindices.nzval)))
-        return new(A, zeros(Float64, blen), Vector{Float64}(undef, blen), blockindices, boffsets, hessian, sparseindices.nzval)
+        return new(A, zeros(Float64, blen), Vector{Float64}(undef, blen), blockindices, boffsets, hessian, sparseindices.nzval, ldl_analyze(hessian))
     end
 end
 
