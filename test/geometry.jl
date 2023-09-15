@@ -1,4 +1,6 @@
-using NLLSsolver, LinearAlgebra, Test
+using NLLSsolver, LinearAlgebra, StaticArrays, Test
+
+checkduals(x, y) = NLLSsolver.extractvaldual(vec(x)) == NLLSsolver.extractvaldual(vec(y))
 
 @testset "geometry.jl" begin
     # Test utility functions
@@ -21,6 +23,15 @@ using NLLSsolver, LinearAlgebra, Test
     rotl = update(NLLSsolver.Rotation3DL(), -updatevec)
     @test isapprox(NLLSsolver.getvec((rotl * rotr) * point), NLLSsolver.getvec(point))
     @test isapprox(NLLSsolver.getvec((NLLSsolver.inverse(rotl) * NLLSsolver.inverse(rotr)) * point), NLLSsolver.getvec(point))
+
+    # Test rotation autodiff updates
+    updatevec = NLLSsolver.dualzeros(Float64, Val(4))
+    T = eltype(updatevec)
+    updatemat = SMatrix{3, 3, T, 9}(T(1), updatevec[3], -updatevec[2], -updatevec[3], T(1), updatevec[1], updatevec[2], -updatevec[1], T(1))
+    rotr = NLLSsolver.Rotation3DR(randn(), randn(), randn())
+    rotl = NLLSsolver.Rotation3DL(randn(), randn(), randn())
+    @test checkduals(NLLSsolver.update(rotr, updatevec).m, rotr.m * updatemat)
+    @test checkduals(NLLSsolver.update(rotl, updatevec).m, updatemat * rotl.m)
 
     # Test poses
     updatevec = zeros(6)

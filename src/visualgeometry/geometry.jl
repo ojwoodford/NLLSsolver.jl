@@ -1,10 +1,6 @@
 using StaticArrays, LinearAlgebra
 
 function rodrigues(x::T, y::T, z::T) where T<:Number
-    if x == 0 && y == 0 && z == 0
-        # Short cut for derivatives at identity
-        return SMatrix{3, 3, T, 9}(T(1), z, -y, -z, T(1), x, y, -x, T(1))
-    end
     theta2 = x * x + y * y + z * z
     cosf = T(0.5)
     sinc = T(1)
@@ -62,7 +58,7 @@ end
 Rotation3DR(x, y, z) = Rotation3DR(rodrigues(x, y, z))
 Rotation3DR() = Rotation3DR(SMatrix{3, 3, Float64}(1., 0., 0., 0., 1., 0., 0., 0., 1.))
 nvars(::Rotation3DR) = static(3)
-update(var::Rotation3DR, updatevec, start=1) = var * Rotation3DR(updatevec[start], updatevec[start+1], updatevec[start+2])
+update(var::Rotation3DR, updatevec, start=1) = Rotation3DR(var.m * rodrigues(updatevec[start], updatevec[start+1], updatevec[start+2]))
 
 struct Rotation3DL{T<:Real} <: AbstractRotation3D
     m::SMatrix{3, 3, T, 9}
@@ -70,8 +66,7 @@ end
 Rotation3DL(x, y, z) = Rotation3DL(rodrigues(x, y, z))
 Rotation3DL() = Rotation3DL(SMatrix{3, 3, Float64}(1., 0., 0., 0., 1., 0., 0., 0., 1.))
 nvars(::Rotation3DL) = static(3)
-update(var::Rotation3DL, updatevec, start=1) = Rotation3DL(updatevec[start], updatevec[start+1], updatevec[start+2]) * var
-
+update(var::Rotation3DL, updatevec, start=1) = Rotation3DL(rodrigues(updatevec[start], updatevec[start+1], updatevec[start+2]) * var.m)
 
 struct UnitVec3D{T<:Real} <: AbstractPoint3D
     v::Rotation3DR{T}
