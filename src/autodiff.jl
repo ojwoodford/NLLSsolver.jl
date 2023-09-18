@@ -174,7 +174,6 @@ end
 function rodrigues(x::T, y::T, z::T) where T<:ForwardDiff.Dual
     @assert x == 0 && y == 0 && z == 0
     return RotMatLie{T}(x, y, z)
-    # return SMatrix{3, 3, T, 9}(T(1), z, -y, -z, T(1), x, y, -x, T(1))
 end
 
 du(x) = ForwardDiff.partials(x)
