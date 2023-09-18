@@ -78,7 +78,7 @@ function optimizeinternal!(problem::NLLSProblem, options::NLLSOptions, data::NLL
     end
     if options.iterator == dogleg
         # Dogleg
-        doglegdata = DoglegData()
+        doglegdata = DoglegData(length(data.linsystem.x))
         return optimizeinternal!(problem, options, data, doglegdata, starttimens)
     end
     if options.iterator == gradientdescent

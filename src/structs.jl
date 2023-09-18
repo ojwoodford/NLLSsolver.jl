@@ -19,6 +19,8 @@ function Base.String(iterator::NLLSIterator)
     return "Unknown iterator"
 end
 
+nullcallback(cost, args...) = (cost, 0)
+
 struct NLLSOptions
     reldcost::Float64           # Minimum relative reduction in cost required to avoid termination
     absdcost::Float64           # Minimum absolute reduction in cost required to avoid termination
@@ -30,7 +32,7 @@ struct NLLSOptions
     storecosts::Bool            # Indicates whether the cost per outer iteration should be stored
     storetrajectory::Bool       # Indicates whether the step per outer iteration should be stored
 end
-function NLLSOptions(; maxiters=100, reldcost=1.e-15, absdcost=1.e-15, dstep=1.e-15, maxfails=3, iterator=levenbergmarquardt, callback=(cost, args...)->(cost, 0), storecosts=false, storetrajectory=false)
+function NLLSOptions(; maxiters=100, reldcost=1.e-15, absdcost=1.e-15, dstep=1.e-15, maxfails=3, iterator=levenbergmarquardt, callback=nullcallback, storecosts=false, storetrajectory=false)
     if iterator == gaussnewton
         Base.depwarn("gaussnewton is deprecated. Use newton instead", :NLLSOptions)
     end
