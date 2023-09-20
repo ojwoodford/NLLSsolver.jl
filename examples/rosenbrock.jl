@@ -52,8 +52,8 @@ function runoptimizers!(results, problem, start, iterators)
         problem.variables[1] = NLLSsolver.EuclideanVector(start[1], start[2])
 
         # Optimize the cost
-        options = NLLSsolver.NLLSOptions(reldcost=1.e-6, iterator=iter, callback=NLLSsolver.storecostscallback(costtrajectory))
-        result = NLLSsolver.optimize!(problem, options)
+        options = NLLSsolver.NLLSOptions(reldcost=1.e-6, iterator=iter)
+        result = NLLSsolver.optimize!(problem, options, nothing, NLLSsolver.storecostscallback(costtrajectory))
 
         # Construct the trajectory
         resize!(results[ind].trajectory.val, length(costtrajectory.trajectory)+1)
