@@ -43,8 +43,9 @@ abstract type AbstractPoint3D end
 struct Point3D{T<:Real} <: AbstractPoint3D
     v::SVector{3, T}
 end
-Point3D(x::T, y::T, z::T) where T = Point3D(SVector{3, T}(x, y, z))
-Point3D() = Point3D(SVector{3, Float64}(0., 0., 0.))
+Point3D(x::T, y::T, z::T) where T = Point3D{T}(SVector{3, T}(x, y, z))
+Point3D() = Point3D{Float64}()
+Point3D{T}() where T = Point3D{T}(SVector{3, T}(0, 0, 0))
 nvars(::Point3D) = static(3)
 update(var::Point3D, updatevec, start=1) = Point3D(var.v + view(updatevec, SR(0, 2) .+ start))
 @inline getvec(x::Point3D) = x.v

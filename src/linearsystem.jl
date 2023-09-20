@@ -18,6 +18,14 @@ struct UniVariateLSdynamic
     function UniVariateLSdynamic(unfixed, varlen)
         return new(zeros(Float64, varlen, varlen), zeros(Float64, varlen), Vector{Float64}(undef, varlen), UInt(unfixed))
     end
+
+    function UniVariateLSdynamic(prev::UniVariateLSdynamic, unfixed, varlen)
+        resize!(prev.A, (varlen, varlen))
+        resize!(prev.b, varlen)
+        resize!(prev.x, varlen)
+        zero!(prev)
+        return new(prev.A, prev.b, prev.x, UInt(unfixed))
+    end
 end
 
 struct UniVariateLSstatic{N, N2}
@@ -27,6 +35,10 @@ struct UniVariateLSstatic{N, N2}
     varindex::UInt
 
     function UniVariateLSstatic{N, N2}(unfixed) where {N, N2}
+        return new(zeros(MMatrix{N, N, Float64, N2}), zeros(MVector{N, Float64}), MVector{N, Float64}(undef), UInt(unfixed))
+    end
+
+    function UniVariateLSstatic{N, N2}(::UniVariateLSstatic{N, N2}, unfixed, ::Any) where {N, N2}
         return new(zeros(MMatrix{N, N, Float64, N2}), zeros(MVector{N, Float64}), MVector{N, Float64}(undef), UInt(unfixed))
     end
 end

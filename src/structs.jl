@@ -19,25 +19,25 @@ function Base.String(iterator::NLLSIterator)
     return "Unknown iterator"
 end
 
-struct NLLSOptions
+struct NLLSOptions{T}
     reldcost::Float64           # Minimum relative reduction in cost required to avoid termination
     absdcost::Float64           # Minimum absolute reduction in cost required to avoid termination
     dstep::Float64              # Minimum L-infinity norm of the update vector required to avoid termination
     maxfails::Int               # Maximum number of consecutive iterations that have a higher cost than the current best before termination
     maxiters::Int               # Maximum number of outer iterations
     iterator::NLLSIterator      # Inner iterator (see above for options)
-    callback                    # Callback called every outer iteration - (cost, problem, data) -> (newcost, terminate::Bool) where terminate == true ends the optimization
+    callback::T                 # Callback called every outer iteration - (cost, problem, data) -> (newcost, terminate::Bool) where terminate == true ends the optimization
     storecosts::Bool            # Indicates whether the cost per outer iteration should be stored
     storetrajectory::Bool       # Indicates whether the step per outer iteration should be stored
 end
-function NLLSOptions(; maxiters=100, reldcost=1.e-15, absdcost=1.e-15, dstep=1.e-15, maxfails=3, iterator=levenbergmarquardt, callback=nothing, storecosts=false, storetrajectory=false)
+function NLLSOptions(; maxiters=100, reldcost=1.e-15, absdcost=1.e-15, dstep=1.e-15, maxfails=3, iterator=levenbergmarquardt, callback::T=nothing, storecosts=false, storetrajectory=false) where T
     if iterator == gaussnewton
         Base.depwarn("gaussnewton is deprecated. Use newton instead", :NLLSOptions)
     end
     if storecosts || storetrajectory
         Base.depwarn("storecosts and storetrajectory are deprecated. Use storecostscallback instead", :NLLSOptions)
     end
-    NLLSOptions(reldcost, absdcost, dstep, maxfails, maxiters, iterator, callback, storecosts, storetrajectory)
+    NLLSOptions{T}(reldcost, absdcost, dstep, maxfails, maxiters, iterator, callback, storecosts, storetrajectory)
 end
 
 struct NLLSResult
@@ -86,21 +86,34 @@ function Base.show(io::IO, x::NLLSResult)
 end
 
 mutable struct NLLSInternal{LSType}
+    # Costs
+    startcost::Float64
     bestcost::Float64
+    # Times (nano-seconds)
+    timetotal::UInt64
+    timeinit::UInt64
     timecost::UInt64
     timegradient::UInt64
     timesolver::UInt64
+    # Counts
     iternum::Int
     costcomputations::Int
     gradientcomputations::Int
     linearsolvers::Int
+    converged::Int
+    # Linear system
     linsystem::LSType
+    # Intermediate cost / trajectory storage (deprecated)
+    costs::Vector{Float64}                 
+    trajectory::Vector{Vector{Float64}}    
 
     function NLLSInternal(linsystem::LSType) where LSType
-        return new{LSType}(0., 0, 0, 0, 0, 0, 0, 0, linsystem)
+        return new{LSType}(0., 0., 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, linsystem, Vector{Float64}(), Vector{Vector{Float64}}())
     end
 end
 NLLSInternal(unfixed::UInt, varlen) = NLLSInternal(ifelse(is_static(varlen), UniVariateLSstatic{dynamic(varlen), dynamic(varlen*varlen)}(unfixed), UniVariateLSdynamic(unfixed, dynamic(varlen))))
+
+getresult(data::NLLSInternal) = NLLSResult(data.startcost, data.bestcost, data.timetotal*1.e-9, data.timeinit*1.e-9, data.timecost*1.e-9, data.timegradient*1.e-9, data.timesolver*1.e-9, data.converged, data.iternum, data.costcomputations, data.gradientcomputations, data.linearsolvers, data.costs, data.trajectory)
 
 NLLSInternalMultiVar = Union{NLLSInternal{MultiVariateLSdense}, NLLSInternal{MultiVariateLSsparse}}
 NLLSInternalSingleVar = Union{NLLSInternal{UniVariateLSstatic{N, N2}}, NLLSInternal{UniVariateLSdynamic}} where {N, N2}
