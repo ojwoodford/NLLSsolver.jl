@@ -36,7 +36,7 @@ function iterate!(doglegdata::DoglegData, data, problem::NLLSProblem, options::N
     data.timesolver += @elapsed_ns begin
         # Compute the Cauchy step
         gnorm2 = gradient' * gradient
-        a = gnorm2 / (dot(gradient, hessian, gradient) + floatmin(eltype(gradient)))
+        a = gnorm2 / (fast_bAb(hessian, gradient) + floatmin(eltype(gradient)))
         doglegdata.cauchy = -a * gradient
         alpha2 = a * a * gnorm2
         alpha = sqrt(alpha2)
@@ -133,7 +133,7 @@ function iterate!(levmardata::LevMarData, data, problem::NLLSProblem, options::N
         if !(cost_ > data.bestcost) || (maximum(abs, data.linsystem.x) < options.dstep)
             # Success (or convergence) - update lambda
             uniformscaling!(hessian, -lastlambda)
-            stepquality = (cost_ - data.bestcost) / (0.5 * dot(data.linsystem.x, hessian, data.linsystem.x) + dot(gradient, data.linsystem.x))
+            stepquality = (cost_ - data.bestcost) / (0.5 * fast_bAb(hessian, data.linsystem.x) + dot(gradient, data.linsystem.x))
             levmardata.lambda *= stepquality < 0.983 ? 1 - (2 * stepquality - 1) ^ 3 : 0.1
             # Return the cost
             return cost_
