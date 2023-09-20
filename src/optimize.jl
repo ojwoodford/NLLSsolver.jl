@@ -1,10 +1,10 @@
 
 # Uni-variate optimization (single unfixed variable)
-optimize!(problem::NLLSProblem, options::NLLSOptions, unfixed::Integer, starttimens=Base.time_ns())::NLLSResult = optimizeinternal!(problem, options, NLLSInternal(UInt(unfixed), nvars(problem.variables[unfixed])), starttimens)
+optimize!(problem::NLLSProblem, options::NLLSOptions, unfixed::Integer, callback=options.callback, starttimens=Base.time_ns())::NLLSResult = optimizeinternal!(problem, options, NLLSInternal(UInt(unfixed), nvars(problem.variables[unfixed])), callback, starttimens)
 
 # Multi-variate optimization
-optimize!(problem::NLLSProblem, options::NLLSOptions, unfixed::Type) = optimize!(problem, options, typeof.(variables).==unfixed)
-function optimize!(problem::NLLSProblem, options::NLLSOptions=NLLSOptions(), unfixed::AbstractVector=trues(length(problem.variables)))::NLLSResult
+optimize!(problem::NLLSProblem, options::NLLSOptions, unfixed::Type) = optimize!(problem, options, typeof.(variables).==unfixed, options.callback)
+function optimize!(problem::NLLSProblem, options::NLLSOptions=NLLSOptions(), unfixed::AbstractVector=trues(length(problem.variables)), callback=options.callback)::NLLSResult
     starttime = Base.time_ns()
     @assert length(problem.variables) > 0
     # Compute the number of free variables (nblocks)
@@ -12,10 +12,10 @@ function optimize!(problem::NLLSProblem, options::NLLSOptions=NLLSOptions(), unf
     if nblocks == 1
         # One unfixed variable
         unfixed = findfirst(unfixed)
-        return optimize!(problem, options, unfixed, starttime)
+        return optimize!(problem, options, unfixed, callback, starttime)
     end
     # Multiple variables. Use a block sparse matrix
-    return optimizeinternal!(problem, options, NLLSInternal(makesymmvls(problem, unfixed, nblocks)), starttime)
+    return optimizeinternal!(problem, options, NLLSInternal(makesymmvls(problem, unfixed, nblocks)), callback, starttime)
 end
 
 # Optimize one variable at a time
@@ -60,7 +60,7 @@ function optimizesingles!(problem::NLLSProblem{VT, CT}, options::NLLSOptions, ty
     return NLLSResult(startcost, endcost, (Base.time_ns() - starttime)*1.e-9, timeinit + subprobinit*1.e-9, timecost, timegradient, timesolver, 0, iternum, costcomputations, gradientcomputations, linearsolvers, Vector{Float64}(), Vector{Vector{Float64}}())
 end
 
-function optimizeinternal!(problem::NLLSProblem, options::NLLSOptions, data::NLLSInternal, starttimens::UInt64)::NLLSResult
+function optimizeinternal!(problem::NLLSProblem, options::NLLSOptions, data::NLLSInternal, callback, starttimens::UInt64)::NLLSResult
     # Copy the variables
     if length(problem.variables) != length(problem.varnext)
         problem.varnext = copy(problem.variables)
@@ -69,27 +69,27 @@ function optimizeinternal!(problem::NLLSProblem, options::NLLSOptions, data::NLL
     if options.iterator == newton || options.iterator == gaussnewton
         # Newton's method, using Gauss' approximation to the Hessian (optimizing Hessian form)
         newtondata = NewtonData()
-        return optimizeinternal!(problem, options, data, newtondata, starttimens)
+        return optimizeinternal!(problem, options, data, newtondata, callback, starttimens)
     end
     if options.iterator == levenbergmarquardt
         # Levenberg-Marquardt
         levmardata = LevMarData()
-        return optimizeinternal!(problem, options, data, levmardata, starttimens)
+        return optimizeinternal!(problem, options, data, levmardata, callback, starttimens)
     end
     if options.iterator == dogleg
         # Dogleg
         doglegdata = DoglegData(length(data.linsystem.x))
-        return optimizeinternal!(problem, options, data, doglegdata, starttimens)
+        return optimizeinternal!(problem, options, data, doglegdata, callback, starttimens)
     end
     if options.iterator == gradientdescent
         # Gradient descent
         gddata = GradientDescentData(1.0)
-        return optimizeinternal!(problem, options, data, gddata, starttimens)
+        return optimizeinternal!(problem, options, data, gddata, callback, starttimens)
     end
     error("Iterator not recognized")
 end
 
-function optimizeinternal!(problem::NLLSProblem, options::NLLSOptions, data, iteratedata, starttime::UInt64)::NLLSResult
+function optimizeinternal!(problem::NLLSProblem, options::NLLSOptions, data, iteratedata, callback, starttime::UInt64)::NLLSResult
     timeinit = Base.time_ns() - starttime
     # Initialize the linear problem
     data.timegradient += @elapsed_ns data.bestcost = costgradhess!(data.linsystem, problem.variables, problem.costs)
@@ -107,7 +107,7 @@ function optimizeinternal!(problem::NLLSProblem, options::NLLSOptions, data, ite
         # Call the per iteration solver
         cost = iterate!(iteratedata, data, problem, options)::Float64
         # Call the user-defined callback
-        cost, terminate = options.callback(cost, problem, data, iteratedata)::Tuple{Float64, Int}
+        cost, terminate = callback(cost, problem, data, iteratedata)::Tuple{Float64, Int}
         # Store the cost if necessary
         if options.storecosts
             push!(costs, cost)

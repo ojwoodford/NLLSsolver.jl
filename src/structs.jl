@@ -30,12 +30,17 @@ struct NLLSOptions
     storecosts::Bool            # Indicates whether the cost per outer iteration should be stored
     storetrajectory::Bool       # Indicates whether the step per outer iteration should be stored
 end
-function NLLSOptions(; maxiters=100, reldcost=1.e-15, absdcost=1.e-15, dstep=1.e-15, maxfails=3, iterator=levenbergmarquardt, callback=nullcallback, storecosts=false, storetrajectory=false)
+function NLLSOptions(; maxiters=100, reldcost=1.e-15, absdcost=1.e-15, dstep=1.e-15, maxfails=3, iterator=levenbergmarquardt, callback=nothing, storecosts=false, storetrajectory=false)
     if iterator == gaussnewton
         Base.depwarn("gaussnewton is deprecated. Use newton instead", :NLLSOptions)
     end
     if storecosts || storetrajectory
         Base.depwarn("storecosts and storetrajectory are deprecated. Use storecostscallback instead", :NLLSOptions)
+    end
+    if isnothing(callback)
+        callback = nullcallback
+    else
+        Base.depwarn("Setting callback in options is deprecated. Pass the callback directly to optimize!() instead", :NLLSOptions)
     end
     NLLSOptions(reldcost, absdcost, dstep, maxfails, maxiters, iterator, callback, storecosts, storetrajectory)
 end
