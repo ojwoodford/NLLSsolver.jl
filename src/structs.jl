@@ -37,11 +37,6 @@ function NLLSOptions(; maxiters=100, reldcost=1.e-15, absdcost=1.e-15, dstep=1.e
     if storecosts || storetrajectory
         Base.depwarn("storecosts and storetrajectory are deprecated. Use storecostscallback instead", :NLLSOptions)
     end
-    if isnothing(callback)
-        callback = nullcallback
-    else
-        Base.depwarn("Setting callback in options is deprecated. Pass the callback directly to optimize!() instead", :NLLSOptions)
-    end
     NLLSOptions(reldcost, absdcost, dstep, maxfails, maxiters, iterator, callback, storecosts, storetrajectory)
 end
 

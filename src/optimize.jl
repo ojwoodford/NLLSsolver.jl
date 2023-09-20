@@ -1,10 +1,9 @@
 
 # Uni-variate optimization (single unfixed variable)
-optimize!(problem::NLLSProblem, options::NLLSOptions, unfixed::Integer, callback=options.callback, starttimens=Base.time_ns())::NLLSResult = optimizeinternal!(problem, options, NLLSInternal(UInt(unfixed), nvars(problem.variables[unfixed])), callback, starttimens)
+optimize!(problem::NLLSProblem, options::NLLSOptions, unfixed::Integer, callback=nullcallback, starttimens=Base.time_ns())::NLLSResult = optimizeinternal_checkcallback!(problem, options, NLLSInternal(UInt(unfixed), nvars(problem.variables[unfixed])), callback, starttimens)
 
 # Multi-variate optimization
-optimize!(problem::NLLSProblem, options::NLLSOptions, unfixed::Type) = optimize!(problem, options, typeof.(variables).==unfixed, options.callback)
-function optimize!(problem::NLLSProblem, options::NLLSOptions=NLLSOptions(), unfixed::AbstractVector=trues(length(problem.variables)), callback=options.callback)::NLLSResult
+function optimize!(problem::NLLSProblem, options::NLLSOptions, unfixed::AbstractVector, callback)::NLLSResult
     starttime = Base.time_ns()
     @assert length(problem.variables) > 0
     # Compute the number of free variables (nblocks)
@@ -15,8 +14,16 @@ function optimize!(problem::NLLSProblem, options::NLLSOptions=NLLSOptions(), unf
         return optimize!(problem, options, unfixed, callback, starttime)
     end
     # Multiple variables. Use a block sparse matrix
-    return optimizeinternal!(problem, options, NLLSInternal(makesymmvls(problem, unfixed, nblocks)), callback, starttime)
+    return optimizeinternal_checkcallback!(problem, options, NLLSInternal(makesymmvls(problem, unfixed, nblocks)), callback, starttime)
 end
+
+# Conversions for different types of "unfixed"
+convertunfixed(::Nothing, problem) = trues(length(problem.variables))
+convertunfixed(unfixed::Type, problem) = typeof.(problem.variables) .== unfixed
+convertunfixed(unfixed, problem) = unfixed
+
+# Default options
+optimize!(problem::NLLSProblem, options::NLLSOptions=NLLSOptions(), unfixed=nothing, callback=nullcallback) = optimize!(problem, options, convertunfixed(unfixed, problem), callback)
 
 # Optimize one variable at a time
 function optimizesingles!(problem::NLLSProblem{VT, CT}, options::NLLSOptions, type::DataType)::NLLSResult where {VT, CT}
@@ -58,6 +65,15 @@ function optimizesingles!(problem::NLLSProblem{VT, CT}, options::NLLSOptions, ty
     # Compute final cost
     timecost += @elapsed endcost = cost(problem)
     return NLLSResult(startcost, endcost, (Base.time_ns() - starttime)*1.e-9, timeinit + subprobinit*1.e-9, timecost, timegradient, timesolver, 0, iternum, costcomputations, gradientcomputations, linearsolvers, Vector{Float64}(), Vector{Vector{Float64}}())
+end
+
+function optimizeinternal_checkcallback!(problem::NLLSProblem, options::NLLSOptions, data::NLLSInternal, callback, starttimens::UInt64)::NLLSResult
+    if isnothing(options.callback)
+        return optimizeinternal!(problem, options, data, callback, starttimens)
+    else
+        Base.depwarn("Setting callback in options is deprecated. Pass the callback directly to optimize!() instead", :NLLSOptions)
+        return optimizeinternal!(problem, options, data, options.callback, starttimens)
+    end
 end
 
 function optimizeinternal!(problem::NLLSProblem, options::NLLSOptions, data::NLLSInternal, callback, starttimens::UInt64)::NLLSResult
