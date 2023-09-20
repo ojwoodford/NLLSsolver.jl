@@ -8,15 +8,17 @@ export ContaminatedGaussian # Adaptive robustifiers
 export EuclideanVector, ZeroToInfScalar, ZeroToOneScalar # Concrete general variables
 export Rotation3DR, Rotation3DL, Point3D, Pose3D, EffPose3D, UnitPose3D # Concrete 3D geometry variable types
 export SimpleCamera, NoDistortionCamera, ExtendedUnifiedCamera, BarrelDistortion, EULensDistortion # Concrete camera sensor & lens variable types
+export CostTrajectory # Object for storing opimization trajectory and costs
 # Functions
 export addcost!, addvariable!, updatevarcostmap!, subproblem, subproblem!, nvars, nres # Construct a problem
 export update, nvars # Variable interface
 export nres, ndeps, varindices, getvars # Residual interface
 export robustkernel, robustify, robustifydcost, robustifydkernel # Robustifier interface
 export cost, computeresidual, computeresjac, computecost, computecostgradhess # Compute the objective
-export optimize!, printoutcallback  # Optimize the objective
+export optimize!  # Optimize the objective
 export rodrigues, project, epipolarerror, proj2orthonormal # Multi-view geometry helper functions
 export ideal2image, image2ideal, pixel2image, image2pixel, ideal2distorted, distorted2ideal, convertlens
+export nullcallback, printoutcallback, storecostscallback # Callbacks to be called once per optimization iteration
 
 # Exported abstract types
 abstract type AbstractCost end  # Standard (non-squared) cost
@@ -57,6 +59,7 @@ include("robustadaptive.jl")
 include("autodiff.jl")
 include("cost.jl")
 include("linearsolver.jl")
+include("callbacks.jl")
 include("iterators.jl")
 include("optimize.jl")
 end

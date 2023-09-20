@@ -46,25 +46,27 @@ end
 OptimResult() = OptimResult(Observable(Vector{Float64}()), Observable(Vector{Point2f}()))
 
 function runoptimizers!(results, problem, start, iterators)
+    costtrajectory = NLLSsolver.CostTrajectory()
     for (ind, iter) in enumerate(iterators)
         # Set the start
         problem.variables[1] = NLLSsolver.EuclideanVector(start[1], start[2])
 
         # Optimize the cost
-        options = NLLSsolver.NLLSOptions(reldcost=1.e-6, iterator=iter, storetrajectory=true, storecosts=true)
+        options = NLLSsolver.NLLSOptions(reldcost=1.e-6, iterator=iter, callback=NLLSsolver.storecostscallback(costtrajectory))
         result = NLLSsolver.optimize!(problem, options)
 
         # Construct the trajectory
-        resize!(results[ind].trajectory.val, length(result.trajectory)+1)
+        resize!(results[ind].trajectory.val, length(costtrajectory.trajectory)+1)
         @inbounds results[ind].trajectory.val[1] = Point2f(start[1], start[2])
-        for (i, step) in enumerate(result.trajectory)
+        for (i, step) in enumerate(costtrajectory.trajectory)
             @inbounds results[ind].trajectory.val[i+1] = results[ind].trajectory.val[i] + Point2f(step[1], step[2])
         end
 
         # Set the costs
-        resize!(results[ind].costs.val, length(result.costs)+1)
+        resize!(results[ind].costs.val, length(costtrajectory.costs)+1)
         @inbounds results[ind].costs.val[1] = result.startcost
-        @inbounds results[ind].costs.val[2:end] .= max.(result.costs, 1.e-38)
+        @inbounds results[ind].costs.val[2:end] .= max.(costtrajectory.costs, 1.e-38)
+        empty!(costtrajectory)
     end
     for res in results
         notify(res.costs)

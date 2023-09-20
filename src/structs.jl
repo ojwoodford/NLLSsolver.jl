@@ -19,8 +19,6 @@ function Base.String(iterator::NLLSIterator)
     return "Unknown iterator"
 end
 
-nullcallback(cost, args...) = (cost, 0)
-
 struct NLLSOptions
     reldcost::Float64           # Minimum relative reduction in cost required to avoid termination
     absdcost::Float64           # Minimum absolute reduction in cost required to avoid termination
@@ -37,26 +35,6 @@ function NLLSOptions(; maxiters=100, reldcost=1.e-15, absdcost=1.e-15, dstep=1.e
         Base.depwarn("gaussnewton is deprecated. Use newton instead", :NLLSOptions)
     end
     NLLSOptions(reldcost, absdcost, dstep, maxfails, maxiters, iterator, callback, storecosts, storetrajectory)
-end
-
-# Utility callback that prints out per-iteration results
-function printoutcallback(cost, problem, data, trailingargs...)
-    if data.iternum == 1
-        # First iteration, so print out column headers and the zeroth iteration (i.e. start) values
-        println("iter      cost      cost_change    |step|")
-        @printf("% 4d % 8e  % 4.3e   % 3.2e\n", 0, data.bestcost, 0, 0)
-    end
-    @printf("% 4d % 8e  % 4.3e   % 3.2e\n", data.iternum, cost, data.bestcost-cost, norm(data.linsystem.x))
-    return cost, 0
-end
-function printoutcallback(cost, data, trradius::Float64)
-    if data.iternum == 1
-        # First iteration, so print out column headers and the zeroth iteration (i.e. start) values
-        println("iter      cost      cost_change    |step|    tr_radius")
-        @printf("% 4d % 8e  % 4.3e   % 3.2e   % 2.1e\n", 0, data.bestcost, 0, 0, trradius)
-    end
-    @printf("% 4d % 8e  % 4.3e   % 3.2e   % 2.1e\n", data.iternum, cost, data.bestcost-cost, norm(data.linsystem.x), trradius)
-    return cost, 0
 end
 
 struct NLLSResult
