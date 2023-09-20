@@ -1,4 +1,4 @@
-using StaticArrays, Static
+using StaticArrays, Static, SparseArrays, LoopVectorization
 
 @inline function valuedispatch(lower::StaticInt, upper::StaticInt, val::Int, fun)
     if lower >= upper
@@ -55,8 +55,46 @@ end
 function Base.cumsum!(A::AbstractVector)
     total = zero(eltype(A))
     @inbounds for ind in eachindex(A)
-        total += A[ind]
+        @fastmath total += A[ind]
         A[ind] = total
     end
     return A
 end
+
+function fast_bAb(A::Matrix, b::Vector)
+    total = zero(eltype(b))
+    @tturbo for i in eachindex(b)
+        subtotal = zero(eltype(b))
+        for j in eachindex(b)
+            subtotal += A[j,i] * b[j]
+        end
+        total += b[i] * subtotal
+    end
+    return total
+end
+
+function fast_bAb(A::StaticArray, b::StaticArray)
+    total = zero(eltype(b))
+    @turbo for i in eachindex(b)
+        subtotal = zero(eltype(b))
+        for j in eachindex(b)
+            subtotal += A[j,i] * b[j]
+        end
+        total += b[i] * subtotal
+    end
+    return total
+end
+
+function fast_bAb(A::SparseMatrixCSC, b::Vector)
+    total = zero(eltype(b))
+    for i in eachindex(b)
+        coltotal = zero(eltype(b))
+        for j in nzrange(A, i)
+            @inbounds @fastmath coltotal += A.nzval[j] * b[A.rowval[j]]
+        end
+        @inbounds @fastmath coltotal *= b[i]
+        total += coltotal
+    end
+    return total
+end
+

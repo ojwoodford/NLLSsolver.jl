@@ -48,29 +48,38 @@ Base.eltype(::RosenbrockB) = Float64
     @test NLLSsolver.cost(subprob) == 0.
 
     # Check callback termination
-    result = NLLSsolver.optimize!(problem, NLLSsolver.NLLSOptions(callback=(cost, unusedargs...)->(cost, 13)))
+    result = NLLSsolver.optimize!(problem, NLLSsolver.NLLSOptions(), nothing, (cost, unusedargs...)->(cost, 13))
     @test result.termination == (13 << 9)
     @test result.niterations == 1
 
-    # Test optimization
-    for iter in [NLLSsolver.newton, NLLSsolver.levenbergmarquardt, NLLSsolver.dogleg]
-        # Set the start
-        problem.variables[1] = -0.5
-        problem.variables[2] = 2.5
+    # Optimize using Newton
+    result = NLLSsolver.optimize!(problem, NLLSsolver.NLLSOptions(iterator=NLLSsolver.newton))
+    @test isapprox(problem.variables[1], 1.0; rtol=1.e-10)
+    @test isapprox(problem.variables[2], 1.0; rtol=1.e-10)
 
-        # Optimize the cost
-        result = NLLSsolver.optimize!(problem, NLLSsolver.NLLSOptions(iterator=iter))
+    # Optimize using Levenberg-Marquardt
+    problem.variables[1] = -0.5
+    problem.variables[2] = 2.5
+    ct = NLLSsolver.CostTrajectory()
+    result = NLLSsolver.optimize!(problem, NLLSsolver.NLLSOptions(iterator=NLLSsolver.levenbergmarquardt), nothing, NLLSsolver.storecostscallback(ct))
+    @test isapprox(problem.variables[1], 1.0; rtol=1.e-10)
+    @test isapprox(problem.variables[2], 1.0; rtol=1.e-10)
+    @test all(diff(ct.costs) .<= 0.0) # Check costs decrease
 
-        # Check the result
-        @test isapprox(problem.variables[1], 1.0; rtol=1.e-10)
-        @test isapprox(problem.variables[2], 1.0; rtol=1.e-10)
-    end
+    # Optimize using dogleg
+    problem.variables[1] = -0.5
+    problem.variables[2] = 2.5
+    empty!(ct)
+    result = NLLSsolver.optimize!(problem, NLLSsolver.NLLSOptions(iterator=NLLSsolver.dogleg), nothing, NLLSsolver.storecostscallback(ct.costs))
+    @test isapprox(problem.variables[1], 1.0; rtol=1.e-10)
+    @test isapprox(problem.variables[2], 1.0; rtol=1.e-10)
+    @test all(diff(ct.costs) .<= 0.0) # Check costs decrease
 
     # Test standard gradient descent (a worse optimizer, so needs a closer starting point)
     problem.variables[1] = 1.0 - 1.e-5
     problem.variables[2] = 1.0
     display(problem)
-    result = NLLSsolver.optimize!(problem, NLLSsolver.NLLSOptions(iterator=NLLSsolver.gradientdescent, callback=NLLSsolver.printoutcallback))
+    result = NLLSsolver.optimize!(problem, NLLSsolver.NLLSOptions(iterator=NLLSsolver.gradientdescent), nothing, NLLSsolver.printoutcallback)
     display(result)
     @test isapprox(problem.variables[1], 1.0; rtol=1.e-5)
     @test isapprox(problem.variables[2], 1.0; rtol=1.e-5)

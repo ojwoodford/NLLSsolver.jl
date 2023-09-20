@@ -24,9 +24,10 @@ end
 # Dogleg optimization
 mutable struct DoglegData
     trustradius::Float64
+    cauchy::Vector{Float64}
 
-    function DoglegData()
-        return new(0.0)
+    function DoglegData(varlen)
+        return new(0.0, Vector{Float64}(undef, varlen))
     end
 end
 
@@ -35,8 +36,8 @@ function iterate!(doglegdata::DoglegData, data, problem::NLLSProblem, options::N
     data.timesolver += @elapsed_ns begin
         # Compute the Cauchy step
         gnorm2 = gradient' * gradient
-        a = gnorm2 / ((gradient' * hessian) * gradient + floatmin(eltype(gradient)))
-        cauchy = -a * gradient
+        a = gnorm2 / (fast_bAb(hessian, gradient) + floatmin(eltype(gradient)))
+        doglegdata.cauchy = -a * gradient
         alpha2 = a * a * gnorm2
         alpha = sqrt(alpha2)
         if doglegdata.trustradius == 0
@@ -55,7 +56,7 @@ function iterate!(doglegdata::DoglegData, data, problem::NLLSProblem, options::N
         # Determine the step
         if !(alpha < doglegdata.trustradius)
             # Along first leg
-            data.linsystem.x .= (doglegdata.trustradius / alpha) * cauchy
+            data.linsystem.x .= (doglegdata.trustradius / alpha) * doglegdata.cauchy
             linear_approx = doglegdata.trustradius * (2 * alpha - doglegdata.trustradius) / (2 * a)
         else
             # Along second leg
@@ -65,9 +66,9 @@ function iterate!(doglegdata::DoglegData, data, problem::NLLSProblem, options::N
             else
                 # Find the point along the Cauchy -> Newton line on the trust
                 # region circumference
-                data.linsystem.x .-= cauchy
+                data.linsystem.x .-= doglegdata.cauchy
                 sq_leg = data.linsystem.x' * data.linsystem.x
-                c = cauchy' * data.linsystem.x
+                c = doglegdata.cauchy' * data.linsystem.x
                 trsq = doglegdata.trustradius * doglegdata.trustradius - alpha2
                 step = sqrt(c * c + sq_leg * trsq)
                 if c <= 0
@@ -76,7 +77,7 @@ function iterate!(doglegdata::DoglegData, data, problem::NLLSProblem, options::N
                     step = trsq / (c + step)
                 end
                 data.linsystem.x .*= step
-                data.linsystem.x .+= cauchy
+                data.linsystem.x .+= doglegdata.cauchy
                 linear_approx = 0.5 * (a * (1 - step) ^ 2 * gnorm2) + step * (2 - step) * cost_
             end
         end
@@ -132,7 +133,7 @@ function iterate!(levmardata::LevMarData, data, problem::NLLSProblem, options::N
         if !(cost_ > data.bestcost) || (maximum(abs, data.linsystem.x) < options.dstep)
             # Success (or convergence) - update lambda
             uniformscaling!(hessian, -lastlambda)
-            stepquality = (cost_ - data.bestcost) / (((data.linsystem.x' * hessian) * 0.5 + gradient') * data.linsystem.x)
+            stepquality = (cost_ - data.bestcost) / (0.5 * fast_bAb(hessian, data.linsystem.x) + dot(gradient, data.linsystem.x))
             levmardata.lambda *= stepquality < 0.983 ? 1 - (2 * stepquality - 1) ^ 3 : 0.1
             # Return the cost
             return cost_
