@@ -1,6 +1,6 @@
 
 # Uni-variate optimization (single unfixed variable)
-optimize!(problem::NLLSProblem, options::NLLSOptions, unfixed::Integer, callback=nullcallback, starttimens=Base.time_ns())::NLLSResult = optimizeinternal_checkcallback!(problem, options, NLLSInternal(UInt(unfixed), nvars(problem.variables[unfixed])), callback, starttimens)
+optimize!(problem::NLLSProblem, options::NLLSOptions, unfixed::Integer, callback=nullcallback, starttimens=Base.time_ns())::NLLSResult = getresult(setupiterator(optimizeinternal!, problem, options, NLLSInternal(UInt(unfixed), nvars(problem.variables[unfixed])), checkcallback(options, callback), starttimens))
 
 # Multi-variate optimization
 function optimize!(problem::NLLSProblem, options::NLLSOptions, unfixed::AbstractVector, callback)::NLLSResult
@@ -13,8 +13,8 @@ function optimize!(problem::NLLSProblem, options::NLLSOptions, unfixed::Abstract
         unfixed = findfirst(unfixed)
         return optimize!(problem, options, unfixed, callback, starttime)
     end
-    # Multiple variables. Use a block sparse matrix
-    return optimizeinternal_checkcallback!(problem, options, NLLSInternal(makesymmvls(problem, unfixed, nblocks)), callback, starttime)
+    # Multiple variables
+    return getresult(setupiterator(optimizeinternal!, problem, options, NLLSInternal(makesymmvls(problem, unfixed, nblocks)), checkcallback(options, callback), starttime))
 end
 
 # Conversions for different types of "unfixed"
@@ -26,98 +26,52 @@ convertunfixed(unfixed, problem) = unfixed
 optimize!(problem::NLLSProblem, options::NLLSOptions=NLLSOptions(), unfixed=nothing, callback=nullcallback) = optimize!(problem, options, convertunfixed(unfixed, problem), callback)
 
 # Optimize one variable at a time
-function optimizesingles!(problem::NLLSProblem{VT, CT}, options::NLLSOptions, type::DataType)::NLLSResult where {VT, CT}
-    starttime = Base.time_ns()
-    # Compute initial cost
-    timecost = @elapsed startcost = cost(problem)
-    # Initialize stats
-    subprobinit = @elapsed_ns begin
-        timeinit = 0.0
-        timegradient = 0.0
-        timesolver = 0.0
-        iternum = 0
-        costcomputations = 2 # Count final cost computation here
-        gradientcomputations = 0
-        linearsolvers = 0
-        subprob = NLLSProblem{VT, CT}(problem.variables, CostStruct{CT}())
-        costindices = sparse(getvarcostmap(problem)')
-    end
-    # Optimize each variable of the given type, in sequence
-    for (ind, var) in enumerate(problem.variables)
-        # Skip variables of a different type
-        if !isa(var, type)
-            continue
-        end
-        # Construct the subset of residuals that depend on this variable
-        subprobinit += @elapsed_ns subproblem!(subprob, problem, @inbounds(view(costindices.rowval, costindices.colptr[ind]:costindices.colptr[ind+1]-1)))
-        # Optimize the subproblem
-        result = optimize!(subprob, options, ind)
-        # Accumulate stats
-        timeinit += result.timeinit
-        timecost += result.timecost
-        timegradient += result.timegradient
-        timesolver += result.timesolver
-        iternum += result.niterations
-        costcomputations += result.costcomputations
-        gradientcomputations += result.gradientcomputations
-        linearsolvers += result.linearsolvers
-    end
-    # Compute final cost
-    timecost += @elapsed endcost = cost(problem)
-    return NLLSResult(startcost, endcost, (Base.time_ns() - starttime)*1.e-9, timeinit + subprobinit*1.e-9, timecost, timegradient, timesolver, 0, iternum, costcomputations, gradientcomputations, linearsolvers, Vector{Float64}(), Vector{Vector{Float64}}())
-end
+optimizesingles!(problem::NLLSProblem, options::NLLSOptions, type::DataType, starttime=Base.time_ns())::NLLSResult = getresult(setupiterator(optimizesinglesinternal!, problem, options, NLLSInternal(UInt(1), nvars(type())), type, starttime))
 
-function optimizeinternal_checkcallback!(problem::NLLSProblem, options::NLLSOptions, data::NLLSInternal, callback, starttimens::UInt64)::NLLSResult
-    if isnothing(options.callback)
-        return optimizeinternal!(problem, options, data, callback, starttimens)
-    else
-        Base.depwarn("Setting callback in options is deprecated. Pass the callback directly to optimize!() instead", :NLLSOptions)
-        return optimizeinternal!(problem, options, data, options.callback, starttimens)
-    end
-end
+checkcallback(::NLLSOptions{Nothing}, callback) = callback
+checkcallback(options::NLLSOptions, ::Any) = options.callback
 
-function optimizeinternal!(problem::NLLSProblem, options::NLLSOptions, data::NLLSInternal, callback, starttimens::UInt64)::NLLSResult
-    # Copy the variables
-    if length(problem.variables) != length(problem.varnext)
-        problem.varnext = copy(problem.variables)
-    end
+function setupiterator(func, problem::NLLSProblem, options::NLLSOptions, data::NLLSInternal, trailingargs...)
     # Call the optimizer with the required iterator struct
     if options.iterator == newton || options.iterator == gaussnewton
         # Newton's method, using Gauss' approximation to the Hessian (optimizing Hessian form)
-        newtondata = NewtonData()
-        return optimizeinternal!(problem, options, data, newtondata, callback, starttimens)
+        newtondata = NewtonData(problem, data)
+        return func(problem, options, data, newtondata, trailingargs...)
     end
     if options.iterator == levenbergmarquardt
         # Levenberg-Marquardt
-        levmardata = LevMarData()
-        return optimizeinternal!(problem, options, data, levmardata, callback, starttimens)
+        levmardata = LevMarData(problem, data)
+        return func(problem, options, data, levmardata, trailingargs...)
     end
     if options.iterator == dogleg
         # Dogleg
-        doglegdata = DoglegData(length(data.linsystem.x))
-        return optimizeinternal!(problem, options, data, doglegdata, callback, starttimens)
+        doglegdata = DoglegData(problem, data)
+        return func(problem, options, data, doglegdata, trailingargs...)
     end
     if options.iterator == gradientdescent
         # Gradient descent
-        gddata = GradientDescentData(1.0)
-        return optimizeinternal!(problem, options, data, gddata, callback, starttimens)
+        gddata = GradientDescentData(problem, data)
+        return func(problem, options, data, gddata, trailingargs...)
     end
     error("Iterator not recognized")
 end
 
-function optimizeinternal!(problem::NLLSProblem, options::NLLSOptions, data, iteratedata, callback, starttime::UInt64)::NLLSResult
-    timeinit = Base.time_ns() - starttime
+# The meat of an optimization
+function optimizeinternal!(problem::NLLSProblem, options::NLLSOptions, data, iteratedata, callback, starttime::UInt64)
+    # Copy the variables
+    if length(problem.variables) != length(problem.varnext)
+        problem.varnext = copy(problem.variables)
+    end
+    data.timeinit += Base.time_ns() - starttime
     # Initialize the linear problem
     data.timegradient += @elapsed_ns data.bestcost = costgradhess!(data.linsystem, problem.variables, problem.costs)
     data.gradientcomputations += 1
-    # Initialize the results
-    startcost = data.bestcost
-    costs = Vector{Float64}()
-    trajectory = Vector{Vector{Float64}}()
+    data.startcost = data.bestcost
     # Do the iterations
     fails = 0
     cost = data.bestcost
     converged = 0
+    data.iternum = 0
     while true
         data.iternum += 1
         # Call the per iteration solver
@@ -126,7 +80,7 @@ function optimizeinternal!(problem::NLLSProblem, options::NLLSOptions, data, ite
         cost, terminate = callback(cost, problem, data, iteratedata)::Tuple{Float64, Int}
         # Store the cost if necessary
         if options.storecosts
-            push!(costs, cost)
+            push!(data.costs, cost)
         end
         # Check for cost increase (only some iterators will do this)
         dcost = data.bestcost - cost
@@ -149,7 +103,7 @@ function optimizeinternal!(problem::NLLSProblem, options::NLLSOptions, data, ite
         updatefromnext!(problem, data)
         if options.storetrajectory
             # Store the variable trajectory (as update vectors)
-            push!(trajectory, copy(data.linsystem.x))
+            push!(data.trajectory, copy(data.linsystem.x))
         end
         # Check for termination
         maxstep = maximum(abs, data.linsystem.x)
@@ -164,6 +118,7 @@ function optimizeinternal!(problem::NLLSProblem, options::NLLSOptions, data, ite
         converged |= (fails > options.maxfails)                      << 7 # Max number of consecutive failed iterations reach
         converged |= (data.iternum >= options.maxiters)              << 8 # Max number of iterations reached
         converged |= terminate                                       << 9 # Terminated by the user-defined callback
+        data.converged = converged
         if converged != 0
             break
         end
@@ -178,9 +133,48 @@ function optimizeinternal!(problem::NLLSProblem, options::NLLSOptions, data, ite
         # Update the problem variables to the best ones found
         updatefrombest!(problem, data)
     end
-    # Return the result
-    return NLLSResult(startcost, data.bestcost, (Base.time_ns()-starttime)*1.e-9, timeinit*1.e-9, data.timecost*1.e-9, data.timegradient*1.e-9, data.timesolver*1.e-9, converged, data.iternum, data.costcomputations, data.gradientcomputations, data.linearsolvers, costs, trajectory)
+    # Return the data to produce the final result
+    data.timetotal += Base.time_ns() - starttime
+    return data
 end
+
+# Optimizing variables one at a time (e.g. in alternation)
+function optimizesinglesinternal!(problem::NLLSProblem{VT, CT}, options::NLLSOptions, data::NLLSInternal{LST}, iteratedata, ::Type{type}, starttime::UInt) where {VT, CT, LST<:UniVariateLS, type}
+    # Initialize stats
+    iternum = 0
+    data.costcomputations = 2 # Count first and final cost computation here
+    subprob = NLLSProblem{VT, CT}(problem.variables, CostStruct{CT}())
+    costindices = sparse(getvarcostmap(problem)')
+    data.timeinit = Base.time_ns() - starttime
+    # Compute initial cost
+    data.timecost = @elapsed_ns startcost = cost(problem)
+    # Optimize each variable of the given type, in sequence
+    indices = findall(v->isa(v, type), problem.variables)
+    for ind in indices
+        starttime_ = Base.time_ns()
+        # Construct the subset of residuals that depend on this variable
+        subproblem!(subprob, problem, @inbounds(view(costindices.rowval, costindices.colptr[ind]:costindices.colptr[ind+1]-1)))
+        # Update the linear system
+        data.linsystem = LST(data.linsystem, UInt(ind), nvars(problem.variables[ind]::type))
+        # Reset the iterator data
+        reset!(iteratedata, problem, data)
+        stoptime = Base.time_ns()
+        data.timeinit += stoptime - starttime_
+        # Optimize the subproblem
+        optimizeinternal!(subprob, options, data, iteratedata, nullcallback, stoptime)
+        # Accumulate stats
+        iternum += data.iternum
+    end
+    # Compute final cost
+    data.timecost += @elapsed_ns data.bestcost = cost(problem)
+    # Correct some stats
+    data.startcost = startcost
+    data.iternum = iternum
+    data.converged = 0
+    data.timetotal = Base.time_ns() - starttime
+    return data
+end
+
 
 function updatefromnext!(problem::NLLSProblem, ::NLLSInternalMultiVar)
     problem.variables, problem.varnext = problem.varnext, problem.variables

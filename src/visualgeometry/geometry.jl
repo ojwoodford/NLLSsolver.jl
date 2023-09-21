@@ -43,8 +43,9 @@ abstract type AbstractPoint3D end
 struct Point3D{T<:Real} <: AbstractPoint3D
     v::SVector{3, T}
 end
-Point3D(x::T, y::T, z::T) where T = Point3D(SVector{3, T}(x, y, z))
-Point3D() = Point3D(SVector{3, Float64}(0., 0., 0.))
+Point3D(x::T, y::T, z::T) where T = Point3D{T}(SVector{3, T}(x, y, z))
+Point3D() = Point3D{Float64}()
+Point3D{T}() where T = Point3D{T}(SVector{3, T}(0, 0, 0))
 nvars(::Point3D) = static(3)
 update(var::Point3D, updatevec, start=1) = Point3D(var.v + view(updatevec, SR(0, 2) .+ start))
 @inline getvec(x::Point3D) = x.v
@@ -111,13 +112,17 @@ struct EffPose3D{T<:Real} <: AbstractPose3D
     camcenter::Point3D{T}
 end
 EffPose3D(rx, ry, rz, cx, cy, cz) = EffPose3D(Rotation3DL(rx, ry, rz), Point3D(cx, cy, cz))
-EffPose3D(pose::Pose3D) = EffPose3D(Rotation3DL(pose.rot.m), NLLSsolver.Point3D(pose.rot.m' * -pose.trans.v))
 EffPose3D() = EffPose3D(Rotation3DL(), Point3D())
 nvars(::EffPose3D) = static(6)
 update(var::EffPose3D, updatevec, start=1) = EffPose3D(update(var.rot, updatevec, start), update(var.camcenter, updatevec, start+3))
 inverse(var::EffPose3D) = Pose3D(Rotation3DR(var.rot.m'), var.camcenter)
 transform(pose::EffPose3D, point::AbstractPoint3D) = Point3D(pose.rot.m * (getvec(point) - pose.camcenter.v))
 
+# Pose conversions
+Pose3D(pose::EffPose3D) = Pose3D(Rotation3DR(pose.rot.m), Point3D(pose.rot.m * -pose.camcenter.v))
+Pose3D(pose::Pose3D) = pose
+EffPose3D(pose::Pose3D) = EffPose3D(Rotation3DL(pose.rot.m), Point3D(pose.rot.m' * -pose.trans.v))
+EffPose3D(pose::EffPose3D) = pose
 
 # Transformations on abstract types
 project(x::AbstractPoint3D) = SVector(getind(x, 1), getind(x, 2)) ./ getind(x, 3)

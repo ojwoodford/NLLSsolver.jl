@@ -7,6 +7,8 @@ negate!(x) = @.(x = -x)
 # Newton optimization (undamped-Hessian form)
 struct NewtonData
 end
+NewtonData(::NLLSProblem, ::NLLSInternal) = NewtonData()
+reset!(nd::NewtonData, ::NLLSProblem, ::NLLSInternal) = nd
 
 function iterate!(::NewtonData, data, problem::NLLSProblem, options::NLLSOptions)::Float64
     hessian, gradient = gethessgrad(data.linsystem)
@@ -22,13 +24,22 @@ function iterate!(::NewtonData, data, problem::NLLSProblem, options::NLLSOptions
 end
 
 # Dogleg optimization
-mutable struct DoglegData
+mutable struct DoglegData{T}
     trustradius::Float64
-    cauchy::Vector{Float64}
+    cauchy::T
 
-    function DoglegData(varlen)
-        return new(0.0, Vector{Float64}(undef, varlen))
+    function DoglegData(::NLLSProblem, data::NLLSInternal)
+        return new{typeof(data.linsystem.x)}(0.0, similar(data.linsystem.x))
     end
+end
+function reset!(dd::DoglegData{T}, ::NLLSProblem, data::NLLSInternal) where T<:Vector
+    dd.trustradius = 0.0
+    resize!(dd.cauchy, length(data.linsystem.x))
+    return
+end
+function reset!(dd::DoglegData{T}, ::NLLSProblem, data::NLLSInternal) where T<:StaticVector
+    dd.trustradius = 0.0
+    return
 end
 
 function iterate!(doglegdata::DoglegData, data, problem::NLLSProblem, options::NLLSOptions)::Float64
@@ -37,7 +48,7 @@ function iterate!(doglegdata::DoglegData, data, problem::NLLSProblem, options::N
         # Compute the Cauchy step
         gnorm2 = gradient' * gradient
         a = gnorm2 / (fast_bAb(hessian, gradient) + floatmin(eltype(gradient)))
-        doglegdata.cauchy = -a * gradient
+        doglegdata.cauchy .= -a * gradient
         alpha2 = a * a * gnorm2
         alpha = sqrt(alpha2)
         if doglegdata.trustradius == 0
@@ -107,10 +118,11 @@ printoutcallback(cost, problem, data, iteratedata::DoglegData) = printoutcallbac
 mutable struct LevMarData
     lambda::Float64
 
-    function LevMarData()
+    function LevMarData(::NLLSProblem, ::NLLSInternal)
         return new(1.0)
     end
 end
+reset!(lmd::LevMarData, ::NLLSProblem, ::NLLSInternal) = lmd.lambda = 1.0
 
 function iterate!(levmardata::LevMarData, data, problem::NLLSProblem, options::NLLSOptions)::Float64
     @assert levmardata.lambda >= 0.
@@ -149,7 +161,12 @@ printoutcallback(cost, problem, data, iteratedata::LevMarData) = printoutcallbac
 # Gradient descent optimization
 mutable struct GradientDescentData
     stepsize::Float64
+
+    function GradientDescentData(::NLLSProblem, ::NLLSInternal)
+        return new(1.0)
+    end
 end
+reset!(gdd::GradientDescentData, ::NLLSProblem, ::NLLSInternal) = gdd.stepsize = 1.0
 
 function iterate!(gddata::GradientDescentData, data, problem::NLLSProblem, options::NLLSOptions)::Float64
     gradient = getgrad(data.linsystem)

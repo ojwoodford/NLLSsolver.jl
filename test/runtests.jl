@@ -8,6 +8,7 @@ using Test
     include("robust.jl")
     include("linearsolve.jl")
     include("functional.jl")
+    include("optimizeba.jl")
     include("dynamicvars.jl")
     include("nonsquaredcost.jl")
     include("adaptivecost.jl")

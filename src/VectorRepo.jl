@@ -8,14 +8,20 @@ struct VectorRepo{T}
 end
 VectorRepo() = VectorRepo{Any}()
 
-@inline function Base.get(vr::VectorRepo{T}, type::DataType)::Vector{type} where T
+function Base.get(vr::VectorRepo{T}, ::Type{type})::Vector{type} where {T, type}
     @assert type<:T "Invalid type"
     return haskey(vr.data, type) ? vr.data[type]::Vector{type} : Vector{type}()
 end
 
-@inline function Base.get!(vr::VectorRepo{T}, type::DataType)::Vector{type} where T
+function Base.get!(vr::VectorRepo{T}, ::Type{type})::Vector{type} where {T, type}
     @assert type<:T "Invalid type"
-    return get!(vr.data, type, Vector{type}())::Vector{type}
+    if haskey(vr.data, type)
+        vec = vr.data[type]::Vector{type}
+    else
+        vec = Vector{type}()
+        vr.data[type] = vec
+    end
+    return vec
 end
 
 @inline Base.push!(vr::VectorRepo, v::T) where T = push!(get!(vr, T), v)

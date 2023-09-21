@@ -5,13 +5,16 @@ import LinearAlgebra.ldiv!
 ldiv!(x, A, b) = x .= ldiv(A, b)
 
 function try_cholesky!(x::StaticVector, A::StaticMatrix, b::StaticVector)
+    # Convert to immutable type, to avoid allocations
+    A_ = SMatrix(A)
+    b_ = SVector(b)
     # Handle this issue with StaticArrays cholesky: https://github.com/JuliaArrays/StaticArrays.jl/issues/1194
-    cholfac = StaticArrays._cholesky(Size(A), A, false)
+    cholfac = StaticArrays._cholesky(Size(A_), A_, false)
     if issuccess(cholfac)
-        return x .= cholfac \ b
+        return x .= cholfac \ b_
     end
     # Handle this issue with StaticArrays qr: https://github.com/JuliaArrays/StaticArrays.jl/issues/1192
-    return x .= A \ b
+    return x .= A_ \ b_
 end
 
 function try_cholesky!(x, A, b)
