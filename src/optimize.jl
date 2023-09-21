@@ -28,7 +28,7 @@ optimize!(problem::NLLSProblem, options::NLLSOptions=NLLSOptions(), unfixed=noth
 # Optimize one variable at a time
 optimizesingles!(problem::NLLSProblem, options::NLLSOptions, type::DataType, starttime=Base.time_ns())::NLLSResult = getresult(setupiterator(optimizesinglesinternal!, problem, options, NLLSInternal(UInt(1), nvars(type())), type, starttime))
 
-function optimizesinglesinternal!(problem::NLLSProblem{VT, CT}, options::NLLSOptions, data::NLLSInternal{LST}, iteratedata, type::DataType, starttime::UInt)::NLLSResult where {VT, CT, LST<:UniVariateLS}
+function optimizesinglesinternal!(problem::NLLSProblem{VT, CT}, options::NLLSOptions, data::NLLSInternal{LST}, iteratedata, ::Type{type}, starttime::UInt) where {VT, CT, LST<:UniVariateLS, type}
     # Initialize stats
     iternum = 0
     data.costcomputations = 2 # Count first and final cost computation here
@@ -38,23 +38,29 @@ function optimizesinglesinternal!(problem::NLLSProblem{VT, CT}, options::NLLSOpt
     # Compute initial cost
     data.timecost = @elapsed_ns startcost = cost(problem)
     # Optimize each variable of the given type, in sequence
-    for (ind, var) in enumerate(problem.variables)
-        # Skip variables of a different type
-        if isa(var, type)
-            data.timeinit += @elapsed_ns begin
-                # Construct the subset of residuals that depend on this variable
-                subproblem!(subprob, problem, @inbounds(view(costindices.rowval, costindices.colptr[ind]:costindices.colptr[ind+1]-1)))
-                # Update the linear system
-                data.linsystem = LST(data.linsystem, UInt(ind), nvars(var))
-            end
-            # Optimize the subproblem
-            optimizeinternal!(subprob, options, data, iteratedata, nullcallback, Base.time_ns())
-            # Accumulate stats
-            iternum += data.iternum
-        end
+    indices = findall(v->isa(v, type), problem.variables)
+    for ind in indices
+        starttime_ = Base.time_ns()
+        # Construct the subset of residuals that depend on this variable
+        subproblem!(subprob, problem, @inbounds(view(costindices.rowval, costindices.colptr[ind]:costindices.colptr[ind+1]-1)))
+        # Update the linear system
+        data.linsystem = LST(data.linsystem, UInt(ind), nvars(problem.variables[ind]::type))
+        # Reset the iterator data
+        reset!(iteratedata, problem, data)
+        stoptime = Base.time_ns()
+        data.timeinit += stoptime - starttime_
+        # Optimize the subproblem
+        optimizeinternal!(subprob, options, data, iteratedata, nullcallback, stoptime)
+        # Accumulate stats
+        iternum += data.iternum
     end
     # Compute final cost
     data.timecost += @elapsed_ns data.bestcost = cost(problem)
+    # Correct some stats
+    data.startcost = startcost
+    data.iternum = iternum
+    data.converged = 0
+    data.timetotal = Base.time_ns() - starttime
     return data
 end
 
@@ -68,22 +74,22 @@ function setupiterator(func, problem::NLLSProblem, options::NLLSOptions, data::N
     # Call the optimizer with the required iterator struct
     if options.iterator == newton || options.iterator == gaussnewton
         # Newton's method, using Gauss' approximation to the Hessian (optimizing Hessian form)
-        newtondata = NewtonData()
+        newtondata = NewtonData(problem, data)
         return func(problem, options, data, newtondata, trailingargs...)
     end
     if options.iterator == levenbergmarquardt
         # Levenberg-Marquardt
-        levmardata = LevMarData()
+        levmardata = LevMarData(problem, data)
         return func(problem, options, data, levmardata, trailingargs...)
     end
     if options.iterator == dogleg
         # Dogleg
-        doglegdata = DoglegData(length(data.linsystem.x))
+        doglegdata = DoglegData(problem, data)
         return func(problem, options, data, doglegdata, trailingargs...)
     end
     if options.iterator == gradientdescent
         # Gradient descent
-        gddata = GradientDescentData(1.0)
+        gddata = GradientDescentData(problem, data)
         return func(problem, options, data, gddata, trailingargs...)
     end
     error("Iterator not recognized")

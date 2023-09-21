@@ -38,8 +38,9 @@ struct UniVariateLSstatic{N, N2}
         return new(zeros(MMatrix{N, N, Float64, N2}), zeros(MVector{N, Float64}), MVector{N, Float64}(undef), UInt(unfixed))
     end
 
-    function UniVariateLSstatic{N, N2}(::UniVariateLSstatic{N, N2}, unfixed, ::Any) where {N, N2}
-        return new(zeros(MMatrix{N, N, Float64, N2}), zeros(MVector{N, Float64}), MVector{N, Float64}(undef), UInt(unfixed))
+    function UniVariateLSstatic{N, N2}(prev::UniVariateLSstatic{N, N2}, unfixed, ::Any) where {N, N2}
+        zero!(prev)
+        return new(prev.A, prev.b, prev.x, UInt(unfixed))
     end
 end
 
