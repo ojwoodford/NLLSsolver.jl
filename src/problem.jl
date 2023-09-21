@@ -160,11 +160,11 @@ function getvarcostmap(problem::NLLSProblem)
     return problem.varcostmap
 end
 
-function reordercostsforschur(problem::NLLSProblem, schurvars)
+function reordercostsforschur!(problem::NLLSProblem, schurvars)
     # Group residuals by Schur variable (i.e. variables to be factored out)
     # Get the cost index per Schur variable (0 if none)
     schurruns = Dict{DataType, Vector{Int}}()
-    costvarmap = sparse(view(getvarcostmap(problem), schurvars, :)')
+    costvarmap = sparse(getvarcostmap(problem)')[:,schurvars]
     schurvarpercost = sum(costvarmap; dims=2)
     @assert all(x->(x<=1), schurvarpercost) "Each cost block can only depend on one schur variable at most"
     schurvarpercost[schurvarpercost .> 0] = costvarmap.rowval
@@ -180,6 +180,7 @@ function reordercostsforschur(problem::NLLSProblem, schurvars)
             permute!(costs, sortedorder)
         end
     end
+    problem.varcostmapvalid = false
     return schurruns
 end
 
