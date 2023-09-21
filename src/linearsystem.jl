@@ -20,11 +20,16 @@ struct UniVariateLSdynamic
     end
 
     function UniVariateLSdynamic(prev::UniVariateLSdynamic, unfixed, varlen)
-        resize!(prev.A, (varlen, varlen))
-        resize!(prev.b, varlen)
-        resize!(prev.x, varlen)
-        zero!(prev)
-        return new(prev.A, prev.b, prev.x, UInt(unfixed))
+        A = prev.A
+        if varlen == length(prev.b)
+            zero!(prev)
+        else
+            A = zeros(Float64, varlen, varlen)
+            resize!(prev.b, varlen)
+            fill!(prev.b, 0)
+            resize!(prev.x, varlen)
+        end
+        return new(A, prev.b, prev.x, UInt(unfixed))
     end
 end
 
