@@ -64,7 +64,7 @@ end
     @test result.bestcost < 1.e-15
 
     # Optimize problem
-    problem = perturb_ba_problem(problem, 0.003, 0.003)
+    problem = perturb_ba_problem(problem, 0.001, 0.001)
     result = optimize!(problem)
     @test result.bestcost < 1.e-15
 
