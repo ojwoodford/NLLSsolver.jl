@@ -190,8 +190,8 @@ getgrad(linsystem) = linsystem.b
 gethessgrad(linsystem::UniVariateLS) = (linsystem.A, linsystem.b)
 function gethessgrad(linsystem::MultiVariateLSsparse)
     # Fill sparse hessian
-    for i in eachindex(linsystem.sparseindices)
-        @inbounds linsystem.hessian.nzval[i] = linsystem.A.data[linsystem.sparseindices[i]]
+    @inbounds for (i, si) in enumerate(linsystem.sparseindices)
+        linsystem.hessian.nzval[i] = linsystem.A.data[si]
     end
     return linsystem.hessian, linsystem.b
 end
