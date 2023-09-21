@@ -65,10 +65,7 @@ function optimizesinglesinternal!(problem::NLLSProblem{VT, CT}, options::NLLSOpt
 end
 
 checkcallback(::NLLSOptions{Nothing}, callback) = callback
-function checkcallback(options::NLLSOptions{T}, ::Any)::T where T
-    Base.depwarn("Setting callback in options is deprecated. Pass the callback directly to optimize!() instead", :NLLSOptions)
-    return options.callback
-end
+checkcallback(options::NLLSOptions, ::Any) = options.callback
 
 function setupiterator(func, problem::NLLSProblem, options::NLLSOptions, data::NLLSInternal, trailingargs...)
     # Call the optimizer with the required iterator struct
