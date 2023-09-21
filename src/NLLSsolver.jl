@@ -6,7 +6,7 @@ export NLLSProblem, NLLSOptions, NLLSResult, NLLSIterator # Concrete problem & s
 export AbstractRobustifier, NoRobust, Scaled, HuberKernel, Huber2oKernel, GemanMcclureKernel # Robustifiers
 export ContaminatedGaussian # Adaptive robustifiers
 export EuclideanVector, ZeroToInfScalar, ZeroToOneScalar # Concrete general variables
-export Rotation3DR, Rotation3DL, Point3D, Pose3D, EffPose3D, UnitPose3D # Concrete 3D geometry variable types
+export Rotation3DR, Rotation3DL, Point3D, Pose3D, EffPose3D, UnitVec3D, UnitPose3D # Concrete 3D geometry variable types
 export SimpleCamera, NoDistortionCamera, ExtendedUnifiedCamera, BarrelDistortion, EULensDistortion # Concrete camera sensor & lens variable types
 export CostTrajectory # Object for storing opimization trajectory and costs
 # Functions
