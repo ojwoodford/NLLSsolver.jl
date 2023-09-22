@@ -26,7 +26,13 @@ bitiset(flags, bit) = (1 << (bit - 1)) & flags != 0
 @inline uniontotuple(T::Union) = (uniontotuple(T.a)..., uniontotuple(T.b)...)
 @inline uniontotuple(T::DataType) = (T,)
 
-@inline sqnorm(x) = (x' * x)
+function sqnorm(vec)
+    total = zero(eltype(vec))
+    @turbo for i in eachindex(vec)
+        total += vec[i] * vec[i]
+    end
+    return total
+end
 
 function runlengthencodesortedints(sortedints)
     runindices = Vector{Int}(undef, sortedints[end]+2)
@@ -97,4 +103,3 @@ function fast_bAb(A::SparseMatrixCSC, b::Vector)
     end
     return total
 end
-
