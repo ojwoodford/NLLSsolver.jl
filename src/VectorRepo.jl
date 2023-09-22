@@ -1,9 +1,8 @@
-using OrderedCollections
 
 struct VectorRepo{T}
-    data::OrderedDict{DataType, Vector}
+    data::Dict{DataType, Vector}
     function VectorRepo{T}() where T
-        return new{T}(OrderedDict{DataType, Vector}())
+        return new{T}(Dict{DataType, Vector}())
     end
 end
 VectorRepo() = VectorRepo{Any}()
@@ -94,4 +93,4 @@ function sumsubsetloop(fun, subset, vector)::Float64
 end
 
 # Map
-Base.map(fun, vr::VectorRepo) = OrderedDict([eltype(val)=>fun(val) for val in values(vr)]...)
+Base.map(fun, vr::VectorRepo) = Dict([eltype(val)=>fun(val) for val in values(vr)]...)
