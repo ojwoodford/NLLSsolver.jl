@@ -30,52 +30,40 @@ function computerescostgradhess(varflags, residual, kernel, vars)
     # Compute the unrobust cost, gradient and Hessian
     cost = sqnorm(res)
     g = jac' * res
-    H = jac' * jac
 
     if varflags & 1 == 0
         # The kernel is not optimized. Differentiate w.r.t. the cost only
         cost, dc, d2c = robustifydcost(kernel, cost)
-
-        # IRLS reweighting of Hessian
-        if dc != 1
-            H *= dc
-        end
-        # Second order correction
-        if d2c != 0
-            H += ((2 * d2c) * g) * g'
-        end
-        # IRLS reweighting of gradient
-        if dc != 1
-            g *= dc
-        end
-
-        # Return the cost
-        return 0.5 * Float64(cost), g, H
+    else
+        # Differentiate w.r.t. the cost and kernel parameters
+        cost, dc_, d2c_ = robustifydkernel(kernel, cost)
+        dc = dc_[end]
+        d2c = d2c_[end,end]
+    
+        # Compute the d^2/dkernel.dvariables block
+        kernelvarind = SR(1, nvars(kernel))
+        @fastmath dkdv = g * view(d2c_, kernelvarind, nvars(kernel)+1)'
     end
-
-    # Differentiate w.r.t. the cost and kernel parameters
-    cost, dc, d2c = robustifydkernel(kernel, cost)
-
-    # Compute the d^2/dkernel.dvariables block
-    kernelvarind = SR(1, nvars(kernel))
-    dkdv = g * view(d2c, kernelvarind, nvars(kernel)+1)'
 
     # IRLS reweighting of Hessian
-    if dc[end] != 1
-        H *= dc[end]
+    H = jac' * jac
+    if dc != 1
+        H *= dc
     end
     # Second order correction
-    if d2c[end] != 0
-        H += ((2 * d2c[end]) * g) * g'
+    if d2c != 0
+        H += ((2 * d2c) * g) * g'
     end
     # IRLS reweighting of gradient
-    if dc[end] != 1
-        g *= dc[end]
+    if dc != 1
+        g *= dc
     end
 
-    # Add on the kernel derivative blocks
-    g = vcat(view(dc, kernelvarind), g)
-    H = hcat(vcat(view(d2c, kernelvarind, kernelvarind), dkdv), vcat(dkdv', H))
+    if varflags & 1 == 1
+        # Add on the kernel derivative blocks
+        g = vcat(view(dc_, kernelvarind), g)
+        H = hcat(vcat(view(d2c_, kernelvarind, kernelvarind), dkdv), vcat(dkdv', H))
+    end
     
     # Return the cost and derivatives
     return 0.5 * Float64(cost), g, H
