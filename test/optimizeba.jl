@@ -54,7 +54,7 @@ end
 
 @testset "optimizeba.jl" begin
     # Generate some test data for a dense problem
-    Random.seed!(1)
+    Random.seed!(5)
     problem = create_ba_problem(10, 100, 0.3)
 
     # Test reordering the costs
