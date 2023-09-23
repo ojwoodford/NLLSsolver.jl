@@ -26,7 +26,8 @@ bitiset(flags, bit) = (1 << (bit - 1)) & flags != 0
 @inline uniontotuple(T::Union) = (uniontotuple(T.a)..., uniontotuple(T.b)...)
 @inline uniontotuple(T::DataType) = (T,)
 
-function sqnorm(vec)
+sqnorm(x::Number) = @fastmath x * x
+function sqnorm(vec::AbstractVector)
     total = zero(eltype(vec))
     @turbo for i in eachindex(vec)
         total += vec[i] * vec[i]
