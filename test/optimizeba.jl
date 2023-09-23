@@ -65,7 +65,6 @@ end
 
     # Optimze just the landmarks
     result = NLLSsolver.optimizesingles!(problem, NLLSOptions(), Point3D{Float64})
-    display(result)
     @test result.bestcost < 1.e-15
 
     # Optimize problem
