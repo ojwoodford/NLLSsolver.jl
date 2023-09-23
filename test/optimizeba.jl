@@ -15,26 +15,25 @@ Base.eltype(::ProjError) = Float64
 
 function create_ba_problem(ncameras, nlandmarks, propvisible)
     problem = NLLSProblem(Union{EffPose3D{Float64}, Point3D{Float64}}, ProjError)
-    
-    # Generate the landmarks in a unit cube centered on the origin
-    for i = 1:nlandmarks
-        addvariable!(problem, Point3D{Float64}(rand(SVector{3, Float64}) .- 0.5))
-    end
 
     # Generate the cameras on a unit sphere, pointing to the origin
     for i = 1:ncameras
         camcenter = normalize(randn(SVector{3, Float64}))
         addvariable!(problem, EffPose3D(Rotation3DL(UnitVec3D(-camcenter).v.m), Point3D(camcenter)))
     end
+    
+    # Generate the landmarks in a unit cube centered on the origin
+    for i = 1:nlandmarks
+        addvariable!(problem, Point3D{Float64}(rand(SVector{3, Float64}) .- 0.5))
+    end
 
     # Generate the measurements
-    visibility = sprand(ncameras, nlandmarks, propvisible)
-    for landmark = 1:nlandmarks
-        point = problem.variables[landmark]::Point3D{Float64}
-        for camera = view(visibility.rowval, visibility.colptr[landmark]:visibility.colptr[landmark+1]-1)
-            @assert camera <= ncameras
-            cam = camera + nlandmarks
-            addcost!(problem, ProjError(project(problem.variables[cam]::EffPose3D{Float64} * point), cam, landmark))
+    visibility = sprand(nlandmarks, ncameras, propvisible)
+    for camind = 1:ncameras
+        camera = problem.variables[camind]::EffPose3D{Float64}
+        for landmark = view(visibility.rowval, visibility.colptr[camind]:visibility.colptr[camind+1]-1)
+            landmarkind = landmark + ncameras
+            addcost!(problem, ProjError(project(camera * problem.variables[landmarkind]::Point3D{Float64}), camind, landmarkind))
         end
     end
 
@@ -55,11 +54,16 @@ end
 
 @testset "optimizeba.jl" begin
     # Generate some test data for a dense problem
-    Random.seed!(1)
+    Random.seed!(5)
     problem = create_ba_problem(10, 100, 0.3)
 
-    # Optimze just the landmarks
+    # Test reordering the costs
     problem = perturb_ba_problem(problem, 0.003, 0.0)
+    costbefore = cost(problem)
+    NLLSsolver.reordercostsforschur!(problem, isa.(problem.variables, Point3D{Float64}))
+    @test cost(problem) ≈ costbefore
+
+    # Optimze just the landmarks
     result = NLLSsolver.optimizesingles!(problem, NLLSOptions(), Point3D{Float64})
     @test result.bestcost < 1.e-15
 

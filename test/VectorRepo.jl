@@ -32,15 +32,15 @@ end
     vr1 = NLLSsolver.VectorRepo()
     @test sum(i->2i, vr1) == 0.0
     fillrepo(vr1, floats, ints)
-    @test isapprox(sum(i->π*i, vr1), total * π)
+    @test sum(i->π*i, vr1) ≈ total * π
     vec = values(vr1)
     @test length(vec) == 2 && any(Base.Fix2(isa, Vector{Float64}), vec) && any(Base.Fix2(isa, Vector{Int}), vec)
 
     # Test subset reductions
-    @test NLLSsolver.sumsubset(identity, rangefun, vr1) == halftotal
-    @test NLLSsolver.sumsubset(identity, indicesfun, vr1) == halftotal
-    @test NLLSsolver.sumsubset(identity, bitvecfun, vr1) == halftotal
-    @test NLLSsolver.sumsubset(identity, boolvecfun, vr1) == halftotal
+    @test NLLSsolver.sumsubset(Float64, rangefun, vr1) == halftotal
+    @test NLLSsolver.sumsubset(Float64, indicesfun, vr1) == halftotal
+    @test NLLSsolver.sumsubset(Float64, bitvecfun, vr1) == halftotal
+    @test NLLSsolver.sumsubset(Float64, boolvecfun, vr1) == halftotal
 
     # Union container
     vr2 = NLLSsolver.VectorRepo{Union{Float64, Int, Char}}()
@@ -49,14 +49,14 @@ end
     @test any(keytup .== Float64) && any(keytup .== Int) && any(keytup .== Char)
     @test sum(i->2i, vr2) == 0.0
     fillrepo(vr2, floats, ints)
-    @test isapprox(sum(i->π*i, vr2), total * π)
+    @test sum(i->π*i, vr2) ≈ total * π
     valuetup = values(vr2)
     @test isa(valuetup, Tuple) && length(valuetup) == 3
     @test any(Base.Fix2(isa, Vector{Float64}), valuetup) && any(Base.Fix2(isa, Vector{Int}), valuetup) && any(Base.Fix2(isa, Vector{Char}), valuetup)
 
     # Test subset reductions
-    @test NLLSsolver.sumsubset(identity, rangefun, vr2) == halftotal
-    @test NLLSsolver.sumsubset(identity, indicesfun, vr2) == halftotal
-    @test NLLSsolver.sumsubset(identity, bitvecfun, vr2) == halftotal
-    @test NLLSsolver.sumsubset(identity, boolvecfun, vr2) == halftotal
+    @test NLLSsolver.sumsubset(Float64, rangefun, vr2) == halftotal
+    @test NLLSsolver.sumsubset(Float64, indicesfun, vr2) == halftotal
+    @test NLLSsolver.sumsubset(Float64, bitvecfun, vr2) == halftotal
+    @test NLLSsolver.sumsubset(Float64, boolvecfun, vr2) == halftotal
 end

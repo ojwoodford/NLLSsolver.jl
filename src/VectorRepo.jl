@@ -1,9 +1,8 @@
-using OrderedCollections
 
 struct VectorRepo{T}
-    data::OrderedDict{DataType, Vector}
+    data::Dict{DataType, Vector}
     function VectorRepo{T}() where T
-        return new{T}(OrderedDict{DataType, Vector}())
+        return new{T}(Dict{DataType, Vector}())
     end
 end
 VectorRepo() = VectorRepo{Any}()
@@ -70,27 +69,28 @@ end
 @inline vrsum(fun, vr::VectorRepo, init, T::DataType) = sum(fun, get(vr, T); init=init)
 
 # Sum reduction over a subset of the elements
-@inline sumsubset(fun, subsetfun, vr::VectorRepo{Any}) = sum(fixallbutlast(sumsubset, fun, subsetfun), values(vr.data); init=0.0)
-@inline sumsubset(fun, subsetfun, vr::VectorRepo{T}) where T = sumsubset(fun, subsetfun, vr, T)
-@inline sumsubset(fun, subsetfun, vr::VectorRepo, T::Union) = sumsubset(fun, subsetfun, vr, T.a) + sumsubset(fun, subsetfun, vr, T.b)
-@inline sumsubset(fun, subsetfun, vr::VectorRepo, T::DataType) = sumsubset(fun, subsetfun, get(vr, T))
-@inline sumsubset(fun, subsetfun::Function, vector::Vector) = sumsubset(fun, subsetfun(vector), vector)
-function sumsubset(fun, subset::Union{BitVector, Vector{Bool}}, vector::Vector)::Float64
+sumsubset(fun, subsetfun, vr::VectorRepo{Any}) = sum(fixallbutlast(sumsubsetvec, fun, subsetfun), values(vr.data); init=0.0)
+sumsubset(fun, subsetfun, vr::VectorRepo{T}) where T = sumsubsettype(fun, subsetfun, vr, T)
+@inline sumsubsettype(fun, subsetfun, vr, T::Union) = sumsubsettype(fun, subsetfun, vr, T.a) + sumsubsettype(fun, subsetfun, vr, T.b)
+@inline sumsubsettype(fun, subsetfun, vr, T::DataType) = sumsubsetparamtype(fun, subsetfun, vr, T)
+@inline sumsubsetparamtype(fun, subsetfun, vr, ::Type{T}) where T = sumsubsetvec(fun, subsetfun, get(vr, T)::Vector{T})
+@inline sumsubsetvec(fun, subsetfun, vector) = sumsubsetloop(fun, subsetfun(vector), vector)
+function sumsubsetloop(fun, subset::Union{BitVector, Vector{Bool}}, vector)::Float64
     total = 0.0
     for (ind, val) in enumerate(subset)
         if val
-            total += fun(vector[ind])
+            @fastmath total += @inbounds fun(vector[ind])::Float64
         end
     end
     return total
 end
-function sumsubset(fun, subset, vector::Vector)::Float64
+function sumsubsetloop(fun, subset, vector)::Float64
     total = 0.0
-    for ind in subset
-        total += fun(vector[ind])
+    @simd for ind in subset
+        @fastmath total += @inbounds fun(vector[ind])::Float64
     end
     return total
 end
 
 # Map
-Base.map(fun, vr::VectorRepo) = OrderedDict([eltype(val)=>fun(val) for val in values(vr)]...)
+Base.map(fun, vr::VectorRepo) = Dict([eltype(val)=>fun(val) for val in values(vr)]...)
