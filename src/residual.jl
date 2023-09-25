@@ -49,13 +49,13 @@ function computerescostgradhess(varflags, residual, kernel, vars)
     if dc != 1
         # Second order correction
         if d2c == 0
-            H = jac * (jac' * dc)
+            H = A_mul_B(jac, jac' * dc)
         else
-            H = jac * jac' * dc + ((2 * d2c) * g) * g'
+            H = A_mul_B(hcat(jac, g), hcat(jac * dc, g * (2 * d2c))')
         end
         g *= dc
     else
-        H = jac * jac'
+        H = A_mul_B(jac, jac')
     end
 
     if varflags & 1 == 1
