@@ -46,7 +46,7 @@ Base.eltype(::BALResidual{T}) where T = T
 function NLLSsolver.computeresjac(::StaticInt{3}, residual::BALResidual, im, point)
     # Exploit the parameterization to make the jacobian computation more efficient
     res, jac = NLLSsolver.computeresjac(static(1), residual, im, point)
-    return res, hcat(jac, -view(jac, :, NLLSsolver.SR(4, 6)))
+    return res, vcat(jac, @inbounds(-view(jac, NLLSsolver.SR(4, 6), :)))
 end
 
 # Function to create a NLLSsolver problem from a BAL dataset
