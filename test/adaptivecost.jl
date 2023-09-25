@@ -9,7 +9,7 @@ NLLSsolver.nres(::SimpleResidual) = static(1) # Residual has length 1
 NLLSsolver.varindices(res::SimpleResidual) = SVector(1, res.varind)
 NLLSsolver.getvars(res::SimpleResidual, vars::Vector) = (vars[1]::NLLSsolver.ContaminatedGaussian{Float64}, vars[res.varind]::Float64)
 NLLSsolver.computeresidual(res::SimpleResidual, mean) = mean - res.data
-NLLSsolver.computeresjac(varflags, res::SimpleResidual, mean) = mean - res.data, SVector(one(mean))'
+NLLSsolver.computeresjac(varflags, res::SimpleResidual, mean) = mean - res.data, SVector(one(mean))
 Base.eltype(::SimpleResidual) = Float64
 
 function emcallback(cost, problem, data, trailingargs...)

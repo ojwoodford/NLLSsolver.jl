@@ -69,10 +69,10 @@ end
 # Extract the residual and jacobian from duals to static arrays
 @generated function extractvaldual(dual::SVector{M, ForwardDiff.Dual{TG, T, N}}) where {TG, T, M, N}
     res = Expr(:tuple, [:(ForwardDiff.value(dual[$i])) for i in 1:M]...)
-    jac = Expr(:tuple, [:(ForwardDiff.partials(dual[$i], $j)) for i in 1:M, j in 1:N]...)
-    return :(SVector{$M, $T}($res), SMatrix{$M, $N, $T, $M*$N}($jac))
+    jac = Expr(:tuple, [:(ForwardDiff.partials(dual[$j], $i)) for i in 1:N, j in 1:M]...)
+    return :(SVector{$M, $T}($res), SMatrix{$N, $M, $T, $M*$N}($jac))
 end
-extractvaldual(dual::ForwardDiff.Dual{TG, T, N}) where {TG, T, N} = ForwardDiff.value(dual), SVector{N, T}(dual.partials.values...)'
+extractvaldual(dual::ForwardDiff.Dual{TG, T, N}) where {TG, T, N} = ForwardDiff.value(dual), SVector{N, T}(dual.partials.values...)
 
 # Automatic Jacobian computation
 @inline computeresjac(varflags, residual, vars...) = usestatic(varflags, vars) ? computeresjacstatic(varflags, residual, vars) : computeresjacdynamic(varflags, residual, vars)
@@ -108,7 +108,7 @@ function computeresjacdynamic(varflags, residual::AbstractResidual, vars)
         result = DiffResults.GradientResult(x)
         result = ForwardDiff.gradient!(result, fixallbutlast(computeresjachelper, varflags, residual, vars), x)
         # Return the residual and jacobian
-        return DiffResults.value(result), DiffResults.gradient(result)'
+        return DiffResults.value(result), DiffResults.gradient(result)
     end
 
     # Vector residual
@@ -117,7 +117,7 @@ function computeresjacdynamic(varflags, residual::AbstractResidual, vars)
     result = DiffResults.DiffResult(view(resultstorage, 1:dynamic(M)), (reshape(view(resultstorage, M+1:resultlength), dynamic(M), totalnumvars),))
     result = ForwardDiff.jacobian!(result, fixallbutlast(computeresjachelper, varflags, residual, vars), view(resultstorage, 1:totalnumvars))
     # Return the residual and jacobian
-    return DiffResults.value(result), DiffResults.jacobian(result)
+    return DiffResults.value(result), DiffResults.jacobian(result)'
 end
 
 computeresjachelper(varflags, residual, vars, x) = computeresidual(residual, updatevars(vars, varflags, x)...) 
