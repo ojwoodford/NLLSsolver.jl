@@ -30,6 +30,7 @@ function computerescostgradhess(varflags, residual, kernel, vars)
     # Compute the unrobust cost, gradient and Hessian
     cost = sqnorm(res)
     g = jac' * res
+    H = jac' * jac
 
     if varflags & 1 == 0
         # The kernel is not optimized. Differentiate w.r.t. the cost only
@@ -37,16 +38,15 @@ function computerescostgradhess(varflags, residual, kernel, vars)
     else
         # Differentiate w.r.t. the cost and kernel parameters
         cost, dc_, d2c_ = robustifydkernel(kernel, cost)
-        dc = dc_[end]
-        d2c = d2c_[end,end]
+        @inbounds dc = dc_[end]
+        @inbounds d2c = d2c_[end,end]
     
         # Compute the d^2/dkernel.dvariables block
         kernelvarind = SR(1, nvars(kernel))
-        @fastmath dkdv = g * view(d2c_, kernelvarind, nvars(kernel)+1)'
+        @inbounds dkdv = g * view(d2c_, kernelvarind, nvars(kernel)+1)'
     end
 
     # IRLS reweighting of Hessian
-    H = jac' * jac
     if dc != 1
         H *= dc
     end
@@ -61,8 +61,8 @@ function computerescostgradhess(varflags, residual, kernel, vars)
 
     if varflags & 1 == 1
         # Add on the kernel derivative blocks
-        g = vcat(view(dc_, kernelvarind), g)
-        H = hcat(vcat(view(d2c_, kernelvarind, kernelvarind), dkdv), vcat(dkdv', H))
+        @inbounds g = vcat(view(dc_, kernelvarind), g)
+        @inbounds H = hcat(vcat(view(d2c_, kernelvarind, kernelvarind), dkdv), vcat(dkdv', H))
     end
     
     # Return the cost and derivatives
