@@ -104,27 +104,3 @@ function fast_bAb(A::SparseMatrixCSC, b::Vector)
     end
     return total
 end
-
-function A_mul_B(A::StaticArray, B)
-    C = MMatrix{Size(A)[1], Size(B)[2], eltype(A), Size(A)[1]*Size(B)[2]}(undef)
-    @turbo for n in indices((C, B), 2), m in indices((C, A), 1)
-        Cmn = zero(eltype(C))
-        for k in indices((A, B), (2, 1))
-            Cmn += A[m,k] * B[k,n]
-        end
-        C[m,n] = Cmn
-    end
-    return SMatrix(C)
-end
-
-function A_mul_B(A, B)
-    C = Matrix{eltype(A)}(undef, (size(A, 1), size(B, 2)))
-    @turbo for n in indices((C,B), 2), m in indices((C,A), 1)
-        Cmn = zero(eltype(C))
-        for k in indices((A,B), (2,1))
-            Cmn += A[m,k] * B[k,n]
-        end
-        C[m,n] = Cmn
-    end
-    return C
-end
