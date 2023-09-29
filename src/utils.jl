@@ -104,3 +104,4 @@ function fast_bAb(A::SparseMatrixCSC, b::Vector)
     end
     return total
 end
+

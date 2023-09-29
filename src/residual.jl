@@ -21,7 +21,7 @@ function computerescostgradhess(varflags, residual, kernel, vars)
         res = computeresidual(residual, vars...)
         cost, dc, d2c = robustifydkernel(kernel, sqnorm(res))
         kernelvarind = SR(1, nvars(kernel))
-        return 0.5 * Float64(cost), dc[kernelvarind], d2c[kernelvarind, kernelvarind]
+        return @inbounds (0.5 * Float64(cost), dc[kernelvarind], d2c[kernelvarind, kernelvarind])
     end
 
     # Compute the residual and Jacobian
