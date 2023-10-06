@@ -116,7 +116,7 @@ function constructcrop(from::MultiVariateLSsparse, fromblock, forcesparse=false)
     toblocksizes = view(from.A.rowblocksizes, 1:fromblock-1)
 
     # Decide whether to have a sparse or a dense system
-    @inbounds if forcesparse || sum(toblocksizes) > 1000
+    @inbounds if forcesparse || sum(toblocksizes) > 300
         # Compute the crop sparsity
         cacheindices(from.A)
         toblock = fromblock - 1

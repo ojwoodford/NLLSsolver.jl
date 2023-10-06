@@ -118,7 +118,7 @@ function makesymmvls(problem, unfixed, nblocks)
     end
 
     # Decide whether to have a sparse or a dense system
-    if sum(blocksizes) > 1000
+    if sum(blocksizes) > 300
         # Compute the block sparsity
         sparsity = getvarcostmap(problem)
         sparsity = sparsity[unfixed,:]
