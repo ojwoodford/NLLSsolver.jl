@@ -1,11 +1,11 @@
 
 struct VectorRepo{T}
     data::Dict{DataType, Vector}
-    function VectorRepo{T}() where T
-        return new{T}(Dict{DataType, Vector}())
+    function VectorRepo{T}(args...) where T
+        return new{T}(Dict{DataType, Vector}(args...))
     end
 end
-VectorRepo() = VectorRepo{Any}()
+VectorRepo(args...) = VectorRepo{Any}(args...)
 
 function Base.get(vr::VectorRepo{T}, ::Type{type})::Vector{type} where {T, type}
     @assert type<:T "Invalid type"
