@@ -28,12 +28,15 @@ function create_ba_problem(ncameras, nlandmarks, propvisible)
     end
 
     # Generate the measurements
-    visibility = sprand(nlandmarks, ncameras, propvisible)
+    visibility = abs.(repeat(vec(1:ncameras), outer=(1, nlandmarks)) .- LinRange(2, ncameras-1, nlandmarks)')
+    visibility = visibility .<= sort(vec(visibility))[Int(ceil(length(visibility)*propvisible))]
     for camind = 1:ncameras
         camera = problem.variables[camind]::EffPose3D{Float64}
-        for landmark = view(visibility.rowval, visibility.colptr[camind]:visibility.colptr[camind+1]-1)
-            landmarkind = landmark + ncameras
-            addcost!(problem, ProjError(project(camera * problem.variables[landmarkind]::Point3D{Float64}), camind, landmarkind))
+        for (landmark, tf) in enumerate(view(visibility, camind, :)')
+            if tf
+                landmarkind = landmark + ncameras
+                addcost!(problem, ProjError(project(camera * problem.variables[landmarkind]::Point3D{Float64}), camind, landmarkind))
+            end
         end
     end
 
@@ -54,8 +57,8 @@ end
 
 @testset "optimizeba.jl" begin
     # Generate some test data for a dense problem
-    Random.seed!(20)
-    problem = create_ba_problem(10, 100, 0.3)
+    Random.seed!(1)
+    problem = create_ba_problem(10, 50, 0.3)
 
     # Test reordering the costs
     problem = perturb_ba_problem(problem, 0.003, 0.0)
@@ -73,8 +76,8 @@ end
     @test result.bestcost < 1.e-15
 
     # Generate & optimize a sparse problem
-    problem = create_ba_problem(10, 400, 0.3)
-    problem = perturb_ba_problem(problem, 1.e-7, 1.e-7)
+    problem = create_ba_problem(10, 100, 0.3)
+    problem = perturb_ba_problem(problem, 0.001, 0.001)
     result = optimize!(problem)
-    @test result.bestcost < result.startcost * 1e-10
+    @test result.bestcost < 1.e-15
 end
