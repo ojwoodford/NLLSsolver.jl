@@ -118,14 +118,15 @@ function makesymmvls(problem, unfixed, nblocks)
     end
 
     # Decide whether to have a sparse or a dense system
-    if sum(blocksizes) > 300
+    len = sum(blocksizes)
+    if len >= 40
         # Compute the block sparsity
         sparsity = getvarcostmap(problem)
         sparsity = sparsity[unfixed,:]
         sparsity = triu(sparse(sparsity * sparsity' .> 0))
 
         # Check sparsity level
-        if nnz(sparsity) * 4 < length(sparsity)
+        if sparse_dense_decision(len, block_sparse_nnz(sparsity, blocksizes))
             # Construct the BSM
             bsm = BlockSparseMatrix{Float64}(sparsity, blocksizes, blocksizes)
 

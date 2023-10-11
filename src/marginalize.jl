@@ -116,7 +116,8 @@ function constructcrop(from::MultiVariateLSsparse, fromblock, forcesparse=false)
     toblocksizes = view(from.A.rowblocksizes, 1:fromblock-1)
 
     # Decide whether to have a sparse or a dense system
-    @inbounds if forcesparse || sum(toblocksizes) > 300
+    len = sum(toblocksizes)
+    @inbounds if forcesparse || len >= 40
         # Compute the crop sparsity
         cacheindices(from.A)
         toblock = fromblock - 1
@@ -124,7 +125,7 @@ function constructcrop(from::MultiVariateLSsparse, fromblock, forcesparse=false)
         cropsparsity = triu(cropsparsity' * cropsparsity)
 
         # Check sparsity level
-        if forcesparse || nnz(cropsparsity) * 4 < length(cropsparsity)
+        if forcesparse || sparse_dense_decision(len, block_sparse_nnz(cropsparsity, toblocksizes))
             # Add any missing blocks to the cropped region
             start = from.A.indicestransposed.nzval[from.A.indicestransposed.colptr[fromblock]]
             blocksizes = convert.(Int, @inbounds view(from.A.rowblocksizes, 1:toblock))
