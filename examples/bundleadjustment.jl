@@ -46,13 +46,16 @@ Base.eltype(::BALResidual{T}) where T = T
 function NLLSsolver.computeresjac(::StaticInt{3}, residual::BALResidual, im, point)
     # Exploit the parameterization to make the jacobian computation more efficient
     res, jac = NLLSsolver.computeresjac(static(1), residual, im, point)
-    return res, hcat(jac, -view(jac, :, NLLSsolver.SR(4, 6)))
+    return res, hcat(jac, @inbounds(-view(jac, :, NLLSsolver.SR(4, 6))))
 end
 
+# Define the type of the problem
+BALProblem = NLLSsolver.NLLSProblem{Union{BALImage{Float64}, NLLSsolver.Point3D{Float64}}, BALResidual{Float64}}
+
 # Function to create a NLLSsolver problem from a BAL dataset
-function makeBALproblem(data)
+function makeBALproblem(data)::BALProblem
     # Create the problem
-    problem = NLLSsolver.NLLSProblem(Union{BALImage{Float64}, NLLSsolver.Point3D{Float64}}, BALResidual{Float64})
+    problem = BALProblem()
 
     # Add the camera variable blocks
     for cam in data.cameras
@@ -73,7 +76,7 @@ function makeBALproblem(data)
     return problem
 end
 
-function loadBALproblem(name)
+function loadBALproblem(name)::BALProblem
     # Create the problem
     t = @elapsed begin
         data = loadbaldataset(name)
@@ -120,7 +123,7 @@ function optimizeBALproblem(problem::NLLSsolver.NLLSProblem)
     # Compute the starting AUC
     println("   Start AUC: ", computeauc(problem, 2.0))
     # Optimize the cost
-    result = NLLSsolver.optimize!(problem, NLLSsolver.NLLSOptions(iterator=NLLSsolver.levenbergmarquardt, reldcost=1.0e-6, callback=NLLSsolver.printoutcallback))
+    result = NLLSsolver.optimize!(problem, NLLSsolver.NLLSOptions(iterator=NLLSsolver.levenbergmarquardt, reldcost=1.0e-6), nothing, NLLSsolver.printoutcallback)
     # Compute the final AUC
     println("   Final AUC: ", computeauc(problem, 2.0))
     # Print out the solver summary

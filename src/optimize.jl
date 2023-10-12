@@ -129,7 +129,7 @@ function optimizeinternal!(problem::NLLSProblem, options::NLLSOptions, data, ite
         end
         data.gradientcomputations += 1
     end
-    if data.bestcost < cost
+    if !(data.bestcost >= cost)
         # Update the problem variables to the best ones found
         updatefrombest!(problem, data)
     end

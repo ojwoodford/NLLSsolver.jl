@@ -118,14 +118,15 @@ function makesymmvls(problem, unfixed, nblocks)
     end
 
     # Decide whether to have a sparse or a dense system
-    if sum(blocksizes) > 1000
+    len = sum(blocksizes)
+    if len >= 40
         # Compute the block sparsity
         sparsity = getvarcostmap(problem)
         sparsity = sparsity[unfixed,:]
         sparsity = triu(sparse(sparsity * sparsity' .> 0))
 
         # Check sparsity level
-        if nnz(sparsity) * 4 < length(sparsity)
+        if sparse_dense_decision(len, block_sparse_nnz(sparsity, blocksizes))
             # Construct the BSM
             bsm = BlockSparseMatrix{Float64}(sparsity, blocksizes, blocksizes)
 
@@ -140,8 +141,8 @@ end
 
 function updatesymlinearsystem!(linsystem::UniVariateLS, g, H, unusedargs...)
     # Update the blocks in the problem
-    @fastmath linsystem.b .+= g
-    @fastmath linsystem.A .+= H
+    linsystem.b .+= g
+    linsystem.A .+= H
 end
 
 function updatesymA!(A, a, vars, varflags, blockindices)
@@ -152,7 +153,7 @@ function updatesymA!(A, a, vars, varflags, blockindices)
             nvi = nvars(vars[i])
             rangei = SR(1, nvi) .+ loffseti
             loffseti += nvi
-            @fastmath @inbounds block(A, blockindices[i], blockindices[i], nvi, nvi) .+= view(a, rangei, rangei)
+            @inbounds block(A, blockindices[i], blockindices[i], nvi, nvi) .+= view(a, rangei, rangei)
 
             loffsetj = static(0)
             @unroll for j in 1:i-1
@@ -161,9 +162,9 @@ function updatesymA!(A, a, vars, varflags, blockindices)
                     rangej = SR(1, nvj) .+ loffsetj
                     loffsetj += nvj
                     if @inbounds blockindices[i] >= blockindices[j] # Make sure the block matrix is lower triangular
-                        @fastmath @inbounds block(A, blockindices[i], blockindices[j], nvi, nvj) .+= view(a, rangei, rangej)
+                        @inbounds block(A, blockindices[i], blockindices[j], nvi, nvj) .+= view(a, rangei, rangej)
                     else
-                        @fastmath @inbounds block(A, blockindices[j], blockindices[i], nvj, nvi) .+= view(a, rangej, rangei)
+                        @inbounds block(A, blockindices[j], blockindices[i], nvj, nvi) .+= view(a, rangej, rangei)
                     end
                 end
             end
@@ -178,7 +179,7 @@ function updateb!(B, b, vars, varflags, boffsets, blockindices)
         if i <= length(vars) && bitiset(varflags, i)
             nv = nvars(vars[i])
             range = SR(0, nv-1)
-            @fastmath @inbounds view(B, range .+ boffsets[blockindices[i]]) .+= view(b, range .+ loffset)
+            @inbounds view(B, range .+ boffsets[blockindices[i]]) .+= view(b, range .+ loffset)
             loffset += nv
         end
     end

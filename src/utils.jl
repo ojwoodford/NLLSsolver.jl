@@ -104,3 +104,17 @@ function fast_bAb(A::SparseMatrixCSC, b::Vector)
     end
     return total
 end
+
+sparse_dense_decision(d, nnz) = (nnz * 32) < (25 * d * (d - 40)) # Threshold nnz = 25/32 * (d^2 - 40d)
+
+function block_sparse_nnz(sparsity, blocksizes)
+    # Compute the number of non-zeros in a block sparse matrix
+    nnz = 0
+    for col in 1:size(sparsity, 2)
+        @inbounds bc = blocksizes[col]
+        for r in nzrange(sparsity, col)
+            nnz += bc * @inbounds blocksizes[rowvals(sparsity)[r]]
+        end
+    end
+    return nnz
+end
