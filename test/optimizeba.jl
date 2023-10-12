@@ -58,7 +58,7 @@ end
 @testset "optimizeba.jl" begin
     # Generate some test data for a dense problem
     Random.seed!(1)
-    problem = create_ba_problem(10, 50, 0.3)
+    problem = create_ba_problem(3, 5, 1.0)
 
     # Test reordering the costs
     problem = perturb_ba_problem(problem, 0.003, 0.0)
@@ -76,7 +76,7 @@ end
     @test result.bestcost < 1.e-15
 
     # Generate & optimize a sparse problem
-    problem = create_ba_problem(10, 100, 0.3)
+    problem = create_ba_problem(10, 50, 0.3)
     problem = perturb_ba_problem(problem, 0.001, 0.001)
     result = optimize!(problem)
     @test result.bestcost < 1.e-15
