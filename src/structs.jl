@@ -52,7 +52,7 @@ struct NLLSResult
     timecost::Float64                       # Time (in seconds) spent computing the cost
     timegradient::Float64                   # Time (in seconds) spent computing the residual gradients and constructing the linear problems
     timesolver::Float64                     # Time (in seconds) spent solving the linear problems
-    termination::Int                        # Set of flags indicating which termination criteria were met
+    termination::Int                        # Set of flags indicating which termination criteria were met - the value should not be relied upon
     niterations::Int                        # Number of outer optimization iterations performed
     costcomputations::Int                   # Number of cost computations performed
     gradientcomputations::Int               # Number of residual gradient computations performed
