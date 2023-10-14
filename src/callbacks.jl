@@ -24,21 +24,23 @@ function printoutcallback(cost, data, trradius::Float64)
 end
 
 # Store per-iteration costs
-function storecostscallback(costs::Vector{Float64}, cost, unusedargs...)
+function storecostscallback(costs::Vector{Float64}, cost, problem, data, unusedargs...)
     push!(costs, cost)
     return (cost, 0)
 end
 
 struct CostTrajectory
     costs::Vector{Float64}
+    times_ns::Vector{UInt64}
     trajectory::Vector{Vector{Float64}}
     
     function CostTrajectory()
-        return new(sizehint!(Vector{Float64}(), 50), sizehint!(Vector{Vector{Float64}}(), 50))
+        return new(sizehint!(Vector{Float64}(), 50), sizehint!(Vector{UInt64}(), 50), sizehint!(Vector{Vector{Float64}}(), 50))
     end
 end
 function Base.empty!(ct::CostTrajectory)
     empty!(ct.costs)
+    empty!(ct.times_ns)
     empty!(ct.trajectory)
     return ct
 end
@@ -46,6 +48,7 @@ end
 # Store per-iteration costs and trajectory
 function storecostscallback(store::CostTrajectory, cost, problem, data, unusedargs...)
     push!(store.costs, cost)
+    push!(store.times_ns, Base.time_ns() - data.starttime)
     push!(store.trajectory, Vector{Float64}(data.linsystem.x))
     return (cost, 0)
 end
