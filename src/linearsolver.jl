@@ -30,3 +30,7 @@ solve!(ls::MultiVariateLSsparse, options) = ldiv!(ls.x, ldl_factorize!(ls.hessia
 solve!(ls::MultiVariateLSdense, options) = solve!(ls.x, ls.A.data, ls.b)
 solve!(x, A, b) = try_cholesky!(x, A, b)
 solve!(x, A::SparseMatrixCSC, b) = ldiv!(x, ldl(A), b)
+
+# Symmetric matrix inversion
+invsym(A::AbstractMatrix) = inv(bunchkaufman(A))
+invsym(A::StaticMatrix) = Size(A)[1] <= 14 ? inv(A) : inv(bunchkaufman(A))

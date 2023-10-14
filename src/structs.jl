@@ -25,12 +25,13 @@ struct NLLSOptions{T}
     dstep::Float64              # Minimum L-infinity norm of the update vector required to avoid termination
     maxfails::Int               # Maximum number of consecutive iterations that have a higher cost than the current best before termination
     maxiters::Int               # Maximum number of outer iterations
+    maxtime::UInt64             # Maximum optimization time allowed, in nano-seconds (converted from seconds in the constructor)
     iterator::NLLSIterator      # Inner iterator (see above for options)
     callback::T                 # Callback called every outer iteration - (cost, problem, data) -> (newcost, terminate::Bool) where terminate == true ends the optimization
     storecosts::Bool            # Indicates whether the cost per outer iteration should be stored
     storetrajectory::Bool       # Indicates whether the step per outer iteration should be stored
 end
-function NLLSOptions(; maxiters=100, reldcost=1.e-15, absdcost=1.e-15, dstep=1.e-15, maxfails=3, iterator=levenbergmarquardt, callback::T=nothing, storecosts=false, storetrajectory=false) where T
+function NLLSOptions(; maxiters=100, reldcost=1.e-15, absdcost=1.e-15, dstep=1.e-15, maxfails=3, maxtime=30.0, iterator=levenbergmarquardt, callback::T=nothing, storecosts=false, storetrajectory=false) where T
     if iterator == gaussnewton
         Base.depwarn("gaussnewton is deprecated. Use newton instead", :NLLSOptions)
     end
@@ -40,7 +41,7 @@ function NLLSOptions(; maxiters=100, reldcost=1.e-15, absdcost=1.e-15, dstep=1.e
     if !isnothing(callback)
         Base.depwarn("Setting callback in options is deprecated. Pass the callback directly to optimize!() instead", :NLLSOptions)
     end
-    NLLSOptions{T}(reldcost, absdcost, dstep, maxfails, maxiters, iterator, callback, storecosts, storetrajectory)
+    NLLSOptions{T}(reldcost, absdcost, dstep, maxfails, maxiters, UInt64(round(maxtime * 1e9)), iterator, callback, storecosts, storetrajectory)
 end
 
 struct NLLSResult
@@ -51,7 +52,7 @@ struct NLLSResult
     timecost::Float64                       # Time (in seconds) spent computing the cost
     timegradient::Float64                   # Time (in seconds) spent computing the residual gradients and constructing the linear problems
     timesolver::Float64                     # Time (in seconds) spent solving the linear problems
-    termination::Int                        # Set of flags indicating which termination criteria were met
+    termination::Int                        # Set of flags indicating which termination criteria were met - the value should not be relied upon
     niterations::Int                        # Number of outer optimization iterations performed
     costcomputations::Int                   # Number of cost computations performed
     gradientcomputations::Int               # Number of residual gradient computations performed
@@ -84,7 +85,8 @@ function Base.show(io::IO, x::NLLSResult)
     if 0 != x.termination & (1 << 6); println(io, "   Step size below threshold."); end
     if 0 != x.termination & (1 << 7); println(io, "   Too many consecutive iterations increasing the cost."); end
     if 0 != x.termination & (1 << 8); println(io, "   Maximum number of outer iterations reached."); end
-    userflags = x.termination >> 9
+    if 0 != x.termination & (1 << 9); println(io, "   Maximum allowed computation time exceeded."); end
+    userflags = x.termination >> 16
     if 0 != userflags; println(io, "   Terminated by user-defined callback, with flags: ", string(userflags, base=2)); end
 end
 

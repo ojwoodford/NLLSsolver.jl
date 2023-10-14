@@ -62,6 +62,7 @@ function optimizeinternal!(problem::NLLSProblem, options::NLLSOptions, data, ite
     if length(problem.variables) != length(problem.varnext)
         problem.varnext = copy(problem.variables)
     end
+    stoptime = starttime + options.maxtime
     data.timeinit += Base.time_ns() - starttime
     # Initialize the linear problem
     data.timegradient += @elapsed_ns data.bestcost = costgradhess!(data.linsystem, problem.variables, problem.costs)
@@ -117,7 +118,8 @@ function optimizeinternal!(problem::NLLSProblem, options::NLLSOptions, data, ite
         converged |= (maxstep < options.dstep)                       << 6 # Max of the step size is too small
         converged |= (fails > options.maxfails)                      << 7 # Max number of consecutive failed iterations reach
         converged |= (data.iternum >= options.maxiters)              << 8 # Max number of iterations reached
-        converged |= terminate                                       << 9 # Terminated by the user-defined callback
+        converged |= (Base.time_ns() > stoptime)                     << 9 # Max amount of time exceeded
+        converged |= terminate                                       << 16 # Terminated by the user-defined callback (room left for new flags above)
         data.converged = converged
         if converged != 0
             break

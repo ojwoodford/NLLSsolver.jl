@@ -10,7 +10,7 @@ function marginalize!(to::MultiVariateLS, from::MultiVariateLSsparse, blockind::
     N = length(blocks) - 1
     dataindices = view(from.A.indicestransposed.nzval, ind)
     # Compute inverse for the diagonal block (to be marginalized)
-    inverseblock = inv(reshape(view(from.A.data, (0:blocksz*blocksz-1) .+ dataindices[end]), blocksz, blocksz))
+    inverseblock = invsym(reshape(view(from.A.data, (0:blocksz*blocksz-1) .+ dataindices[end]), blocksz, blocksz))
     # For each non-marginalized block
     blockgrad = view(from.b, (0:blocksz-1) .+ from.boffsets[blockind])
     for a in 1:N
@@ -40,7 +40,7 @@ function marginalize!(to::MultiVariateLS, from::MultiVariateLSsparse, blockind::
     N = length(blocks) - 1
     dataindices = view(from.A.indicestransposed.nzval, ind)
     # Compute inverse for the diagonal block (to be marginalized)
-    inverseblock = inv(SizedMatrix{blocksz, blocksz}(view(from.A.data, SR(0, blocksz*blocksz-1).+dataindices[end])))
+    inverseblock = invsym(SizedMatrix{blocksz, blocksz}(view(from.A.data, SR(0, blocksz*blocksz-1).+dataindices[end])))
     # For each non-marginalized block
     blockgrad = SizedVector{blocksz}(view(from.b, SR(0, blocksz-1) .+ from.boffsets[blockind]))
     for a in 1:N

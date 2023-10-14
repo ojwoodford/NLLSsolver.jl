@@ -47,9 +47,9 @@ Base.eltype(::RosenbrockB) = Float64
     @test NLLSsolver.countcosts(NLLSsolver.resnum, subprob.costs) == 1
     @test NLLSsolver.cost(subprob) == 0.
 
-    # Check callback termination
-    result = NLLSsolver.optimize!(problem, NLLSsolver.NLLSOptions(), nothing, (cost, unusedargs...)->(cost, 13))
-    @test result.termination == (13 << 9)
+    # Check callback and max time termination
+    result = NLLSsolver.optimize!(problem, NLLSsolver.NLLSOptions(maxtime=0.0), nothing, (cost, unusedargs...)->(cost, 13))
+    @test result.termination == (1 << 9) | (13 << 16)
     @test result.niterations == 1
 
     # Optimize using Newton
