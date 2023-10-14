@@ -95,6 +95,7 @@ mutable struct NLLSInternal{LSType}
     startcost::Float64
     bestcost::Float64
     # Times (nano-seconds)
+    starttime::UInt64
     timetotal::UInt64
     timeinit::UInt64
     timecost::UInt64
@@ -112,11 +113,11 @@ mutable struct NLLSInternal{LSType}
     costs::Vector{Float64}                 
     trajectory::Vector{Vector{Float64}}    
 
-    function NLLSInternal(linsystem::LSType) where LSType
-        return new{LSType}(0., 0., 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, linsystem, Vector{Float64}(), Vector{Vector{Float64}}())
+    function NLLSInternal(linsystem::LSType, starttimens) where LSType
+        return new{LSType}(0., 0., starttimens, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, linsystem, Vector{Float64}(), Vector{Vector{Float64}}())
     end
 end
-NLLSInternal(unfixed::UInt, varlen) = NLLSInternal(ifelse(is_static(varlen), UniVariateLSstatic{dynamic(varlen), dynamic(varlen*varlen)}(unfixed), UniVariateLSdynamic(unfixed, dynamic(varlen))))
+NLLSInternal(unfixed::UInt, varlen, starttimens) = NLLSInternal(ifelse(is_static(varlen), UniVariateLSstatic{dynamic(varlen), dynamic(varlen*varlen)}(unfixed), UniVariateLSdynamic(unfixed, dynamic(varlen))), starttimens)
 
 getresult(data::NLLSInternal) = NLLSResult(data.startcost, data.bestcost, data.timetotal*1.e-9, data.timeinit*1.e-9, data.timecost*1.e-9, data.timegradient*1.e-9, data.timesolver*1.e-9, data.converged, data.iternum, data.costcomputations, data.gradientcomputations, data.linearsolvers, data.costs, data.trajectory)
 
