@@ -69,13 +69,22 @@ struct MultiVariateLSsparse
     sparseindices::Vector{Int}
     ldlfac::LDLFactorizations.LDLFactorization{Float64, Int, Int, Int}
 
-    function MultiVariateLSsparse(A::BlockSparseMatrix, blockindices)
+    function MultiVariateLSsparse(A::BlockSparseMatrix, blockindices, storehessian=true)
         @assert A.rowblocksizes==A.columnblocksizes
         boffsets = computestartindices(A.rowblocksizes)
         blen = boffsets[end] + A.rowblocksizes[end] - 1
-        sparseindices = makesparseindices(A, true)
-        hessian = SparseMatrixCSC{Float64, Int}(sparseindices.m, sparseindices.n, sparseindices.colptr, sparseindices.rowval, Vector{Float64}(undef, length(sparseindices.nzval)))
-        return new(A, zeros(Float64, blen), Vector{Float64}(undef, blen), blockindices, boffsets, hessian, sparseindices.nzval, ldl_analyze(hessian))
+        if storehessian
+            x = Vector{Float64}(undef, blen)
+            sparseindices = makesparseindices(A, true)
+            hessian = SparseMatrixCSC{Float64, Int}(sparseindices.m, sparseindices.n, sparseindices.colptr, sparseindices.rowval, Vector{Float64}(undef, length(sparseindices.nzval)))
+            sparseindices = sparseindices.nzval
+        else
+            x = Vector{Float64}()
+            sparseindices = Vector{Int}()
+            hessian = spzeros(0, 0)
+        end
+        ldlfac = ldl_analyze(hessian)
+        return new(A, zeros(Float64, blen), x, blockindices, boffsets, hessian, sparseindices, ldlfac)
     end
 end
 
@@ -104,7 +113,7 @@ end
 
 MultiVariateLS = Union{MultiVariateLSsparse, MultiVariateLSdense}
 
-function makesymmvls(problem, unfixed, nblocks, forcesparse=false)
+function makesymmvls(problem, unfixed, nblocks, formarginalization=false)
     # Multiple variables. Use a block sparse matrix
     blockindices = zeros(UInt, length(problem.variables))
     blocksizes = zeros(UInt, nblocks)
@@ -118,7 +127,7 @@ function makesymmvls(problem, unfixed, nblocks, forcesparse=false)
     end
 
     # Decide whether to have a sparse or a dense system
-    len = forcesparse ? 40 : sum(blocksizes)
+    len = formarginalization ? 40 : sum(blocksizes)
     if len >= 40
         # Compute the block sparsity
         sparsity = getvarcostmap(problem)
@@ -126,12 +135,12 @@ function makesymmvls(problem, unfixed, nblocks, forcesparse=false)
         sparsity = triu(sparse(sparsity * sparsity' .> 0))
 
         # Check sparsity level
-        if forcesparse || sparse_dense_decision(len, block_sparse_nnz(sparsity, blocksizes))
+        if formarginalization || sparse_dense_decision(len, block_sparse_nnz(sparsity, blocksizes))
             # Construct the BSM
             bsm = BlockSparseMatrix{Float64}(sparsity, blocksizes, blocksizes)
 
             # Construct the sparse MultiVariateLS
-            return MultiVariateLSsparse(bsm, blockindices)
+            return MultiVariateLSsparse(bsm, blockindices, !formarginalization)
         end
     end
 
