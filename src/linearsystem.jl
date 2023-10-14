@@ -104,7 +104,7 @@ end
 
 MultiVariateLS = Union{MultiVariateLSsparse, MultiVariateLSdense}
 
-function makesymmvls(problem, unfixed, nblocks)
+function makesymmvls(problem, unfixed, nblocks, forcesparse=false)
     # Multiple variables. Use a block sparse matrix
     blockindices = zeros(UInt, length(problem.variables))
     blocksizes = zeros(UInt, nblocks)
@@ -118,7 +118,7 @@ function makesymmvls(problem, unfixed, nblocks)
     end
 
     # Decide whether to have a sparse or a dense system
-    len = sum(blocksizes)
+    len = forcesparse ? 40 : sum(blocksizes)
     if len >= 40
         # Compute the block sparsity
         sparsity = getvarcostmap(problem)
@@ -126,7 +126,7 @@ function makesymmvls(problem, unfixed, nblocks)
         sparsity = triu(sparse(sparsity * sparsity' .> 0))
 
         # Check sparsity level
-        if sparse_dense_decision(len, block_sparse_nnz(sparsity, blocksizes))
+        if forcesparse || sparse_dense_decision(len, block_sparse_nnz(sparsity, blocksizes))
             # Construct the BSM
             bsm = BlockSparseMatrix{Float64}(sparsity, blocksizes, blocksizes)
 
