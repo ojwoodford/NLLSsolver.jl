@@ -2,7 +2,7 @@ using SparseArrays, Dates, Static
 import IfElse.ifelse
 import Printf.@printf
 
-@enum NLLSIterator gaussnewton newton levenbergmarquardt dogleg gradientdescent
+@enum NLLSIterator gaussnewton newton levenbergmarquardt dogleg gradientdescent varpro
 function Base.String(iterator::NLLSIterator) 
     if iterator == newton || iterator == gaussnewton
         return "Newton"
@@ -16,6 +16,9 @@ function Base.String(iterator::NLLSIterator)
     if iterator == gradientdescent
         return "Gradient descent"
     end
+    if iterator == varpro
+        return "Variable Projection"
+    end
     return "Unknown iterator"
 end
 
@@ -28,10 +31,11 @@ struct NLLSOptions{T}
     maxtime::UInt64             # Maximum optimization time allowed, in nano-seconds (converted from seconds in the constructor)
     iterator::NLLSIterator      # Inner iterator (see above for options)
     callback::T                 # Callback called every outer iteration - (cost, problem, data) -> (newcost, terminate::Bool) where terminate == true ends the optimization
+    iteratordata                # Iterator-specific data, to be passed to the iterator
     storecosts::Bool            # Indicates whether the cost per outer iteration should be stored
     storetrajectory::Bool       # Indicates whether the step per outer iteration should be stored
 end
-function NLLSOptions(; maxiters=100, reldcost=1.e-15, absdcost=1.e-15, dstep=1.e-15, maxfails=3, maxtime=30.0, iterator=levenbergmarquardt, callback::T=nothing, storecosts=false, storetrajectory=false) where T
+function NLLSOptions(; maxiters=100, reldcost=1.e-15, absdcost=1.e-15, dstep=1.e-15, maxfails=3, maxtime=30.0, iterator=levenbergmarquardt, callback::T=nothing, iteratordata=nothing, storecosts=false, storetrajectory=false) where T
     if iterator == gaussnewton
         Base.depwarn("gaussnewton is deprecated. Use newton instead", :NLLSOptions)
     end
@@ -41,7 +45,7 @@ function NLLSOptions(; maxiters=100, reldcost=1.e-15, absdcost=1.e-15, dstep=1.e
     if !isnothing(callback)
         Base.depwarn("Setting callback in options is deprecated. Pass the callback directly to optimize!() instead", :NLLSOptions)
     end
-    NLLSOptions{T}(reldcost, absdcost, dstep, maxfails, maxiters, UInt64(round(maxtime * 1e9)), iterator, callback, storecosts, storetrajectory)
+    NLLSOptions{T}(reldcost, absdcost, dstep, maxfails, maxiters, UInt64(round(maxtime * 1e9)), iterator, callback, iteratordata, storecosts, storetrajectory)
 end
 
 struct NLLSResult
