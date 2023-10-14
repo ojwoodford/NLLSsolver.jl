@@ -64,7 +64,13 @@ Base.eltype(::RosenbrockB) = Float64
     result = NLLSsolver.optimize!(problem, NLLSsolver.NLLSOptions(iterator=NLLSsolver.levenbergmarquardt), nothing, NLLSsolver.storecostscallback(ct))
     @test isapprox(problem.variables[1], 1.0; rtol=1.e-10)
     @test isapprox(problem.variables[2], 1.0; rtol=1.e-10)
+    # Check callback results
+    len = length(ct.costs)
+    @test length(ct.times_ns) == len
+    @test length(ct.trajectory) == len
     @test all(diff(ct.costs) .<= 0.0) # Check costs decrease
+    @test all(diff(ct.times_ns) .>= 0.0) # Check costs increase
+    @test all(x -> length(x) == 2, ct.trajectory) # Check the trajectory lengths
 
     # Optimize using dogleg
     problem.variables[1] = -0.5
