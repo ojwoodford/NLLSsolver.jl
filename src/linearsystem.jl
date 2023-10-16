@@ -203,13 +203,14 @@ uniformscaling!(linsystem, k) = uniformscaling!(linsystem.A, k)
 
 getgrad(linsystem) = linsystem.b
 gethessgrad(linsystem::UniVariateLS) = (linsystem.A, linsystem.b)
-function gethessgrad(linsystem::MultiVariateLSsparse)
+function gethessian(linsystem::MultiVariateLSsparse)
     # Fill sparse hessian
     @inbounds for (i, si) in enumerate(linsystem.sparseindices)
         linsystem.hessian.nzval[i] = linsystem.A.data[si]
     end
-    return linsystem.hessian, linsystem.b
+    return linsystem.hessian
 end
+gethessgrad(linsystem::MultiVariateLSsparse) = gethessian(linsystem), linsystem.b
 gethessgrad(linsystem::MultiVariateLSdense) = symmetrifyfull(linsystem.A), linsystem.b
 
 function zero!(linsystem)
