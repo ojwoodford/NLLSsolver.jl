@@ -67,13 +67,17 @@ function selectcosts!(outcosts::CostStruct, incosts::Vector{T}, costindices, las
     return lastcost, index
 end
 
-function subproblem!(to::NLLSProblem{VT, CT}, from::NLLSProblem{VT, CT}, costindices::AbstractVector) where {VT, CT}
-    # Copy costs that have unfixed inputs
+function selectcosts!(outcosts::CostStruct, incosts::CostStruct, costindices)
     lastcost = 0
     index = 1
-    for costs in values(from.costs)
-        lastcost, index = selectcosts!(to.costs, costs, costindices, lastcost, index)
+    for costs in values(incosts)
+        lastcost, index = selectcosts!(outcosts, costs, costindices, lastcost, index)
     end
+end
+
+function subproblem!(to::NLLSProblem{VT, CT}, from::NLLSProblem{VT, CT}, costindices::AbstractVector) where {VT, CT}
+    # Copy costs that have unfixed inputs
+    selectcosts!(to.costs, from.costs, costindices)
     # Return the sub-problem
     return to
 end
