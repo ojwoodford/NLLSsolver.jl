@@ -9,7 +9,7 @@ function getresblocksizes!(resblocksizes, residuals::Vector, ind::Int)::Int
 end
 
 # Uni-variate linear system
-struct UniVariateLSdynamic
+mutable struct UniVariateLSdynamic
     A::Matrix{Float64}
     b::Vector{Float64}
     x::Vector{Float64}
@@ -33,7 +33,7 @@ struct UniVariateLSdynamic
     end
 end
 
-struct UniVariateLSstatic{N, N2}
+mutable struct UniVariateLSstatic{N, N2}
     A::MMatrix{N, N, Float64, N2}
     b::MVector{N, Float64}
     x::MVector{N, Float64}
