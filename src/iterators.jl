@@ -11,8 +11,8 @@ NewtonData(::NLLSProblem, ::NLLSInternal) = NewtonData()
 reset!(nd::NewtonData, ::NLLSProblem, ::NLLSInternal) = nd
 
 function iterate!(::NewtonData, data, problem::NLLSProblem, options::NLLSOptions)::Float64
-    hessian, gradient = gethessgrad(data.linsystem)
     # Compute the step
+    gethessian(data.linsystem)
     data.timesolver += @elapsed_ns negate!(solve!(data.linsystem, options))
     data.linearsolvers += 1
     # Update the new variables
@@ -119,14 +119,17 @@ mutable struct LevMarData
     lambda::Float64
 
     function LevMarData(::NLLSProblem, ::NLLSInternal)
-        return new(1.0)
+        return new(0.0)
     end
 end
-reset!(lmd::LevMarData, ::NLLSProblem, ::NLLSInternal) = lmd.lambda = 1.0
+reset!(lmd::LevMarData, ::NLLSProblem, ::NLLSInternal) = lmd.lambda = 0.0
 
 function iterate!(levmardata::LevMarData, data, problem::NLLSProblem, options::NLLSOptions)::Float64
     @assert levmardata.lambda >= 0.
     hessian, gradient = gethessgrad(data.linsystem)
+    if levmardata.lambda == 0
+        levmardata.lambda = tr(hessian) ./ (size(hessian, 1) * 1e6)
+    end
     lastlambda = 0.
     mu = 2.
     while true

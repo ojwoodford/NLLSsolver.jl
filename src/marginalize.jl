@@ -60,13 +60,13 @@ function marginalize!(to::MultiVariateLS, from::MultiVariateLSsparse, blockind::
     end
 end
 
-function marginalize!(to::MultiVariateLS, from::MultiVariateLS, blocks::AbstractRange, blocksz)
+function marginalize!(to::MultiVariateLS, from::MultiVariateLSsparse, blocks::AbstractRange, blocksz)
     for block in blocks
         marginalize!(to, from, block, blocksz)
     end
 end
 
-function marginalize!(to::MultiVariateLS, from::MultiVariateLS, fromblock = isa(to, MultiVariateLSsparse) ? length(to.A.rowblocksizes)+1 : length(to.A.rowblockoffsets))
+function marginalize!(to::MultiVariateLS, from::MultiVariateLSsparse, fromblock = isa(to, MultiVariateLSsparse) ? length(to.A.rowblocksizes)+1 : length(to.A.rowblockoffsets))
     last = fromblock
     finish = length(from.A.rowblocksizes)
     while last <= finish
@@ -145,12 +145,10 @@ function constructcrop(from::MultiVariateLSsparse, fromblock, forcesparse=false)
             A = BlockSparseMatrix{Float64}(start-1, cropsparsity, blocksizes, blocksizes)
 
             # Construct the sparse linear system
-            return MultiVariateLSsparse(A, from.blockindices)
+            return MultiVariateLSsparse(A, from.blockindices[1:findfirst(isequal(fromblock), from.blockindices)])
         end
     end
 
     # Construct a dense linear system
     return MultiVariateLSdense(toblocksizes, from.blockindices)
 end
-
-constructcrop(from::MultiVariateLSdense, fromblock) = MultiVariateLSdense(from, fromblock)

@@ -49,11 +49,13 @@ Base.eltype(::RosenbrockB) = Float64
 
     # Check callback and max time termination
     result = NLLSsolver.optimize!(problem, NLLSsolver.NLLSOptions(maxtime=0.0), nothing, (cost, unusedargs...)->(cost, 13))
+    @test NLLSsolver.cost(problem) == result.bestcost
     @test result.termination == (1 << 9) | (13 << 16)
     @test result.niterations == 1
 
     # Optimize using Newton
     result = NLLSsolver.optimize!(problem, NLLSsolver.NLLSOptions(iterator=NLLSsolver.newton))
+    @test NLLSsolver.cost(problem) == result.bestcost
     @test isapprox(problem.variables[1], 1.0; rtol=1.e-10)
     @test isapprox(problem.variables[2], 1.0; rtol=1.e-10)
 
@@ -62,15 +64,23 @@ Base.eltype(::RosenbrockB) = Float64
     problem.variables[2] = 2.5
     ct = NLLSsolver.CostTrajectory()
     result = NLLSsolver.optimize!(problem, NLLSsolver.NLLSOptions(iterator=NLLSsolver.levenbergmarquardt), nothing, NLLSsolver.storecostscallback(ct))
+    @test NLLSsolver.cost(problem) == result.bestcost
     @test isapprox(problem.variables[1], 1.0; rtol=1.e-10)
     @test isapprox(problem.variables[2], 1.0; rtol=1.e-10)
+    # Check callback results
+    len = length(ct.costs)
+    @test length(ct.times_ns) == len
+    @test length(ct.trajectory) == len
     @test all(diff(ct.costs) .<= 0.0) # Check costs decrease
+    @test all(diff(ct.times_ns) .>= 0.0) # Check costs increase
+    @test all(x -> length(x) == 2, ct.trajectory) # Check the trajectory lengths
 
     # Optimize using dogleg
     problem.variables[1] = -0.5
     problem.variables[2] = 2.5
     empty!(ct)
     result = NLLSsolver.optimize!(problem, NLLSsolver.NLLSOptions(iterator=NLLSsolver.dogleg), nothing, NLLSsolver.storecostscallback(ct.costs))
+    @test NLLSsolver.cost(problem) == result.bestcost
     @test isapprox(problem.variables[1], 1.0; rtol=1.e-10)
     @test isapprox(problem.variables[2], 1.0; rtol=1.e-10)
     @test all(diff(ct.costs) .<= 0.0) # Check costs decrease
@@ -81,6 +91,7 @@ Base.eltype(::RosenbrockB) = Float64
     display(problem)
     result = NLLSsolver.optimize!(problem, NLLSsolver.NLLSOptions(iterator=NLLSsolver.gradientdescent), nothing, NLLSsolver.printoutcallback)
     display(result)
+    @test NLLSsolver.cost(problem) == result.bestcost
     @test isapprox(problem.variables[1], 1.0; rtol=1.e-5)
     @test isapprox(problem.variables[2], 1.0; rtol=1.e-5)
 end

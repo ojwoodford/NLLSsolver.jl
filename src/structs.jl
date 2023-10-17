@@ -1,4 +1,4 @@
-using SparseArrays, Dates, Static
+using SparseArrays, Static
 import IfElse.ifelse
 import Printf.@printf
 
@@ -28,10 +28,11 @@ struct NLLSOptions{T}
     maxtime::UInt64             # Maximum optimization time allowed, in nano-seconds (converted from seconds in the constructor)
     iterator::NLLSIterator      # Inner iterator (see above for options)
     callback::T                 # Callback called every outer iteration - (cost, problem, data) -> (newcost, terminate::Bool) where terminate == true ends the optimization
+    iteratordata                # Iterator-specific data, to be passed to the iterator
     storecosts::Bool            # Indicates whether the cost per outer iteration should be stored
     storetrajectory::Bool       # Indicates whether the step per outer iteration should be stored
 end
-function NLLSOptions(; maxiters=100, reldcost=1.e-15, absdcost=1.e-15, dstep=1.e-15, maxfails=3, maxtime=30.0, iterator=levenbergmarquardt, callback::T=nothing, storecosts=false, storetrajectory=false) where T
+function NLLSOptions(; maxiters=100, reldcost=1.e-15, absdcost=1.e-15, dstep=1.e-15, maxfails=3, maxtime=30.0, iterator=levenbergmarquardt, callback::T=nothing, iteratordata=nothing, storecosts=false, storetrajectory=false) where T
     if iterator == gaussnewton
         Base.depwarn("gaussnewton is deprecated. Use newton instead", :NLLSOptions)
     end
@@ -41,7 +42,7 @@ function NLLSOptions(; maxiters=100, reldcost=1.e-15, absdcost=1.e-15, dstep=1.e
     if !isnothing(callback)
         Base.depwarn("Setting callback in options is deprecated. Pass the callback directly to optimize!() instead", :NLLSOptions)
     end
-    NLLSOptions{T}(reldcost, absdcost, dstep, maxfails, maxiters, UInt64(round(maxtime * 1e9)), iterator, callback, storecosts, storetrajectory)
+    NLLSOptions{T}(reldcost, absdcost, dstep, maxfails, maxiters, UInt64(round(maxtime * 1e9)), iterator, callback, iteratordata, storecosts, storetrajectory)
 end
 
 struct NLLSResult
@@ -95,6 +96,7 @@ mutable struct NLLSInternal{LSType}
     startcost::Float64
     bestcost::Float64
     # Times (nano-seconds)
+    starttime::UInt64
     timetotal::UInt64
     timeinit::UInt64
     timecost::UInt64
@@ -112,11 +114,11 @@ mutable struct NLLSInternal{LSType}
     costs::Vector{Float64}                 
     trajectory::Vector{Vector{Float64}}    
 
-    function NLLSInternal(linsystem::LSType) where LSType
-        return new{LSType}(0., 0., 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, linsystem, Vector{Float64}(), Vector{Vector{Float64}}())
+    function NLLSInternal(linsystem::LSType, starttimens) where LSType
+        return new{LSType}(0., 0., starttimens, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, linsystem, Vector{Float64}(), Vector{Vector{Float64}}())
     end
 end
-NLLSInternal(unfixed::UInt, varlen) = NLLSInternal(ifelse(is_static(varlen), UniVariateLSstatic{dynamic(varlen), dynamic(varlen*varlen)}(unfixed), UniVariateLSdynamic(unfixed, dynamic(varlen))))
+NLLSInternal(unfixed::UInt, varlen, starttimens) = NLLSInternal(ifelse(is_static(varlen), UniVariateLSstatic{dynamic(varlen), dynamic(varlen*varlen)}(unfixed), UniVariateLSdynamic(unfixed, dynamic(varlen))), starttimens)
 
 getresult(data::NLLSInternal) = NLLSResult(data.startcost, data.bestcost, data.timetotal*1.e-9, data.timeinit*1.e-9, data.timecost*1.e-9, data.timegradient*1.e-9, data.timesolver*1.e-9, data.converged, data.iternum, data.costcomputations, data.gradientcomputations, data.linearsolvers, data.costs, data.trajectory)
 

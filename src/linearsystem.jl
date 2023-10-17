@@ -9,7 +9,7 @@ function getresblocksizes!(resblocksizes, residuals::Vector, ind::Int)::Int
 end
 
 # Uni-variate linear system
-struct UniVariateLSdynamic
+mutable struct UniVariateLSdynamic
     A::Matrix{Float64}
     b::Vector{Float64}
     x::Vector{Float64}
@@ -18,22 +18,9 @@ struct UniVariateLSdynamic
     function UniVariateLSdynamic(unfixed, varlen)
         return new(zeros(Float64, varlen, varlen), zeros(Float64, varlen), Vector{Float64}(undef, varlen), UInt(unfixed))
     end
-
-    function UniVariateLSdynamic(prev::UniVariateLSdynamic, unfixed, varlen)
-        A = prev.A
-        if varlen == length(prev.b)
-            zero!(prev)
-        else
-            A = zeros(Float64, varlen, varlen)
-            resize!(prev.b, varlen)
-            fill!(prev.b, 0)
-            resize!(prev.x, varlen)
-        end
-        return new(A, prev.b, prev.x, UInt(unfixed))
-    end
 end
 
-struct UniVariateLSstatic{N, N2}
+mutable struct UniVariateLSstatic{N, N2}
     A::MMatrix{N, N, Float64, N2}
     b::MVector{N, Float64}
     x::MVector{N, Float64}
@@ -41,11 +28,6 @@ struct UniVariateLSstatic{N, N2}
 
     function UniVariateLSstatic{N, N2}(unfixed) where {N, N2}
         return new(zeros(MMatrix{N, N, Float64, N2}), zeros(MVector{N, Float64}), MVector{N, Float64}(undef), UInt(unfixed))
-    end
-
-    function UniVariateLSstatic{N, N2}(prev::UniVariateLSstatic{N, N2}, unfixed, ::Any) where {N, N2}
-        zero!(prev)
-        return new(prev.A, prev.b, prev.x, UInt(unfixed))
     end
 end
 
@@ -69,13 +51,22 @@ struct MultiVariateLSsparse
     sparseindices::Vector{Int}
     ldlfac::LDLFactorizations.LDLFactorization{Float64, Int, Int, Int}
 
-    function MultiVariateLSsparse(A::BlockSparseMatrix, blockindices)
+    function MultiVariateLSsparse(A::BlockSparseMatrix, blockindices, storehessian=true)
         @assert A.rowblocksizes==A.columnblocksizes
         boffsets = computestartindices(A.rowblocksizes)
         blen = boffsets[end] + A.rowblocksizes[end] - 1
-        sparseindices = makesparseindices(A, true)
-        hessian = SparseMatrixCSC{Float64, Int}(sparseindices.m, sparseindices.n, sparseindices.colptr, sparseindices.rowval, Vector{Float64}(undef, length(sparseindices.nzval)))
-        return new(A, zeros(Float64, blen), Vector{Float64}(undef, blen), blockindices, boffsets, hessian, sparseindices.nzval, ldl_analyze(hessian))
+        if storehessian
+            x = Vector{Float64}(undef, blen)
+            sparseindices = makesparseindices(A, true)
+            hessian = SparseMatrixCSC{Float64, Int}(sparseindices.m, sparseindices.n, sparseindices.colptr, sparseindices.rowval, Vector{Float64}(undef, length(sparseindices.nzval)))
+            sparseindices = sparseindices.nzval
+        else
+            x = Vector{Float64}()
+            sparseindices = Vector{Int}()
+            hessian = spzeros(0, 0)
+        end
+        ldlfac = ldl_analyze(hessian)
+        return new(A, zeros(Float64, blen), x, blockindices, boffsets, hessian, sparseindices, ldlfac)
     end
 end
 
@@ -93,18 +84,11 @@ struct MultiVariateLSdense
         blen -= 1
         return new(BlockDenseMatrix{Float64}(boffsets), zeros(Float64, blen), Vector{Float64}(undef, blen), blockindices, boffsets)
     end
-
-    function MultiVariateLSdense(from::MultiVariateLSdense, fromblock::Integer)
-        # Crop an existing linear system
-        boffsets = view(from.A.rowblockoffsets, 1:fromblock)
-        blen = boffsets[end] - 1
-        return new(BlockDenseMatrix{Float64}(boffsets), zeros(Float64, blen), Vector{Float64}(undef, blen), blockindices, boffsets)
-    end
 end
 
 MultiVariateLS = Union{MultiVariateLSsparse, MultiVariateLSdense}
 
-function makesymmvls(problem, unfixed, nblocks)
+function makesymmvls(problem, unfixed, nblocks, formarginalization=false)
     # Multiple variables. Use a block sparse matrix
     blockindices = zeros(UInt, length(problem.variables))
     blocksizes = zeros(UInt, nblocks)
@@ -118,7 +102,7 @@ function makesymmvls(problem, unfixed, nblocks)
     end
 
     # Decide whether to have a sparse or a dense system
-    len = sum(blocksizes)
+    len = formarginalization ? 40 : sum(blocksizes)
     if len >= 40
         # Compute the block sparsity
         sparsity = getvarcostmap(problem)
@@ -126,12 +110,12 @@ function makesymmvls(problem, unfixed, nblocks)
         sparsity = triu(sparse(sparsity * sparsity' .> 0))
 
         # Check sparsity level
-        if sparse_dense_decision(len, block_sparse_nnz(sparsity, blocksizes))
+        if formarginalization || sparse_dense_decision(len, block_sparse_nnz(sparsity, blocksizes))
             # Construct the BSM
             bsm = BlockSparseMatrix{Float64}(sparsity, blocksizes, blocksizes)
 
             # Construct the sparse MultiVariateLS
-            return MultiVariateLSsparse(bsm, blockindices)
+            return MultiVariateLSsparse(bsm, blockindices, !formarginalization)
         end
     end
 
@@ -192,16 +176,18 @@ end
 
 uniformscaling!(linsystem, k) = uniformscaling!(linsystem.A, k)
 
+
 getgrad(linsystem) = linsystem.b
-gethessgrad(linsystem::UniVariateLS) = (linsystem.A, linsystem.b)
-function gethessgrad(linsystem::MultiVariateLSsparse)
+gethessian(linsystem::UniVariateLS) = linsystem.A
+function gethessian(linsystem::MultiVariateLSsparse)
     # Fill sparse hessian
     @inbounds for (i, si) in enumerate(linsystem.sparseindices)
         linsystem.hessian.nzval[i] = linsystem.A.data[si]
     end
-    return linsystem.hessian, linsystem.b
+    return linsystem.hessian
 end
-gethessgrad(linsystem::MultiVariateLSdense) = symmetrifyfull(linsystem.A), linsystem.b
+gethessian(linsystem::MultiVariateLSdense) = symmetrifyfull(linsystem.A)
+gethessgrad(linsystem) = gethessian(linsystem), linsystem.b
 
 function zero!(linsystem)
     fill!(linsystem.b, 0)
