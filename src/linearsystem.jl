@@ -61,9 +61,9 @@ struct MultiVariateLSsparse
             hessian = SparseMatrixCSC{Float64, Int}(sparseindices.m, sparseindices.n, sparseindices.colptr, sparseindices.rowval, Vector{Float64}(undef, length(sparseindices.nzval)))
             sparseindices = sparseindices.nzval
         else
-            x = Vector{Float64}()
+            x = Vector{Float64}(undef, 1)
             sparseindices = Vector{Int}()
-            hessian = spzeros(0, 0)
+            hessian = spzeros(1, 1)
         end
         ldlfac = ldl_analyze(hessian)
         return new(A, zeros(Float64, blen), x, blockindices, boffsets, hessian, sparseindices, ldlfac)

@@ -82,4 +82,10 @@ end
     result = optimize!(problem)
     @test NLLSsolver.cost(problem) == result.bestcost
     @test result.bestcost < 1.e-15
+
+    # Optimize using Variable Projection
+    problem = perturb_ba_problem(problem, 0.001, 0.001)
+    result = optimize!(problem, NLLSOptions(iterator=NLLSsolver.varpro, iteratordata=(11, NLLSOptions(reldcost=1e-6))), nothing, printoutcallback)
+    @test NLLSsolver.cost(problem) == result.bestcost
+    @test result.bestcost < 1.e-15
 end
