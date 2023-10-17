@@ -73,11 +73,13 @@ end
     # Optimize problem
     problem = perturb_ba_problem(problem, 0.001, 0.001)
     result = optimize!(problem)
+    @test NLLSsolver.cost(problem) == result.bestcost
     @test result.bestcost < 1.e-15
 
     # Generate & optimize a sparse problem
     problem = create_ba_problem(10, 50, 0.3)
     problem = perturb_ba_problem(problem, 0.001, 0.001)
     result = optimize!(problem)
+    @test NLLSsolver.cost(problem) == result.bestcost
     @test result.bestcost < 1.e-15
 end
