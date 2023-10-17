@@ -12,6 +12,7 @@ reset!(nd::NewtonData, ::NLLSProblem, ::NLLSInternal) = nd
 
 function iterate!(::NewtonData, data, problem::NLLSProblem, options::NLLSOptions)::Float64
     # Compute the step
+    gethessian(data.linsystem)
     data.timesolver += @elapsed_ns negate!(solve!(data.linsystem, options))
     data.linearsolvers += 1
     # Update the new variables

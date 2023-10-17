@@ -26,7 +26,7 @@ function try_cholesky!(x, A, b)
 end
 
 solve!(ls, options) = solve!(ls.x, ls.A, ls.b)
-solve!(ls::MultiVariateLSsparse, options) = ldiv!(ls.x, ldl_factorize!(gethessian(ls), ls.ldlfac), ls.b)
+solve!(ls::MultiVariateLSsparse, options) = ldiv!(ls.x, ldl_factorize!(ls.hessian, ls.ldlfac), ls.b)
 solve!(ls::MultiVariateLSdense, options) = solve!(ls.x, ls.A.data, ls.b)
 solve!(x, A, b) = try_cholesky!(x, A, b)
 solve!(x, A::SparseMatrixCSC, b) = ldiv!(x, ldl(A), b)
