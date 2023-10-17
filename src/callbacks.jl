@@ -24,7 +24,7 @@ function printoutcallback(cost, data, trradius::Float64)
 end
 
 # Store per-iteration costs
-function storecostscallback(costs::Vector{Float64}, cost, problem, data, unusedargs...)
+function storecostscallback(costs::Vector{Float64}, cost, unusedargs...)
     push!(costs, cost)
     return (cost, 0)
 end
