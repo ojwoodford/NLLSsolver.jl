@@ -2,7 +2,7 @@ using SparseArrays, Dates, Static
 import IfElse.ifelse
 import Printf.@printf
 
-@enum NLLSIterator gaussnewton newton levenbergmarquardt dogleg gradientdescent varpro
+@enum NLLSIterator gaussnewton newton levenbergmarquardt dogleg gradientdescent
 function Base.String(iterator::NLLSIterator) 
     if iterator == newton || iterator == gaussnewton
         return "Newton"
@@ -15,9 +15,6 @@ function Base.String(iterator::NLLSIterator)
     end
     if iterator == gradientdescent
         return "Gradient descent"
-    end
-    if iterator == varpro
-        return "Variable Projection"
     end
     return "Unknown iterator"
 end

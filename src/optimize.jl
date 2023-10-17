@@ -1,4 +1,3 @@
-
 # Uni-variate optimization (single unfixed variable)
 optimize!(problem::NLLSProblem, options::NLLSOptions, unfixed::Integer, callback=nullcallback, starttimens=Base.time_ns())::NLLSResult = getresult(setupiterator(optimizeinternal!, problem, options, NLLSInternal(UInt(unfixed), nvars(problem.variables[unfixed]), starttimens), checkcallback(options, callback)))
 
@@ -14,7 +13,7 @@ function optimize!(problem::NLLSProblem, options::NLLSOptions, unfixed::Abstract
         return optimize!(problem, options, unfixed, callback, starttimens)
     end
     # Multiple variables
-    return getresult(setupiterator(optimizeinternal!, problem, options, NLLSInternal(makesymmvls(problem, unfixed, nblocks, options.iterator==varpro), starttimens), checkcallback(options, callback)))
+    return getresult(setupiterator(optimizeinternal!, problem, options, NLLSInternal(makesymmvls(problem, unfixed, nblocks), starttimens), checkcallback(options, callback)))
 end
 
 # Conversions for different types of "unfixed"
@@ -73,11 +72,6 @@ function setupiterator(func, problem::NLLSProblem, options::NLLSOptions, data::N
         # Gradient descent
         gddata = GradientDescentData(problem, data)
         return func(problem, options, data, gddata, trailingargs...)
-    end
-    if options.iterator == varpro
-        # Variable Projection method
-        vpdata = VarProData(problem, data.iteratordata)
-        return func(problem, options, data, vpdata, trailingargs...)
     end
     error("Iterator not recognized")
 end
