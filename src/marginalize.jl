@@ -145,7 +145,7 @@ function constructcrop(from::MultiVariateLSsparse, fromblock, forcesparse=false)
             A = BlockSparseMatrix{Float64}(start-1, cropsparsity, blocksizes, blocksizes)
 
             # Construct the sparse linear system
-            return MultiVariateLSsparse(A, from.blockindices[1:findfirst(isequal(fromblock))])
+            return MultiVariateLSsparse(A, from.blockindices[1:findfirst(isequal(fromblock), from.blockindices)])
         end
     end
 

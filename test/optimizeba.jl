@@ -67,8 +67,8 @@ end
     @test cost(problem) ≈ costbefore
 
     # Optimze just the landmarks
-    result = NLLSsolver.optimizesingles!(problem, NLLSOptions(), Point3D{Float64})
-    @test result.bestcost < 1.e-15
+    NLLSsolver.optimizesingles!(problem, NLLSOptions(), Point3D{Float64})
+    @test NLLSsolver.cost(problem) < 1.e-15
 
     # Optimize problem
     problem = perturb_ba_problem(problem, 0.001, 0.001)
