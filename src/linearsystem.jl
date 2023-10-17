@@ -18,19 +18,6 @@ mutable struct UniVariateLSdynamic
     function UniVariateLSdynamic(unfixed, varlen)
         return new(zeros(Float64, varlen, varlen), zeros(Float64, varlen), Vector{Float64}(undef, varlen), UInt(unfixed))
     end
-
-    function UniVariateLSdynamic(prev::UniVariateLSdynamic, unfixed, varlen)
-        A = prev.A
-        if varlen == length(prev.b)
-            zero!(prev)
-        else
-            A = zeros(Float64, varlen, varlen)
-            resize!(prev.b, varlen)
-            fill!(prev.b, 0)
-            resize!(prev.x, varlen)
-        end
-        return new(A, prev.b, prev.x, UInt(unfixed))
-    end
 end
 
 mutable struct UniVariateLSstatic{N, N2}
@@ -41,11 +28,6 @@ mutable struct UniVariateLSstatic{N, N2}
 
     function UniVariateLSstatic{N, N2}(unfixed) where {N, N2}
         return new(zeros(MMatrix{N, N, Float64, N2}), zeros(MVector{N, Float64}), MVector{N, Float64}(undef), UInt(unfixed))
-    end
-
-    function UniVariateLSstatic{N, N2}(prev::UniVariateLSstatic{N, N2}, unfixed, ::Any) where {N, N2}
-        zero!(prev)
-        return new(prev.A, prev.b, prev.x, UInt(unfixed))
     end
 end
 
@@ -100,13 +82,6 @@ struct MultiVariateLSdense
         blen = boffsets[end] + blocksizes[end]
         push!(boffsets, blen)
         blen -= 1
-        return new(BlockDenseMatrix{Float64}(boffsets), zeros(Float64, blen), Vector{Float64}(undef, blen), blockindices, boffsets)
-    end
-
-    function MultiVariateLSdense(from::MultiVariateLSdense, fromblock::Integer)
-        # Crop an existing linear system
-        boffsets = view(from.A.rowblockoffsets, 1:fromblock)
-        blen = boffsets[end] - 1
         return new(BlockDenseMatrix{Float64}(boffsets), zeros(Float64, blen), Vector{Float64}(undef, blen), blockindices, boffsets)
     end
 end
