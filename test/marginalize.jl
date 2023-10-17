@@ -60,7 +60,7 @@ using NLLSsolver, SparseArrays, StaticArrays, Test, Random
     @test hess_d ≈ hess_s
     @test to_d.b == to_s.b
 
-    # Check that the reduced systems gives the correct variable update
+    # Check that the reduced systems give the correct variable update
     @test hessian \ gradient ≈ gtupdate
     @test hess_d \ to_d.b ≈ gtupdate
     @test hess_s \ to_s.b ≈ gtupdate
@@ -79,7 +79,7 @@ using NLLSsolver, SparseArrays, StaticArrays, Test, Random
     @test hess_d ≈ hess_s
     @test to_d.b == to_s.b
 
-    # Check that the reduced systems gives the correct variable update
+    # Check that the reduced systems give the correct variable update
     @test hess_d \ to_d.b ≈ gtupdate
     @test hess_s \ to_s.b ≈ gtupdate
 end

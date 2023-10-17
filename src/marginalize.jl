@@ -86,6 +86,7 @@ function marginalize!(to::MultiVariateLS, from::MultiVariateLSsparse, fromblock 
             marginalize!(to, from, range, blocksz)
         end
     end
+    return to
 end
 
 function initcrop!(to::MultiVariateLSsparse, from::MultiVariateLSsparse, fromblock=length(to.A.rowblocksizes)+1)
@@ -95,6 +96,7 @@ function initcrop!(to::MultiVariateLSsparse, from::MultiVariateLSsparse, fromblo
     to.b .= view(from.b, 1:lastindex(to.b))
     endind = from.A.indicestransposed.nzval[from.A.indicestransposed.colptr[fromblock]] - 1
     view(to.A.data, 1:endind) .= view(from.A.data, 1:endind)
+    return to
 end
 
 function initcrop!(to::MultiVariateLSdense, from::MultiVariateLSsparse, fromblock=length(to.A.rowblockoffsets))
@@ -110,6 +112,7 @@ function initcrop!(to::MultiVariateLSdense, from::MultiVariateLSsparse, frombloc
             block(to.A, row, col, lenr, lenc) .= reshape(view(from.A.data, (0:lenr*lenc-1) .+ from.A.indicestransposed.nzval[colind]), lenr, lenc)
         end
     end 
+    return to
 end
 
 function constructcrop(from::MultiVariateLSsparse, fromblock, forcesparse=false)
