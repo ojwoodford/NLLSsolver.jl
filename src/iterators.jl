@@ -11,7 +11,6 @@ NewtonData(::NLLSProblem, ::NLLSInternal) = NewtonData()
 reset!(nd::NewtonData, ::NLLSProblem, ::NLLSInternal) = nd
 
 function iterate!(::NewtonData, data, problem::NLLSProblem, options::NLLSOptions)::Float64
-    hessian, gradient = gethessgrad(data.linsystem)
     # Compute the step
     data.timesolver += @elapsed_ns negate!(solve!(data.linsystem, options))
     data.linearsolvers += 1
@@ -119,14 +118,17 @@ mutable struct LevMarData
     lambda::Float64
 
     function LevMarData(::NLLSProblem, ::NLLSInternal)
-        return new(1.0)
+        return new(0.0)
     end
 end
-reset!(lmd::LevMarData, ::NLLSProblem, ::NLLSInternal) = lmd.lambda = 1.0
+reset!(lmd::LevMarData, ::NLLSProblem, ::NLLSInternal) = lmd.lambda = 0.0
 
 function iterate!(levmardata::LevMarData, data, problem::NLLSProblem, options::NLLSOptions)::Float64
     @assert levmardata.lambda >= 0.
     hessian, gradient = gethessgrad(data.linsystem)
+    if levmardata.lambda == 0
+        levmardata.lambda = tr(hessian) ./ (size(hessian, 1) * 1e6)
+    end
     lastlambda = 0.
     mu = 2.
     while true
@@ -194,7 +196,7 @@ end
 
 printoutcallback(cost, problem, data, iteratedata::GradientDescentData) = printoutcallback(cost, data, iteratedata.stepsize)
 
-mutable struct VarProData{T}
+mutable struct VarProData
     lambda::Float64
     firstschurvar::Int
     singlesoptions::NLLSOptions
@@ -202,9 +204,10 @@ mutable struct VarProData{T}
 
     function VarProData(problem, linsystem::MultiVariateLSsparse, firstschurvar::Int, singlesoptions::NLLSOptions)
         reordercostsforschur(problem, firstschurvar:length(variables))
-        return new(1.0, firstschurvar, singlesoptions, constructcrop(linsystem, firstschurvar))
+        return new(0.0, firstschurvar, singlesoptions, constructcrop(linsystem, firstschurvar))
     end
 end
+reset!(vpd::VarProData, ::NLLSProblem, ::NLLSInternal) = vpd.lambda = 0.0
 
 function iterate!(varprodata::VarProData, data, problem::NLLSProblem, options::NLLSOptions)::Float64
     @assert varprodata.lambda >= 0.
@@ -212,6 +215,9 @@ function iterate!(varprodata::VarProData, data, problem::NLLSProblem, options::N
     initcrop!(varprodata.marginalizedls, data.linsystem, varprodata.firstschurvar)
     marginalize!(varprodata.marginalizedls, data.linsystem, varprodata.firstschurvar)
     hessian, gradient = gethessgrad(varprodata.marginalizedls)
+    if varprodata.lambda == 0
+        varprodata.lambda = tr(hessian) ./ (size(hessian, 1) * 1e6)
+    end
     lastlambda = 0.
     mu = 2.
     while true
@@ -224,7 +230,9 @@ function iterate!(varprodata::VarProData, data, problem::NLLSProblem, options::N
         # Update the reduced variables
         update!(problem.varnext, problem.variables, varprodata.marginalizedls, varprodata.marginalizedls.x)
         # Optimize the other variables
+        problem.varnext, problem.variables = problem.variables, problem.varnext
         optimizesingles!()
+        problem.varnext, problem.variables = problem.variables, problem.varnext
         # Compute the cost
         data.timecost += @elapsed_ns cost_ = cost(problem.varnext, problem.costs)
         data.costcomputations += 1
