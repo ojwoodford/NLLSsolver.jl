@@ -153,7 +153,7 @@ function iterate!(levmardata::LevMarData, data, problem::NLLSProblem, options::N
         data.timecost += @elapsed_ns cost_ = cost(problem.varnext, problem.costs)
         data.costcomputations += 1
         # Check for exit
-        if !(cost_ > data.bestcost) || (maximum(abs, data.linsystem.x) < options.dstep)
+        if !(cost_ > data.bestcost) || maximum(abs, data.linsystem.x) < options.dstep
             # Success (or convergence) - update lambda
             uniformscaling!(hessian, -lastlambda)
             stepquality = (cost_ - data.bestcost) / (0.5 * fast_bAb(hessian, data.linsystem.x) + dot(gradient, data.linsystem.x))
@@ -166,8 +166,6 @@ function iterate!(levmardata::LevMarData, data, problem::NLLSProblem, options::N
         mu *= 2.
     end
 end
-
-printoutcallback(cost, problem, data, iteratedata::LevMarData) = printoutcallback(cost, data, 1.0/iteratedata.lambda)
 
 # Gradient descent optimization
 mutable struct GradientDescentData
@@ -242,7 +240,7 @@ function iterate!(varprodata::VarProData, data, problem::NLLSProblem, options::N
         uniformscaling!(hessian, varprodata.lambda - lastlambda)
         lastlambda = varprodata.lambda
         # Solve the linear system
-        data.timesolver += @elapsed_ns varprodata.marginalizedls.x .= negate!(solve!(varprodata.marginalizedls, options))
+        data.timesolver += @elapsed_ns negate!(solve!(varprodata.marginalizedls, options))
         data.linearsolvers += 1
         # Update the reduced variables
         update!(problem.varnext, problem.variables, varprodata.marginalizedls, varprodata.marginalizedls.x)
@@ -272,9 +270,9 @@ function iterate!(varprodata::VarProData, data, problem::NLLSProblem, options::N
         varprodata.lambda *= mu
         mu *= 2.
         # Reset the schur variables
-        @inbounds problem.variables[varprodata.firstschurvar:end] .= view(problem.varbest, varprodata.firstschurvar, lastindex(problem.variables))
+        @inbounds problem.variables[varprodata.firstschurvar:end] .= view(problem.varbest, varprodata.firstschurvar, lastindex(problem.varbest))
     end
 end
 
-printoutcallback(cost, problem, data, iteratedata::VarProData) = printoutcallback(cost, data, 1.0/iteratedata.lambda)
+printoutcallback(cost, problem, data, iteratedata::Union{LevMarData, VarProData}) = printoutcallback(cost, data, 1.0/iteratedata.lambda)
 
