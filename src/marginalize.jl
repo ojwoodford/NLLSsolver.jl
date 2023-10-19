@@ -9,15 +9,15 @@ function marginalize!(to::MultiVariateLS, from::MultiVariateLSsparse, blockind::
     @assert !isa(to, MultiVariateLSdense) || all(view(blocks, 1:lastindex(blocks)-1) .<= (length(to.A.rowblockoffsets) - 1))
     N = length(blocks) - 1
     dataindices = view(from.A.indicestransposed.nzval, ind)
-    # Compute inverse for the diagonal block (to be marginalized)
-    inverseblock = invsym(reshape(view(from.A.data, (0:blocksz*blocksz-1) .+ dataindices[end]), blocksz, blocksz))
+    # Get the diagonal block (to be marginalized)
+    diagblock = bunchkaufman(reshape(view(from.A.data, (0:blocksz*blocksz-1) .+ dataindices[end]), blocksz, blocksz))
     # For each non-marginalized block
     blockgrad = view(from.b, (0:blocksz-1) .+ from.boffsets[blockind])
     for a in 1:N
         # Multiply inverse by first block
         blocka = blocks[a]
         lena = Int(from.A.rowblocksizes[blocka])
-        S = reshape(view(from.A.data, (0:blocksz*lena-1) .+ dataindices[a]), blocksz, lena)' * inverseblock
+        S = (diagblock \ reshape(view(from.A.data, (0:blocksz*lena-1) .+ dataindices[a]), blocksz, lena))'
         # Update gradient
         view(to.b, (0:lena-1) .+ to.boffsets[blocka]) .-= S * blockgrad
         # Update Hessian blocks
@@ -39,23 +39,22 @@ function marginalize!(to::MultiVariateLS, from::MultiVariateLSsparse, blockind::
     @assert !isa(to, MultiVariateLSdense) || all(view(blocks, 1:lastindex(blocks)-1) .<= (length(to.A.rowblockoffsets) - 1))
     N = length(blocks) - 1
     dataindices = view(from.A.indicestransposed.nzval, ind)
-    # Compute inverse for the diagonal block (to be marginalized)
-    inverseblock = invsym(SizedMatrix{blocksz, blocksz}(view(from.A.data, SR(0, blocksz*blocksz-1).+dataindices[end])))
+    # Get the diagonal block (to be marginalized)
+    diagblock = bunchkaufman(SMatrix{blocksz, blocksz}(SizedMatrix{blocksz, blocksz}(view(from.A.data, SR(0, blocksz*blocksz-1).+dataindices[end]))))
     # For each non-marginalized block
     blockgrad = SizedVector{blocksz}(view(from.b, SR(0, blocksz-1) .+ from.boffsets[blockind]))
     for a in 1:N
         # Multiply inverse by first block
         blocka = blocks[a]
         lena = Int(from.A.rowblocksizes[blocka])
-        S = HybridArray{Tuple{blocksz, StaticArrays.Dynamic()}}(reshape(view(from.A.data, (0:blocksz*lena-1) .+ dataindices[a]), blocksz, lena))' * inverseblock
+        S = (diagblock \ HybridArray{Tuple{blocksz, StaticArrays.Dynamic()}}(reshape(view(from.A.data, (0:blocksz*lena-1) .+ dataindices[a]), blocksz, lena)))'
         # Update gradient
         view(to.b, SR(0, lena-1) .+ to.boffsets[blocka]) .-= S * blockgrad
         # Update Hessian blocks
         for b in 1:a
             blockb = blocks[b]
             lenb = Int(from.A.rowblocksizes[blockb])
-            B = HybridArray{Tuple{blocksz, StaticArrays.Dynamic()}}(reshape(view(from.A.data, (0:blocksz*lenb-1) .+ dataindices[b]), blocksz, lenb))
-            block(to.A, blocka, blockb, lena, lenb) .-= S * B
+            block(to.A, blocka, blockb, lena, lenb) .-= S * HybridArray{Tuple{blocksz, StaticArrays.Dynamic()}}(reshape(view(from.A.data, (0:blocksz*lenb-1) .+ dataindices[b]), blocksz, lenb))
         end
     end
 end
@@ -80,7 +79,7 @@ function marginalize!(to::MultiVariateLS, from::MultiVariateLSsparse, fromblock 
         end
         range = first:last-1
         if blocksz <= MAX_BLOCK_SZ
-            # marginalize!(to, from, first:last, Val(blocksz))
+            # marginalize!(to, from, first:last, static(blocksz))
             valuedispatch(static(1), static(MAX_BLOCK_SZ), blocksz, fixallbutlast(marginalize!, to, from, range))
         else
             marginalize!(to, from, range, blocksz)

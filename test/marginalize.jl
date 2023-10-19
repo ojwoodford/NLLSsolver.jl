@@ -16,7 +16,7 @@ using NLLSsolver, SparseArrays, StaticArrays, Test, Random
     for (ind, sz) in enumerate(blocksizes)
         if NLLSsolver.validblock(from.A, ind, ind)
             diagblock = NLLSsolver.block(from.A, ind, ind, sz, sz)
-            diagblock .= diagblock + diagblock'
+            diagblock .= diagblock * diagblock'
         end
     end
 
