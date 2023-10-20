@@ -16,7 +16,7 @@ using NLLSsolver, SparseArrays, StaticArrays, Test, Random
     for (ind, sz) in enumerate(blocksizes)
         if NLLSsolver.validblock(from.A, ind, ind)
             diagblock = NLLSsolver.block(from.A, ind, ind, sz, sz)
-            diagblock .= diagblock + diagblock'
+            diagblock .= diagblock * diagblock'
         end
     end
 
@@ -38,6 +38,10 @@ using NLLSsolver, SparseArrays, StaticArrays, Test, Random
     @test view(from.b, 1:croplen) == to_s.b
     @test all((to_s.boffsets .+ blocksizes[1:fromblock-1]) .<= (length(to_s.b) + 1))
 
+    # Compute the ground truth variable update
+    gtupdate = hessian \ from.b
+    gtupdate = gtupdate[1:croplen]
+
     # Compute the ground truth reduced system
     N = size(hessian, 2)
     S = view(hessian, 1:croplen, croplen+1:N) / view(hessian, croplen+1:N, croplen+1:N)
@@ -50,11 +54,16 @@ using NLLSsolver, SparseArrays, StaticArrays, Test, Random
         NLLSsolver.marginalize!(to_s, from, block, Int(from.A.rowblocksizes[block]))
     end
 
-    # Check that the results are correct
-    @test isapprox(hessian, NLLSsolver.symmetrifyfull(to_d.A); rtol=1.e-13)
-    @test isapprox(gradient, to_d.b; rtol=1.e-13)
-    @test isapprox(hessian, NLLSsolver.symmetrifyfull(to_s.A); rtol=1.e-13)
-    @test isapprox(gradient, to_s.b; rtol=1.e-13)
+    # Check that the results are the same
+    hess_d = NLLSsolver.symmetrifyfull(to_d.A)
+    hess_s = NLLSsolver.symmetrifyfull(to_s.A)
+    @test hess_d ≈ hess_s
+    @test to_d.b == to_s.b
+
+    # Check that the reduced systems gives the correct variable update
+    @test hessian \ gradient ≈ gtupdate
+    @test hess_d \ to_d.b ≈ gtupdate
+    @test hess_s \ to_s.b ≈ gtupdate
 
     # Reset the 'to' systems
     NLLSsolver.initcrop!(to_d, from)
@@ -64,9 +73,13 @@ using NLLSsolver, SparseArrays, StaticArrays, Test, Random
     NLLSsolver.marginalize!(to_d, from)
     NLLSsolver.marginalize!(to_s, from)
 
-    # Check that the results are correct
-    @test isapprox(hessian, NLLSsolver.symmetrifyfull(to_d.A); rtol=1.e-13)
-    @test isapprox(gradient, to_d.b; rtol=1.e-13)
-    @test isapprox(hessian, NLLSsolver.symmetrifyfull(to_s.A); rtol=1.e-13)
-    @test isapprox(gradient, to_s.b; rtol=1.e-13)
+    # Check that the results are the same
+    hess_d = NLLSsolver.symmetrifyfull(to_d.A)
+    hess_s = NLLSsolver.symmetrifyfull(to_s.A)
+    @test hess_d ≈ hess_s
+    @test to_d.b == to_s.b
+
+    # Check that the reduced systems gives the correct variable update
+    @test hess_d \ to_d.b ≈ gtupdate
+    @test hess_s \ to_s.b ≈ gtupdate
 end
