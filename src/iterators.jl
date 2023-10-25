@@ -2,6 +2,9 @@ using SparseArrays
 
 negate!(x) = @.(x = -x)
 
+# Default preoptimization - do nothing, return lowest cost possible
+preoptimization(::Any, unusedargs...) = -Inf
+
 # Iterators assume that the linear problem has been constructed
 
 # Newton optimization (undamped-Hessian form)
@@ -32,15 +35,14 @@ mutable struct DoglegData{T}
         return new{typeof(data.linsystem.x)}(0.0, similar(data.linsystem.x))
     end
 end
+gettr(dd::DoglegData) = dd.trustradius
+settr!(dd::DoglegData, tr) = dd.trustradius = tr
 function reset!(dd::DoglegData{T}, ::NLLSProblem, data::NLLSInternal) where T<:Vector
-    dd.trustradius = 0.0
+    settr!(dd, 0.0)
     resize!(dd.cauchy, length(data.linsystem.x))
     return
 end
-function reset!(dd::DoglegData{T}, ::NLLSProblem, data::NLLSInternal) where T<:StaticVector
-    dd.trustradius = 0.0
-    return
-end
+reset!(dd::DoglegData{T}, ::NLLSProblem, data::NLLSInternal) where T<:StaticVector = settr!(dd, 0.0)
 
 function iterate!(doglegdata::DoglegData, data, problem::NLLSProblem, options::NLLSOptions)::Float64
     hessian, gradient = gethessgrad(data.linsystem)
@@ -122,7 +124,9 @@ mutable struct LevMarData
         return new(0.0)
     end
 end
-reset!(lmd::LevMarData, ::NLLSProblem, ::NLLSInternal) = lmd.lambda = 0.0
+gettr(lmd::LevMarData) = lmd.lambda
+settr!(lmd::LevMarData, tr) = lmd.lambda = tr
+reset!(lmd::LevMarData, ::NLLSProblem, ::NLLSInternal) = settr!(lmd.lambda, 0.0)
 
 function initlambda(hessian)
     m = zero(eltype(hessian))
@@ -206,33 +210,48 @@ printoutcallback(cost, problem, data, iteratedata::GradientDescentData) = printo
 mutable struct VarProData{CT}
     lambda::Float64
     firstschurvar::Int
+    firstschurblock::Int
     singlesoptions::NLLSOptions
     marginalizedls::MultiVariateLS
     costs::CostStruct{CT}
     costindices::SparseMatrixCSC{Bool, Int}
-    schurindices::Vector{Int}
+    schurvarindices::Vector{Int}
+    lambdas::Vector{Float64}
 
     function VarProData(problem::NLLSProblem{VT, CT}, linsystem::MultiVariateLSsparse, firstschurvar::Int, singlesoptions::NLLSOptions) where {VT, CT}
-        indices = firstschurvar:length(problem.variables)
-        reordercostsforschur!(problem, indices)
+        varindices = firstschurvar:length(problem.variables)
+        reordercostsforschur!(problem, varindices)
         costindices = sparse(getvarcostmap(problem)')
-        indices = sortperm([dynamic(nvars(problem.variables[i])) for i in indices]) .+ (firstschurvar - 1)
-        return new{CT}(0.0, firstschurvar, singlesoptions, constructcrop(linsystem, firstschurvar), CostStruct{CT}(), costindices, indices)
+        varindices = sortperm([dynamic(nvars(problem.variables[i])) for i in varindices]) .+ (firstschurvar - 1)
+        varindices = [v for v in varindices if linsystem.blockindices[v] != 0]
+        firstschurblock = findnext(>(0), linsystem.blockindices, firstschurvar)
+        return new{CT}(0.0, firstschurvar, firstschurblock, singlesoptions, constructcrop(linsystem, firstschurblock), CostStruct{CT}(), costindices, varindices, zeros(Float64, length(varindices)))
     end
 end
 reset!(vpd::VarProData, ::NLLSProblem, ::NLLSInternal) = vpd.lambda = 0.0
 
+function updateprojectedvariables(problem, varprodata)
+    varprodata.costs, problem.costs = problem.costs, varprodata.costs
+    first = 1
+    while first <= length(varprodata.schurvarindices)
+        # Optimize all variables of the same size
+        first = setupiterator(optimizesinglesinternal!, problem, varprodata.singlesoptions, NLLSInternal(UInt(1), nvars(problem.variables[varprodata.schurvarindices[first]]), UInt64(0)), varprodata.costs, varprodata.costindices, varprodata.schurvarindices, varprodata.lambdas, first)
+    end
+    varprodata.costs, problem.costs = problem.costs, varprodata.costs
+    return
+end
+
 function iterate!(varprodata::VarProData, data, problem::NLLSProblem, options::NLLSOptions)::Float64
-    @assert varprodata.lambda >= 0.
     # Store the current schur variables
     @inbounds problem.varbest[varprodata.firstschurvar:end] .= view(problem.variables, varprodata.firstschurvar, lastindex(problem.variables))
     # Compute the reduced system
-    initcrop!(varprodata.marginalizedls, data.linsystem, varprodata.firstschurvar)
-    marginalize!(varprodata.marginalizedls, data.linsystem, varprodata.firstschurvar)
+    initcrop!(varprodata.marginalizedls, data.linsystem, varprodata.firstschurblock)
+    marginalize!(varprodata.marginalizedls, data.linsystem, varprodata.firstschurblock)
     hessian = gethessian(varprodata.marginalizedls)
     if varprodata.lambda == 0
         varprodata.lambda = initlambda(hessian)
     end
+    @assert varprodata.lambda >= 0.
     lastlambda = 0.
     mu = 2.
     while true
@@ -246,13 +265,7 @@ function iterate!(varprodata::VarProData, data, problem::NLLSProblem, options::N
         update!(problem.varnext, problem.variables, varprodata.marginalizedls, varprodata.marginalizedls.x)
         # Optimize the other variables
         problem.varnext, problem.variables = problem.variables, problem.varnext
-        varprodata.costs, problem.costs = problem.costs, varprodata.costs
-        first = 1
-        while first <= length(varprodata.schurindices)
-            # Optimize all variables of the same size
-            first = setupiterator(optimizesinglesinternal!, problem, varprodata.singlesoptions, NLLSInternal(UInt(1), nvars(problem.variables[varprodata.schurindices[first]]), UInt64(0)), varprodata.costs, varprodata.costindices, varprodata.schurindices, first)
-        end
-        varprodata.costs, problem.costs = problem.costs, varprodata.costs
+        updateprojectedvariables(problem, varprodata)
         problem.varnext, problem.variables = problem.variables, problem.varnext
         # Compute the cost
         data.timecost += @elapsed_ns cost_ = cost(problem.varnext, problem.costs)
@@ -272,6 +285,14 @@ function iterate!(varprodata::VarProData, data, problem::NLLSProblem, options::N
         # Reset the schur variables
         @inbounds problem.variables[varprodata.firstschurvar:end] .= view(problem.varbest, varprodata.firstschurvar, lastindex(problem.varbest))
     end
+end
+
+function preoptimization_(vpdata::VarProData, problem, options, data)
+    # Compute the starting cost
+    startcost = cost(problem)
+    # Optimize the schur variables independently
+    updateprojectedvariables(problem, vpdata)
+    return startcost
 end
 
 printoutcallback(cost, problem, data, iteratedata::Union{LevMarData, VarProData}) = printoutcallback(cost, data, 1.0/iteratedata.lambda)

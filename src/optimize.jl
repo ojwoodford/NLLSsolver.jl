@@ -26,18 +26,23 @@ optimize!(problem::NLLSProblem, options::NLLSOptions=NLLSOptions(), unfixed=noth
 
 # Optimize one variable at a time
 optimizesingles!(problem::NLLSProblem, options::NLLSOptions, type::DataType) = optimizesingles!(problem, options, findall(v->isa(v, type), problem.variables))
-function optimizesingles!(problem::NLLSProblem{VT, CT}, options::NLLSOptions, indices) where {VT, CT}
+function optimizesingles!(problem::NLLSProblem{VT, CT}, options::NLLSOptions, indices, lambdas=Vector{Float64}()) where {VT, CT}
     # Get the indices per cost
     costindices = sparse(getvarcostmap(problem)')
     # Put the costs aside
     allcosts = problem.costs
     problem.costs = CostStruct{CT}()
+    # Array for storing lambdas
+    if isempty(lambdas) && in(options.iterator, (dogleg, levenbergmarquardt))
+        resize!(lambdas, length(problem.variables))
+        fill!(lambdas, 0.0)
+    end
     # Go over the indices, sorted in order of variable size
     indices = indices[sortperm([dynamic(nvars(problem.variables[i])) for i in indices])]
     first = 1
     while first <= length(indices)
         # Optimize all variables of the same size
-        first = setupiterator(optimizesinglesinternal!, problem, options, NLLSInternal(UInt(1), nvars(problem.variables[indices[first]]), UInt64(0)), allcosts, costindices, indices, first)
+        first = setupiterator(optimizesinglesinternal!, problem, options, NLLSInternal(UInt(1), nvars(problem.variables[indices[first]]), UInt64(0)), allcosts, costindices, indices, lambdas, first)
     end
     problem.costs = allcosts
     return
@@ -86,18 +91,19 @@ end
 
 # The meat of an optimization
 function optimizeinternal!(problem::NLLSProblem, options::NLLSOptions, data, iteratedata, callback)
-    # Timing initializations
+    # Do any preoptimization for the iterator
+    data.startcost = preoptimization(iteratedata, problem, options, data)::Float64
+    # Other initializations
+    fails = 0
+    data.iternum = 0
     stoptime = data.starttime + options.maxtime
     data.timeinit += Base.time_ns() - data.starttime
     # Initialize the linear problem
-    data.timegradient += @elapsed_ns data.bestcost = costgradhess!(data.linsystem, problem.variables, problem.costs)
+    data.timegradient += @elapsed_ns cost = costgradhess!(data.linsystem, problem.variables, problem.costs)
     data.gradientcomputations += 1
-    data.startcost = data.bestcost
+    data.bestcost = cost
+    data.startcost = max(cost, data.startcost)
     # Do the iterations
-    fails = 0
-    cost = data.bestcost
-    converged = 0
-    data.iternum = 0
     while true
         data.iternum += 1
         # Call the per iteration solver
@@ -166,11 +172,11 @@ function optimizeinternal!(problem::NLLSProblem, options::NLLSOptions, data, ite
 end
 
 # Optimizing variables one at a time (e.g. in alternation)
-function optimizesinglesinternal!(problem::NLLSProblem, options::NLLSOptions, data::NLLSInternal{LST}, iteratedata, allcosts::CostStruct, costindices, indices, first) where {LST<:UniVariateLS}
+function optimizesinglesinternal!(problem::NLLSProblem, options::NLLSOptions, data::NLLSInternal{LST}, iteratedata::IT, allcosts::CostStruct, costindices, varindices, lambdas, first) where {LST<:UniVariateLS, IT}
     iternum = data.iternum
-    while first <= length(indices)
+    while first <= length(varindices)
         # Bail out if the variable size changes
-        ind = indices[first]
+        ind = varindices[first]
         if nvars(problem.variables[ind]) != length(data.linsystem.b)
             break
         end
@@ -178,10 +184,16 @@ function optimizesinglesinternal!(problem::NLLSProblem, options::NLLSOptions, da
         data.linsystem.varindex = UInt(ind)
         # Construct the subset of residuals that depend on this variable
         selectcosts!(problem.costs, allcosts, @inbounds(view(costindices.rowval, costindices.colptr[ind]:costindices.colptr[ind+1]-1)))
-        # Reset the iterator data
-        reset!(iteratedata, problem, data)
+        # Set the trust region radius
+        if IT <: Union{DoglegData, LevMarData}
+            settr!(iteratedata, lambdas[first])
+        end
         # Optimize the subproblem
         optimizeinternal!(problem, options, data, iteratedata, nullcallback)
+        # Get the trust region radius
+        if IT <: Union{DoglegData, LevMarData}
+            lambdas[first] = gettr(iteratedata)
+        end
         # Increment
         iternum += data.iternum
         first += 1
