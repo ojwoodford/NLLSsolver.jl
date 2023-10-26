@@ -2,6 +2,9 @@ using SparseArrays
 
 negate!(x) = @.(x = -x)
 
+# Default preoptimization - do nothing, return lowest cost possible
+preoptimization(::Any, unusedargs...) = -Inf
+
 # Iterators assume that the linear problem has been constructed
 
 # Newton optimization (undamped-Hessian form)
@@ -32,15 +35,14 @@ mutable struct DoglegData{T}
         return new{typeof(data.linsystem.x)}(0.0, similar(data.linsystem.x))
     end
 end
+gettr(dd::DoglegData) = dd.trustradius
+settr!(dd::DoglegData, tr) = dd.trustradius = tr
 function reset!(dd::DoglegData{T}, ::NLLSProblem, data::NLLSInternal) where T<:Vector
-    dd.trustradius = 0.0
+    settr!(dd, 0.0)
     resize!(dd.cauchy, length(data.linsystem.x))
     return
 end
-function reset!(dd::DoglegData{T}, ::NLLSProblem, data::NLLSInternal) where T<:StaticVector
-    dd.trustradius = 0.0
-    return
-end
+reset!(dd::DoglegData{T}, ::NLLSProblem, data::NLLSInternal) where T<:StaticVector = settr!(dd, 0.0)
 
 function iterate!(doglegdata::DoglegData, data, problem::NLLSProblem, options::NLLSOptions)::Float64
     hessian, gradient = gethessgrad(data.linsystem)
@@ -122,13 +124,23 @@ mutable struct LevMarData
         return new(0.0)
     end
 end
-reset!(lmd::LevMarData, ::NLLSProblem, ::NLLSInternal) = lmd.lambda = 0.0
+gettr(lmd::LevMarData) = lmd.lambda
+settr!(lmd::LevMarData, tr) = lmd.lambda = tr
+reset!(lmd::LevMarData, ::NLLSProblem, ::NLLSInternal) = settr!(lmd, 0.0)
+
+function initlambda(hessian)
+    m = zero(eltype(hessian))
+    for i in indices(hessian, 1)
+        @inbounds m = max(m, abs(hessian[i,i]))
+    end
+    return m * 1e-6
+end
 
 function iterate!(levmardata::LevMarData, data, problem::NLLSProblem, options::NLLSOptions)::Float64
     @assert levmardata.lambda >= 0.
     hessian, gradient = gethessgrad(data.linsystem)
     if levmardata.lambda == 0
-        levmardata.lambda = tr(hessian) ./ (size(hessian, 1) * 1e6)
+        levmardata.lambda = initlambda(hessian)
     end
     lastlambda = 0.
     mu = 2.
@@ -145,7 +157,7 @@ function iterate!(levmardata::LevMarData, data, problem::NLLSProblem, options::N
         data.timecost += @elapsed_ns cost_ = cost(problem.varnext, problem.costs)
         data.costcomputations += 1
         # Check for exit
-        if !(cost_ > data.bestcost) || (maximum(abs, data.linsystem.x) < options.dstep)
+        if !(cost_ > data.bestcost) || maximum(abs, data.linsystem.x) < options.dstep
             # Success (or convergence) - update lambda
             uniformscaling!(hessian, -lastlambda)
             stepquality = (cost_ - data.bestcost) / (0.5 * fast_bAb(hessian, data.linsystem.x) + dot(gradient, data.linsystem.x))

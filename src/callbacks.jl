@@ -5,21 +5,25 @@ nullcallback(cost, unusedargs...) = (cost, 0)
 
 # Print out per-iteration results
 function printoutcallback(cost, problem, data, trailingargs...)
+    prevcost = data.bestcost
     if data.iternum == 1
+        prevcost = data.startcost
         # First iteration, so print out column headers and the zeroth iteration (i.e. start) values
         println("iter      cost      cost_change    |step|")
-        @printf("% 4d % 8e  % 4.3e   % 3.2e\n", 0, data.bestcost, 0, 0)
+        @printf("% 4d % 8e  % 4.3e   % 3.2e\n", 0, prevcost, 0, 0)
     end
-    @printf("% 4d % 8e  % 4.3e   % 3.2e\n", data.iternum, cost, data.bestcost-cost, norm(data.linsystem.x))
+    @printf("% 4d % 8e  % 4.3e   % 3.2e\n", data.iternum, cost, prevcost-cost, norm(data.linsystem.x))
     return cost, 0
 end
 function printoutcallback(cost, data, trradius::Float64)
+    prevcost = data.bestcost
     if data.iternum == 1
+        prevcost = data.startcost
         # First iteration, so print out column headers and the zeroth iteration (i.e. start) values
         println("iter      cost      cost_change    |step|    tr_radius")
-        @printf("% 4d % 8e  % 4.3e   % 3.2e   % 2.1e\n", 0, data.bestcost, 0, 0, trradius)
+        @printf("% 4d % 8e  % 4.3e   % 3.2e   % 2.1e\n", 0, prevcost, 0, 0, trradius)
     end
-    @printf("% 4d % 8e  % 4.3e   % 3.2e   % 2.1e\n", data.iternum, cost, data.bestcost-cost, norm(data.linsystem.x), trradius)
+    @printf("% 4d % 8e  % 4.3e   % 3.2e   % 2.1e\n", data.iternum, cost, prevcost-cost, norm(data.linsystem.x), trradius)
     return cost, 0
 end
 

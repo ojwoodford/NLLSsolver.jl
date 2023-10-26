@@ -78,18 +78,19 @@ end
 
 # The meat of an optimization
 function optimizeinternal!(problem::NLLSProblem, options::NLLSOptions, data, iteratedata, callback)
-    # Timing initializations
+    # Do any preoptimization for the iterator
+    data.startcost = preoptimization(iteratedata, problem, options, data)::Float64
+    # Other initializations
+    fails = 0
+    data.iternum = 0
     stoptime = data.starttime + options.maxtime
     data.timeinit += Base.time_ns() - data.starttime
     # Initialize the linear problem
-    data.timegradient += @elapsed_ns data.bestcost = costgradhess!(data.linsystem, problem.variables, problem.costs)
+    data.timegradient += @elapsed_ns cost = costgradhess!(data.linsystem, problem.variables, problem.costs)
     data.gradientcomputations += 1
-    data.startcost = data.bestcost
+    data.bestcost = cost
+    data.startcost = max(cost, data.startcost)
     # Do the iterations
-    fails = 0
-    cost = data.bestcost
-    converged = 0
-    data.iternum = 0
     while true
         data.iternum += 1
         # Call the per iteration solver
@@ -158,11 +159,11 @@ function optimizeinternal!(problem::NLLSProblem, options::NLLSOptions, data, ite
 end
 
 # Optimizing variables one at a time (e.g. in alternation)
-function optimizesinglesinternal!(problem::NLLSProblem, options::NLLSOptions, data::NLLSInternal{LST}, iteratedata, allcosts::CostStruct, costindices, indices, first) where {LST<:UniVariateLS}
+function optimizesinglesinternal!(problem::NLLSProblem, options::NLLSOptions, data::NLLSInternal{LST}, iteratedata, allcosts::CostStruct, costindices, varindices, first) where {LST<:UniVariateLS}
     iternum = data.iternum
-    while first <= length(indices)
+    while first <= length(varindices)
         # Bail out if the variable size changes
-        ind = indices[first]
+        ind = varindices[first]
         if nvars(problem.variables[ind]) != length(data.linsystem.b)
             break
         end
