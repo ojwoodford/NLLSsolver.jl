@@ -17,7 +17,7 @@ NLLSsolver.ndeps(::Rosenbrock) = static(1) # Residual depends on 1 variable
 NLLSsolver.nres(::Rosenbrock) = static(2) # Residual has length 2
 NLLSsolver.varindices(::Rosenbrock) = SVector(1) # There's only one variable
 NLLSsolver.getvars(::Rosenbrock, vars::Vector) = (vars[1]::NLLSsolver.EuclideanVector{2, Float64},)
-NLLSsolver.computeresidual(res::Rosenbrock, x) = SVector(res.a - x[1], res.b * (x[1] ^ 2 - x[2]))
+NLLSsolver.computeresidual(res::Rosenbrock, x) = SVector(res.a * (1 - x[1]), res.b * (x[1] ^ 2 - x[2]))
 
 function constructrosenbrockprob()
     # Create the problem
