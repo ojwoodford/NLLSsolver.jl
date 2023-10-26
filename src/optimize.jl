@@ -186,7 +186,8 @@ function optimizesinglesinternal!(problem::NLLSProblem, options::NLLSOptions, da
         selectcosts!(problem.costs, allcosts, @inbounds(view(costindices.rowval, costindices.colptr[ind]:costindices.colptr[ind+1]-1)))
         # Set the trust region radius
         if IT <: Union{DoglegData, LevMarData}
-            settr!(iteratedata, lambdas[first])
+            # settr!(iteratedata, lambdas[first])
+            settr!(iteratedata, 0.0)
         end
         # Optimize the subproblem
         optimizeinternal!(problem, options, data, iteratedata, nullcallback)
