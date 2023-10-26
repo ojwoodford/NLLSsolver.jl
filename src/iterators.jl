@@ -126,7 +126,7 @@ mutable struct LevMarData
 end
 gettr(lmd::LevMarData) = lmd.lambda
 settr!(lmd::LevMarData, tr) = lmd.lambda = tr
-reset!(lmd::LevMarData, ::NLLSProblem, ::NLLSInternal) = settr!(lmd.lambda, 0.0)
+reset!(lmd::LevMarData, ::NLLSProblem, ::NLLSInternal) = settr!(lmd, 0.0)
 
 function initlambda(hessian)
     m = zero(eltype(hessian))
