@@ -1,6 +1,6 @@
-using StaticArrays, HybridArrays, Static
+using StaticArrays, HybridArrays, Static, LinearAlgebra
 
-function marginalize!(to::MultiVariateLS, from::MultiVariateLSsparse, blockind::Int, blocksz::Int)
+function marginalize!(to::MultiVariateLS, from::MultiVariateLSsparse, blockind::Int, lambda::Float64, blocksz::Int)
     # Get the list of blocks to marginalize out
     ind = from.A.indicestransposed.colptr[blockind]:from.A.indicestransposed.colptr[blockind+1]-1
     blocks = view(from.A.indicestransposed.rowval, ind)
@@ -10,7 +10,7 @@ function marginalize!(to::MultiVariateLS, from::MultiVariateLSsparse, blockind::
     N = length(blocks) - 1
     dataindices = view(from.A.indicestransposed.nzval, ind)
     # Get the diagonal block (to be marginalized)
-    diagblock = reshape(view(from.A.data, (0:blocksz*blocksz-1) .+ dataindices[end]), blocksz, blocksz)
+    diagblock = reshape(view(from.A.data, (0:blocksz*blocksz-1) .+ dataindices[end]), blocksz, blocksz) + I * lambda
     @static if VERSION ≥ v"1.9"
         diagblock = bunchkaufman(diagblock)
     end
@@ -33,7 +33,7 @@ function marginalize!(to::MultiVariateLS, from::MultiVariateLSsparse, blockind::
     end
 end
 
-function marginalize!(to::MultiVariateLS, from::MultiVariateLSsparse, blockind::Int, ::StaticInt{blocksz}) where blocksz
+function marginalize!(to::MultiVariateLS, from::MultiVariateLSsparse, blockind::Int, lambda::Float64, ::StaticInt{blocksz}) where blocksz
     # Get the list of blocks to marginalize out
     ind = from.A.indicestransposed.colptr[blockind]:from.A.indicestransposed.colptr[blockind+1]-1
     blocks = view(from.A.indicestransposed.rowval, ind)
@@ -43,7 +43,7 @@ function marginalize!(to::MultiVariateLS, from::MultiVariateLSsparse, blockind::
     N = length(blocks) - 1
     dataindices = view(from.A.indicestransposed.nzval, ind)
     # Get the diagonal block (to be marginalized)
-    diagblock = SMatrix{blocksz, blocksz}(SizedMatrix{blocksz, blocksz}(view(from.A.data, SR(0, blocksz*blocksz-1).+dataindices[end])))
+    diagblock = SMatrix{blocksz, blocksz}(SizedMatrix{blocksz, blocksz}(view(from.A.data, SR(0, blocksz*blocksz-1).+dataindices[end]))) + I * lambda
     @static if VERSION ≥ v"1.9"
         diagblock = bunchkaufman(diagblock)
     end
@@ -65,13 +65,13 @@ function marginalize!(to::MultiVariateLS, from::MultiVariateLSsparse, blockind::
     end
 end
 
-function marginalize!(to::MultiVariateLS, from::MultiVariateLSsparse, blocks::AbstractRange, blocksz)
+function marginalize!(to::MultiVariateLS, from::MultiVariateLSsparse, blocks::AbstractRange, lambdas, blocksz)
     for block in blocks
-        marginalize!(to, from, block, blocksz)
+        marginalize!(to, from, block, @inbounds(lambdas[min(block, end)]), blocksz)
     end
 end
 
-function marginalize!(to::MultiVariateLS, from::MultiVariateLSsparse, fromblock = isa(to, MultiVariateLSsparse) ? length(to.A.rowblocksizes)+1 : length(to.A.rowblockoffsets))
+function marginalize!(to::MultiVariateLS, from::MultiVariateLSsparse, lambdas, fromblock = isa(to, MultiVariateLSsparse) ? length(to.A.rowblocksizes)+1 : length(to.A.rowblockoffsets))
     last = fromblock
     finish = length(from.A.rowblocksizes)
     while last <= finish
@@ -86,9 +86,9 @@ function marginalize!(to::MultiVariateLS, from::MultiVariateLSsparse, fromblock 
         range = first:last-1
         if blocksz <= MAX_BLOCK_SZ
             # marginalize!(to, from, first:last, static(blocksz))
-            valuedispatch(static(1), static(MAX_BLOCK_SZ), blocksz, fixallbutlast(marginalize!, to, from, range))
+            valuedispatch(static(1), static(MAX_BLOCK_SZ), blocksz, fixallbutlast(marginalize!, to, from, range, lambdas))
         else
-            marginalize!(to, from, range, blocksz)
+            marginalize!(to, from, range, lambdas, blocksz)
         end
     end
     return to
