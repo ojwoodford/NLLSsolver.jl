@@ -1,6 +1,6 @@
-using StaticArrays, HybridArrays, Static
+using StaticArrays, HybridArrays, Static, LinearAlgebra
 
-function marginalize!(to::MultiVariateLS, from::MultiVariateLSsparse, blockind::Int, lambda, blocksz::Int)
+function marginalize!(to::MultiVariateLS, from::MultiVariateLSsparse, blockind::Int, lambda::Float64, blocksz::Int)
     # Get the list of blocks to marginalize out
     ind = from.A.indicestransposed.colptr[blockind]:from.A.indicestransposed.colptr[blockind+1]-1
     blocks = view(from.A.indicestransposed.rowval, ind)
@@ -33,7 +33,7 @@ function marginalize!(to::MultiVariateLS, from::MultiVariateLSsparse, blockind::
     end
 end
 
-function marginalize!(to::MultiVariateLS, from::MultiVariateLSsparse, blockind::Int, lambda, ::StaticInt{blocksz}) where blocksz
+function marginalize!(to::MultiVariateLS, from::MultiVariateLSsparse, blockind::Int, lambda::Float64, ::StaticInt{blocksz}) where blocksz
     # Get the list of blocks to marginalize out
     ind = from.A.indicestransposed.colptr[blockind]:from.A.indicestransposed.colptr[blockind+1]-1
     blocks = view(from.A.indicestransposed.rowval, ind)
@@ -65,13 +65,13 @@ function marginalize!(to::MultiVariateLS, from::MultiVariateLSsparse, blockind::
     end
 end
 
-function marginalize!(to::MultiVariateLS, from::MultiVariateLSsparse, blocks::AbstractRange, lambda, blocksz)
+function marginalize!(to::MultiVariateLS, from::MultiVariateLSsparse, blocks::AbstractRange, lambdas, blocksz)
     for block in blocks
-        marginalize!(to, from, block, lambda, blocksz)
+        marginalize!(to, from, block, @inbounds(lambdas[min(block, end)]), blocksz)
     end
 end
 
-function marginalize!(to::MultiVariateLS, from::MultiVariateLSsparse, fromblock = isa(to, MultiVariateLSsparse) ? length(to.A.rowblocksizes)+1 : length(to.A.rowblockoffsets))
+function marginalize!(to::MultiVariateLS, from::MultiVariateLSsparse, lambdas, fromblock = isa(to, MultiVariateLSsparse) ? length(to.A.rowblocksizes)+1 : length(to.A.rowblockoffsets))
     last = fromblock
     finish = length(from.A.rowblocksizes)
     while last <= finish
