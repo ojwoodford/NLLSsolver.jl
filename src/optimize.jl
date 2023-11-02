@@ -172,7 +172,7 @@ function optimizeinternal!(problem::NLLSProblem, options::NLLSOptions, data, ite
 end
 
 # Optimizing variables one at a time (e.g. in alternation)
-function optimizesinglesinternal!(problem::NLLSProblem, options::NLLSOptions, data::NLLSInternal{LST}, iteratedata::IT, allcosts::CostStruct, costindices, varindices, lambdas, first) where {LST<:UniVariateLS, IT}
+function optimizesinglesinternal!(problem::NLLSProblem, options::NLLSOptions, data::NLLSInternal{LST}, iteratedata::IT, allcosts::CostStruct, costindices, varindices, lambdapervar, first) where {LST<:UniVariateLS, IT}
     iternum = data.iternum
     while first <= length(varindices)
         # Bail out if the variable size changes
@@ -186,14 +186,13 @@ function optimizesinglesinternal!(problem::NLLSProblem, options::NLLSOptions, da
         selectcosts!(problem.costs, allcosts, @inbounds(view(costindices.rowval, costindices.colptr[ind]:costindices.colptr[ind+1]-1)))
         # Set the trust region radius
         if IT <: Union{DoglegData, LevMarData}
-            # settr!(iteratedata, lambdas[first])
-            settr!(iteratedata, 0.0)
+            settr!(iteratedata, lambdapervar[first])
         end
         # Optimize the subproblem
         optimizeinternal!(problem, options, data, iteratedata, nullcallback)
         # Get the trust region radius
         if IT <: Union{DoglegData, LevMarData}
-            lambdas[first] = gettr(iteratedata)
+            lambdapervar[first] = gettr(iteratedata)
         end
         # Increment
         iternum += data.iternum

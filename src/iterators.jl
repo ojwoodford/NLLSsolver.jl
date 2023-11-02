@@ -216,7 +216,7 @@ mutable struct VarProData{CT}
     costs::CostStruct{CT}
     costindices::SparseMatrixCSC{Bool, Int}
     schurvarindices::Vector{Int}
-    lambdas::Vector{Float64}
+    lambdapervar::Vector{Float64}
 
     function VarProData(problem::NLLSProblem{VT, CT}, linsystem::MultiVariateLSsparse, firstschurvar::Int, singlesoptions::NLLSOptions) where {VT, CT}
         varindices = firstschurvar:length(problem.variables)
@@ -232,10 +232,11 @@ reset!(vpd::VarProData, ::NLLSProblem, ::NLLSInternal) = vpd.lambda = 0.0
 
 function updateprojectedvariables(problem, varprodata)
     varprodata.costs, problem.costs = problem.costs, varprodata.costs
+    fill!(varprodata.lambdapervar, 0)
     first = 1
     while first <= length(varprodata.schurvarindices)
         # Optimize all variables of the same size
-        first = setupiterator(optimizesinglesinternal!, problem, varprodata.singlesoptions, NLLSInternal(UInt(1), nvars(problem.variables[varprodata.schurvarindices[first]]), UInt64(0)), varprodata.costs, varprodata.costindices, varprodata.schurvarindices, varprodata.lambdas, first)
+        first = setupiterator(optimizesinglesinternal!, problem, varprodata.singlesoptions, NLLSInternal(UInt(1), nvars(problem.variables[varprodata.schurvarindices[first]]), UInt64(0)), varprodata.costs, varprodata.costindices, varprodata.schurvarindices, varprodata.lambdapervar, first)
     end
     varprodata.costs, problem.costs = problem.costs, varprodata.costs
     return
@@ -246,7 +247,7 @@ function iterate!(varprodata::VarProData, data, problem::NLLSProblem, options::N
     @inbounds problem.varbest[varprodata.firstschurvar:end] .= view(problem.variables, varprodata.firstschurvar, lastindex(problem.variables))
     # Compute the reduced system
     initcrop!(varprodata.marginalizedls, data.linsystem, varprodata.firstschurblock)
-    marginalize!(varprodata.marginalizedls, data.linsystem, varprodata.firstschurblock)
+    marginalize!(varprodata.marginalizedls, data.linsystem, varprodata.lambdapervar, varprodata.firstschurblock)
     hessian = gethessian(varprodata.marginalizedls)
     if varprodata.lambda == 0
         varprodata.lambda = initlambda(hessian)
@@ -287,7 +288,7 @@ function iterate!(varprodata::VarProData, data, problem::NLLSProblem, options::N
     end
 end
 
-function preoptimization_(vpdata::VarProData, problem, options, data)
+function preoptimization(vpdata::VarProData, problem, options, data)
     # Compute the starting cost
     startcost = cost(problem)
     # Optimize the schur variables independently
