@@ -1,7 +1,7 @@
 name = "NLLSsolver"
 uuid = "50b5cf9e-bf7a-4e29-8981-4280cbba70cb"
 authors = ["Oliver Woodford"]
-version = "3.3.2"
+version = "4.0.0"
 
 [deps]
 DiffResults = "163ba53b-c6d8-5494-b064-1a9d43ac40c5"
@@ -37,8 +37,7 @@ julia = "1.6"
 GLMakie = "e9467ef8-e4e7-5192-8a1a-b1aee30e663a"
 Random = "9a3f8284-a2c9-5f02-9a11-845980a1fd5c"
 Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
-VisualGeometryDatasets = "962a53e2-84f2-440b-bfbc-4e96ec28357f"
 
 [targets]
-examples = ["GLMakie", "VisualGeometryDatasets"]
+examples = ["GLMakie"]
 test = ["Test", "Random"]

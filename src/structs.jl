@@ -2,9 +2,9 @@ using SparseArrays, Static
 import IfElse.ifelse
 import Printf.@printf
 
-@enum NLLSIterator gaussnewton newton levenbergmarquardt dogleg gradientdescent
+@enum NLLSIterator newton levenbergmarquardt dogleg gradientdescent
 function Base.String(iterator::NLLSIterator) 
-    if iterator == newton || iterator == gaussnewton
+    if iterator == newton
         return "Newton"
     end
     if iterator == levenbergmarquardt
@@ -29,20 +29,9 @@ struct NLLSOptions{T}
     iterator::NLLSIterator      # Inner iterator (see above for options)
     callback::T                 # Callback called every outer iteration - (cost, problem, data) -> (newcost, terminate::Bool) where terminate == true ends the optimization
     iteratordata                # Iterator-specific data, to be passed to the iterator
-    storecosts::Bool            # Indicates whether the cost per outer iteration should be stored
-    storetrajectory::Bool       # Indicates whether the step per outer iteration should be stored
 end
-function NLLSOptions(; maxiters=100, reldcost=1.e-15, absdcost=1.e-15, dstep=1.e-15, maxfails=3, maxtime=30.0, iterator=levenbergmarquardt, callback::T=nothing, iteratordata=nothing, storecosts=false, storetrajectory=false) where T
-    if iterator == gaussnewton
-        Base.depwarn("gaussnewton is deprecated. Use newton instead", :NLLSOptions)
-    end
-    if storecosts || storetrajectory
-        Base.depwarn("storecosts and storetrajectory are deprecated. Use storecostscallback instead", :NLLSOptions)
-    end
-    if !isnothing(callback)
-        Base.depwarn("Setting callback in options is deprecated. Pass the callback directly to optimize!() instead", :NLLSOptions)
-    end
-    NLLSOptions{T}(reldcost, absdcost, dstep, maxfails, maxiters, UInt64(round(maxtime * 1e9)), iterator, callback, iteratordata, storecosts, storetrajectory)
+function NLLSOptions(; maxiters=100, reldcost=1.e-15, absdcost=1.e-15, dstep=1.e-15, maxfails=3, maxtime=30.0, iterator=levenbergmarquardt, callback::T=nothing, iteratordata=nothing) where T
+    NLLSOptions{T}(reldcost, absdcost, dstep, maxfails, maxiters, UInt64(round(maxtime * 1e9)), iterator, callback, iteratordata)
 end
 
 struct NLLSResult
@@ -58,8 +47,6 @@ struct NLLSResult
     costcomputations::Int                   # Number of cost computations performed
     gradientcomputations::Int               # Number of residual gradient computations performed
     linearsolvers::Int                      # Number of linear solves performed
-    costs::Vector{Float64}                  # Vector of costs at the end of each outer iteration
-    trajectory::Vector{Vector{Float64}}     # Vector of update vectors at the end of each outer iteration
 end
 
 function Base.show(io::IO, x::NLLSResult)
@@ -109,18 +96,15 @@ mutable struct NLLSInternal{LSType}
     linearsolvers::Int
     converged::Int
     # Linear system
-    linsystem::LSType
-    # Intermediate cost / trajectory storage (deprecated)
-    costs::Vector{Float64}                 
-    trajectory::Vector{Vector{Float64}}    
+    linsystem::LSType  
 
     function NLLSInternal(linsystem::LSType, starttimens) where LSType
-        return new{LSType}(0., 0., starttimens, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, linsystem, Vector{Float64}(), Vector{Vector{Float64}}())
+        return new{LSType}(0., 0., starttimens, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, linsystem)
     end
 end
 NLLSInternal(unfixed::UInt, varlen, starttimens) = NLLSInternal(ifelse(is_static(varlen), UniVariateLSstatic{dynamic(varlen), dynamic(varlen*varlen)}(unfixed), UniVariateLSdynamic(unfixed, dynamic(varlen))), starttimens)
 
-getresult(data::NLLSInternal) = NLLSResult(data.startcost, data.bestcost, data.timetotal*1.e-9, data.timeinit*1.e-9, data.timecost*1.e-9, data.timegradient*1.e-9, data.timesolver*1.e-9, data.converged, data.iternum, data.costcomputations, data.gradientcomputations, data.linearsolvers, data.costs, data.trajectory)
+getresult(data::NLLSInternal) = NLLSResult(data.startcost, data.bestcost, data.timetotal*1.e-9, data.timeinit*1.e-9, data.timecost*1.e-9, data.timegradient*1.e-9, data.timesolver*1.e-9, data.converged, data.iternum, data.costcomputations, data.gradientcomputations, data.linearsolvers)
 
 NLLSInternalMultiVar = Union{NLLSInternal{MultiVariateLSdense}, NLLSInternal{MultiVariateLSsparse}}
 NLLSInternalSingleVar = Union{NLLSInternal{UniVariateLSstatic{N, N2}}, NLLSInternal{UniVariateLSdynamic}} where {N, N2}

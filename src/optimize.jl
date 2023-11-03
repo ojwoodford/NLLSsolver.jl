@@ -1,5 +1,5 @@
 # Uni-variate optimization (single unfixed variable)
-optimize!(problem::NLLSProblem, options::NLLSOptions, unfixed::Integer, callback=nullcallback, starttimens=Base.time_ns())::NLLSResult = getresult(setupiterator(optimizeinternal!, problem, options, NLLSInternal(UInt(unfixed), nvars(problem.variables[unfixed]), starttimens), checkcallback(options, callback)))
+optimize!(problem::NLLSProblem, options::NLLSOptions, unfixed::Integer, callback=nullcallback, starttimens=Base.time_ns())::NLLSResult = getresult(setupiterator(optimizeinternal!, problem, options, NLLSInternal(UInt(unfixed), nvars(problem.variables[unfixed]), starttimens), callback))
 
 # Multi-variate optimization
 function optimize!(problem::NLLSProblem, options::NLLSOptions, unfixed::AbstractVector, callback)::NLLSResult
@@ -13,7 +13,7 @@ function optimize!(problem::NLLSProblem, options::NLLSOptions, unfixed::Abstract
         return optimize!(problem, options, unfixed, callback, starttimens)
     end
     # Multiple variables
-    return getresult(setupiterator(optimizeinternal!, problem, options, NLLSInternal(makesymmvls(problem, unfixed, nblocks), starttimens), checkcallback(options, callback)))
+    return getresult(setupiterator(optimizeinternal!, problem, options, NLLSInternal(makesymmvls(problem, unfixed, nblocks), starttimens), callback))
 end
 
 # Conversions for different types of "unfixed"
@@ -43,9 +43,6 @@ function optimizesingles!(problem::NLLSProblem{VT, CT}, options::NLLSOptions, in
     return
 end
 
-checkcallback(::NLLSOptions{Nothing}, callback) = callback
-checkcallback(options::NLLSOptions, ::Any) = options.callback
-
 function setupiterator(func, problem::NLLSProblem, options::NLLSOptions, data::NLLSInternal, trailingargs...)
     # Copy the variables, if need be
     if length(problem.variables) != length(problem.varnext)
@@ -53,8 +50,8 @@ function setupiterator(func, problem::NLLSProblem, options::NLLSOptions, data::N
     end
 
     # Call the optimizer with the required iterator struct
-    if options.iterator == newton || options.iterator == gaussnewton
-        # Newton's method, using Gauss' approximation to the Hessian (optimizing Hessian form)
+    if options.iterator == newton
+        # Newton's method
         newtondata = NewtonData(problem, data)
         return func(problem, options, data, newtondata, trailingargs...)
     end
@@ -97,10 +94,6 @@ function optimizeinternal!(problem::NLLSProblem, options::NLLSOptions, data, ite
         cost = iterate!(iteratedata, data, problem, options)::Float64
         # Call the user-defined callback
         cost, terminate = callback(cost, problem, data, iteratedata)::Tuple{Float64, Int}
-        # Store the cost if necessary
-        if options.storecosts
-            push!(data.costs, cost)
-        end
         # Check for cost increase (only some iterators will do this)
         dcost = data.bestcost - cost
         if dcost >= 0
@@ -120,10 +113,6 @@ function optimizeinternal!(problem::NLLSProblem, options::NLLSOptions, data, ite
         end
         # Update the variables
         updatefromnext!(problem, data)
-        if options.storetrajectory
-            # Store the variable trajectory (as update vectors)
-            push!(data.trajectory, copy(data.linsystem.x))
-        end
         # Check for termination
         maxstep = maximum(abs, data.linsystem.x)
         converged = 0
