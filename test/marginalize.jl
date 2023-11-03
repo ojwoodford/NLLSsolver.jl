@@ -1,6 +1,6 @@
-using NLLSsolver, SparseArrays, StaticArrays, Test, Random
+using NLLSsolver, SparseArrays, StaticArrays, Test, Random, LinearAlgebra
 
-@testset "marginalize.jl" begin
+function test_marginalize(lambda)
     # Define the size of test problem
     blocksizes = [1, 1, 2, 2, 3, 3, 3, 3, 2, 2, 1, 1]
     fromblock = 7
@@ -9,7 +9,6 @@ using NLLSsolver, SparseArrays, StaticArrays, Test, Random
     
     # Intitialize a sparse linear system randomly
     from = NLLSsolver.MultiVariateLSsparse(NLLSsolver.BlockSparseMatrix{Float64}(sparse(cols, rows, trues(length(rows))), blocksizes, blocksizes), 1:length(blocksizes))
-    Random.seed!(1)
     from.A.data .= randn(length(from.A.data))
     from.b .= randn(length(from.b))
     # Make the diagonal blocks symmetric
@@ -19,7 +18,7 @@ using NLLSsolver, SparseArrays, StaticArrays, Test, Random
             diagblock .= diagblock * diagblock'
         end
     end
-
+    
     # Construct the cropped system
     to_d = NLLSsolver.constructcrop(from, fromblock)
     @test isa(to_d, NLLSsolver.MultiVariateLSdense)
@@ -39,6 +38,7 @@ using NLLSsolver, SparseArrays, StaticArrays, Test, Random
     @test all((to_s.boffsets .+ blocksizes[1:fromblock-1]) .<= (length(to_s.b) + 1))
 
     # Compute the ground truth variable update
+    hessian += I * lambda
     gtupdate = hessian \ from.b
     gtupdate = gtupdate[1:croplen]
 
@@ -50,8 +50,8 @@ using NLLSsolver, SparseArrays, StaticArrays, Test, Random
 
     # Compute the marginalized system using dynamic block sizes
     for block in fromblock:length(from.A.rowblocksizes)
-        NLLSsolver.marginalize!(to_d, from, block, Int(from.A.rowblocksizes[block]))
-        NLLSsolver.marginalize!(to_s, from, block, Int(from.A.rowblocksizes[block]))
+        NLLSsolver.marginalize!(to_d, from, block, lambda, Int(from.A.rowblocksizes[block]))
+        NLLSsolver.marginalize!(to_s, from, block, lambda, Int(from.A.rowblocksizes[block]))
     end
 
     # Check that the results are the same
@@ -62,16 +62,16 @@ using NLLSsolver, SparseArrays, StaticArrays, Test, Random
 
     # Check that the reduced systems give the correct variable update
     @test hessian \ gradient ≈ gtupdate
-    @test hess_d \ to_d.b ≈ gtupdate
-    @test hess_s \ to_s.b ≈ gtupdate
+    @test (hess_d + I * lambda) \ to_d.b ≈ gtupdate
+    @test (hess_s + I * lambda) \ to_s.b ≈ gtupdate
 
     # Reset the 'to' systems
     NLLSsolver.initcrop!(to_d, from)
     NLLSsolver.initcrop!(to_s, from)
 
     # Compute the marginalized system using static block sizes
-    NLLSsolver.marginalize!(to_d, from)
-    NLLSsolver.marginalize!(to_s, from)
+    NLLSsolver.marginalize!(to_d, from, SVector(lambda))
+    NLLSsolver.marginalize!(to_s, from, SVector(lambda))
 
     # Check that the results are the same
     hess_d = NLLSsolver.symmetrifyfull(to_d.A)
@@ -80,6 +80,13 @@ using NLLSsolver, SparseArrays, StaticArrays, Test, Random
     @test to_d.b == to_s.b
 
     # Check that the reduced systems give the correct variable update
-    @test hess_d \ to_d.b ≈ gtupdate
-    @test hess_s \ to_s.b ≈ gtupdate
+    @test (hess_d + I * lambda) \ to_d.b ≈ gtupdate
+    @test (hess_s + I * lambda) \ to_s.b ≈ gtupdate
+    return
+end
+
+@testset "marginalize.jl" begin
+    Random.seed!(1)
+    test_marginalize(0.0)
+    test_marginalize(1.0)
 end
