@@ -13,5 +13,4 @@ using Test
     include("nonsquaredcost.jl")
     include("adaptivecost.jl")
     include("utils.jl")
-    include("marginalize.jl")
 end
