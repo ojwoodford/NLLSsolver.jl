@@ -6,18 +6,15 @@ export NLLSProblem, NLLSOptions, NLLSResult, NLLSIterator # Concrete problem & s
 export AbstractRobustifier, NoRobust, Scaled, HuberKernel, Huber2oKernel, GemanMcclureKernel # Robustifiers
 export ContaminatedGaussian # Adaptive robustifiers
 export EuclideanVector, ZeroToInfScalar, ZeroToOneScalar # Concrete general variables
-export Rotation3DR, Rotation3DL, Point3D, Pose3D, EffPose3D, UnitVec3D, UnitPose3D # Concrete 3D geometry variable types
-export SimpleCamera, NoDistortionCamera, ExtendedUnifiedCamera, BarrelDistortion, EULensDistortion # Concrete camera sensor & lens variable types
+export SimpleError2, SimpleError3, SimpleError4 # Measurement error residuals depending on 2, 3, and 4 variables
 export CostTrajectory # Object for storing opimization trajectory and costs
 # Functions
 export addcost!, addvariable!, updatevarcostmap!, subproblem, subproblem!, nvars, nres # Construct a problem
 export update, nvars # Variable interface
-export nres, ndeps, varindices, getvars # Residual interface
+export nres, ndeps, varindices, getvars, generatemeasurement # Residual interface
 export robustkernel, robustify, robustifydcost, robustifydkernel # Robustifier interface
 export cost, computeresidual, computeresjac, computecost, computecostgradhess # Compute the objective
 export optimize!  # Optimize the objective
-export rodrigues, project, epipolarerror, proj2orthonormal # Multi-view geometry helper functions
-export ideal2image, image2ideal, pixel2image, image2pixel, ideal2distorted, distorted2ideal, convertlens
 export nullcallback, printoutcallback, storecostscallback # Callbacks to be called once per optimization iteration
 
 # Exported abstract types
@@ -42,8 +39,6 @@ include("problem.jl")
 
 # Variables
 include("variable.jl")
-include("visualgeometry/camera.jl")
-include("visualgeometry/geometry.jl")
 
 # Types
 include("BlockSparseMatrix.jl")
