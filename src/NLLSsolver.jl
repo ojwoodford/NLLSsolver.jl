@@ -53,7 +53,6 @@ include("structs.jl")
 
 # Optimization
 include("residual.jl")
-include("marginalize.jl")
 include("robust.jl")
 include("robustadaptive.jl")
 include("autodiff.jl")
