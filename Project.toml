@@ -30,7 +30,6 @@ SparseArrays = "1.6"
 Static = "0.8.7"
 StaticArrays = "1"
 Test = "1.6"
-VisualGeometryDatasets = "0.2.1"
 julia = "1.6"
 
 [extras]
