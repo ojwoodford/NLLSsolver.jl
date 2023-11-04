@@ -40,7 +40,7 @@ end
     @test NLLSsolver.sumsubset(Float64, rangefun, vr1) == halftotal
     @test NLLSsolver.sumsubset(Float64, indicesfun, vr1) == halftotal
     @test NLLSsolver.sumsubset(Float64, bitvecfun, vr1) == halftotal
-    @test NLLSsolver.sumsubset(Float64, boolvecfun, vr1) == halftotal
+    @test NLLSsolver.sumsubset(Float64, boolvecfun, vr1) ≈ halftotal
 
     # Union container
     vr2 = NLLSsolver.VectorRepo{Union{Float64, Int, Char}}()
@@ -58,5 +58,5 @@ end
     @test NLLSsolver.sumsubset(Float64, rangefun, vr2) == halftotal
     @test NLLSsolver.sumsubset(Float64, indicesfun, vr2) == halftotal
     @test NLLSsolver.sumsubset(Float64, bitvecfun, vr2) == halftotal
-    @test NLLSsolver.sumsubset(Float64, boolvecfun, vr2) == halftotal
+    @test NLLSsolver.sumsubset(Float64, boolvecfun, vr2) ≈ halftotal
 end

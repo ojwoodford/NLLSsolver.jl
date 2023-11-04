@@ -57,12 +57,8 @@ Various optimizer `options` can be defined. During optimization, the optimizer u
 ## Examples
 The following examples of problem definition, creation and optimization are included:
 - **Rosenbrock function** (examples/rosenbrock.jl): Visualizes optimization of the Rosenbrock function using some of the  available optimizers. Click on the parameter space to interactively select a new start point.
-- **Bundle adjustment** (examples/bundleadjustment.jl): Optimization of large scale [Bundle Adjustment in the Large](https://grail.cs.washington.edu/projects/bal/) problems, with non-Euclidean variables.
 
 ## Future work & collaboration
-- **Add Schur complement** to speed up optimization of bipartite problems.
-- **Add Variable Projection method** for solving bipartite problems.
-- **Implement reduced memory Variable Projection** for solving very large scale bipartite problems.
 - **Allow residuals to dynamically change the variables they depend on** to broaden the types of problems that can be optimized.
 - **Allow residual blocks to depend on a dynamic number of variables** to further broaden the types of problems that can be optimized.
 - **Add additional solvers**

@@ -1,8 +1,6 @@
 using Test
 
 @testset "NLLSsolver.jl" begin
-    include("camera.jl")
-    include("geometry.jl")
     include("BlockSparseMatrix.jl")
     include("VectorRepo.jl")
     include("robust.jl")
@@ -13,5 +11,4 @@ using Test
     include("nonsquaredcost.jl")
     include("adaptivecost.jl")
     include("utils.jl")
-    include("marginalize.jl")
 end
