@@ -51,7 +51,7 @@ end
 
 function Base.show(io::IO, x::NLLSResult)
     otherstuff = x.timetotal - x.timecost - x.timegradient - x.timesolver - x.timeinit
-    @printf(io, "NLLSsolver optimization took %f seconds and %d iterations to reduce the cost from %f to %f (a %.2f%% reduction), using:
+    @printf(io, "NLLSsolver optimization took %f seconds and %d iterations to reduce the cost from %e to %e (a %.2f%% reduction), using:
    %d cost computations in %f seconds (%.2f%% of total time),
    %d gradient computations in %f seconds (%.2f%% of total time),
    %d linear solver computations in %f seconds (%.2f%% of total time),

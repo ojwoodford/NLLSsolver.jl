@@ -52,7 +52,7 @@ Optimization is done as follows:
 ```
     result::NLLSResult = optimize!(problem::NLLSProblem, options::NLLSOptions)
 ```
-Various optimizer `options` can be defined. During optimization, the optimizer updates variable blocks (stored in `problem`) in-place. Information about the optimization is retruned in `result`.
+Various optimizer `options` can be defined. During optimization, the optimizer updates variable blocks (stored in `problem`) in-place; the final values are for the best optimum found. Information about the optimization, such as initial and final cost, and optimization time, is returned in `result`.
 
 ## Examples
 The following examples of problem definition, creation and optimization are included:
