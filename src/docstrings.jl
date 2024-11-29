@@ -1,3 +1,5 @@
+
+
 """
     NLLSsolver.ndeps(mycost::AbstractCost)
 
@@ -22,7 +24,7 @@ function ndeps end
 """
     NLLSsolver.varindices(mycost::AbstractCost)
 
-Return a static vector represent the indices of the variables that `mycost` depends on.
+Return a static vector representing the indices of the variables that `mycost` depends on.
 
 # Example
 
@@ -43,17 +45,18 @@ function varindices end
     NLLSsolver.nres(mycost::AbstractCost)
 
 Return the number of residuals that `mycost` generates. The return value must be
-an integer.
+an integer, preferably static, and must not change during an optimization.
 
 # Example
 
-For a problem `MyCost <: AbstractCost` that generates a number of residuals that
-depends on the length of an internal variable `mycost.somevector`, the user
-should define the following function:
+For a problem `MyCost <: AbstractCost` that generates a residual vector of length three,
 
 ```julia
-NLLSsolver.nres(::MyCost) = length(mycost.somevector)
+NLLSsolver.nres(::MyCost) = static(3)
 ```
+
+!!! tip
+    If the residual length is known at compile time, return a static integer.
 
 !!! note
     Required user-specialized API function.
@@ -65,7 +68,8 @@ function nres end
     NLLSsolver.getvars(mycost::AbstractCost, vars)
 
 Return the variables that `mycost` depends on. The return value must be a tuple
-of variables.
+of variables. It is important that the output variables are typed (i.e. not `Any`)
+for good performance.
 
 # Example
 
@@ -76,7 +80,7 @@ NLLSsolver.getvars(::MyCost, vars) = (vars[1], vars[3])
 ```
 
 !!! tip
-    If `vars` is heterogeneous in type, add type-annotations to the specific variables, e.g.,
+    If `vars` is heterogeneous in type, add type-annotations to the specific variables, e.g.
     `(vars[1]::Matrix{T}, vars[3]::Vector{T})` for a `MyCost{T}`.
 
 !!! note
