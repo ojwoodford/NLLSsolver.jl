@@ -2,23 +2,17 @@ using StaticArrays
 
 # Scalar
 nvars(::Number) = static(1)
-function update(var::Number, updatevec, start=1)
-    return var + updatevec[start]
-end
+update(var::Number, updatevec, start=1) = var + updatevec[start]
 
 # Standard fixed-length Euclidean vector of length N
 const EuclideanVector{N, T} = SVector{N, T}
 nvars(::EuclideanVector{N, T}) where {N, T} = static(N)
-function update(var::EuclideanVector{N, T}, updatevec, start=1)  where {N, T}
-    return EuclideanVector(var + view(updatevec, SR(0, N-1) .+ start))
-end
+update(var::EuclideanVector{N, T}, updatevec, start=1)  where {N, T} = EuclideanVector(var + view(updatevec, SR(0, N-1) .+ start))
 
 # Variable-length Euclidean vector
 const DynamicVector{T} = Vector{T}
 nvars(v::DynamicVector) = length(v)
-function update(var::DynamicVector, updatevec, start=1)
-    return DynamicVector(var + view(updatevec, start:start-1+length(var)))
-end
+update(var::DynamicVector, updatevec, start=1) = DynamicVector(var + view(updatevec, start:start-1+length(var)))
 
 # A scalar in the range zero to +Inf
 struct ZeroToInfScalar{T}
