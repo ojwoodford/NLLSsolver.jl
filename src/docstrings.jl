@@ -1,4 +1,62 @@
+# Doc strings for those API functions not implemented in the library
 
+# Variable block methods
+
+"""
+    NLLSsolver.nvars(var)
+
+Return the intrinsic dimensionality (degrees of freedom) of the variable block, `var`. This 
+positive integer must remain fixed for the duration of the optimization.
+
+Note that the storage size of `var` can be larger than the intrinsic dimensionality. For 
+example, a 3D rotation can be represented by a 9-element 3x3 matrix, but has only 3 
+intrinsic dimensions.
+
+Default implementations of this method exist for types `Number`, `Vector` and 
+`StaticVector`.
+
+# Example
+
+For a variable type `Rotation3D` that has three dimensions, the user should define the 
+following function:
+
+```julia
+NLLSsolver.nvars(::Rotation3D) = static(3)
+```
+!!! tip
+    If the dimensionality is known at compile time, return a static integer.
+
+!!! note
+Required user-specialized API function.
+"""
+function nvars end
+
+"""
+    update(oldvar, updatevec, start::Int=1)
+
+Update `oldvar` using the `nvars(oldvar)` values in `updatevec::AbstractVector`, starting at 
+element `start`, and return the new value. 
+
+The update input `updatevec` may have an autodiff element type, so the variable type and
+this method must be able to handle a change in internal element type.
+
+Default implementations of this method exist for types `Number`, `Vector` and 
+`StaticVector`.
+
+# Example
+
+The `update` function for the `Number` abstract type is:
+
+```julia
+NLLSsolver.update(var::Number, updatevec, start=1) = var + updatevec[start]
+```
+
+!!! note
+Required user-specialized API function.
+"""
+function update end
+
+# Cost function methods
 
 """
     NLLSsolver.ndeps(mycost::AbstractCost)
@@ -8,8 +66,7 @@ be a static integer.
 
 # Example
 
-For a problem `MyCost <: AbstractCost` that has two variables, the user should
-define the following function:
+For a cost function `MyCost <: AbstractCost` that is a function of two variables, the user should define the following function:
 
 ```julia
 NLLSsolver.ndeps(::MyCost) = static(2)
@@ -28,8 +85,7 @@ Return a static vector representing the indices of the variables that `mycost` d
 
 # Example
 
-For a problem `MyCost <: AbstractCost` that depends on the first and third variables,
-the user should define the following function:
+For a cost function `MyCost <: AbstractCost` that depends on the first and third variables, the user should define the following function:
 
 ```julia
 NLLSsolver.varindices(::MyCost) = SVector(1, 3)
@@ -40,6 +96,7 @@ NLLSsolver.varindices(::MyCost) = SVector(1, 3)
 """
 function varindices end
 
+# Residual block methods
 
 """
     NLLSsolver.nres(mycost::AbstractCost)
