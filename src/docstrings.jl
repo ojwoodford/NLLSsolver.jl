@@ -9,8 +9,8 @@ Return the intrinsic dimensionality (degrees of freedom) of the variable block, 
 positive integer must remain fixed for the duration of the optimization.
 
 Note that the storage size of `var` can be larger than the intrinsic dimensionality. For 
-example, a 3D rotation can be represented by a 9-element 3x3 matrix, but has only 3 
-intrinsic dimensions.
+example, a 3D rotation has only 3 intrinsic dimensions, but a useful representation is a 
+9-element 3x3 matrix.
 
 Default implementations of this method exist for types `Number`, `Vector` and 
 `StaticVector`.
