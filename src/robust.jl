@@ -1,4 +1,9 @@
 # Robustification
+"""
+    NLLSsolver.NoRobust
+
+Identity kernel.
+"""
 struct NoRobust <: AbstractRobustifier
 end
 

@@ -194,9 +194,15 @@ end
 ```
 the user should define the following function:
 ```julia
-function NLLSsolver.computeresjac(res::Rosenbrock, x, y)
+function NLLSsolver.computeresjac(varflags, res::Rosenbrock, x, y)
     res = SVector(res.a * (1 - x), res.b * (x ^ 2 - y))
-    jac = SMatrix{2}(-res.a, 0.0, res.b * 2 * x, -res.b)
+    if varflags == 3
+        jac = SMatrix{2, 2}(-res.a, 0.0, res.b * 2 * x, -res.b)
+    else if varflags == 2
+        jac = SVector(0.0, -res.b)
+    else
+        jac = SVector(-res.a, res.b * 2 * x)
+    end
     return res, jac
 end
 ```
@@ -212,3 +218,21 @@ end
     Optional user-specialized API function.
 """
 function computeresjac end
+
+
+"""
+    NLLSsolver.robustkernel(mycost)
+
+Return a subtype of AbstractRobustifier with which to robustify `mycost`.
+
+Existing kernels are [`NoRobust`](@ref), [`Scaled`](@ref), [`HuberKernel`](@ref) and
+[`GemanMcclureKernel`](@ref). You may also write your own.
+
+!!! tip
+    If your cost is a pure sum of squares (i.e. unrobustified), do not implement this method.
+
+!!! note
+    Optional user-specialized API function.
+"""
+function robustkernel end
+
