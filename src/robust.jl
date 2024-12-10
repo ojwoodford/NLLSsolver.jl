@@ -54,12 +54,3 @@ function robustifydcost(kernel::GemanMcclureKernel, cost)
     w2 = w * w
     return cost * w, w2, -2 * w2 * r
 end
-
-# TO BE DELETED (when another abstract cost is defined)
-struct AdaptiveKernelPartitionNegLog{T} <: AbstractCost
-    varind::Int
-end
-varindices(cost::AdaptiveKernelPartitionNegLog) = cost.varind
-computecost(cost::AdaptiveKernelPartitionNegLog, kernel::Float64) = 0.1
-getvars(cost::AdaptiveKernelPartitionNegLog, vars::Vector) = (vars[cost.varind]::Float64,)
-Base.eltype(::AdaptiveKernelPartitionNegLog{T}) where T = T
