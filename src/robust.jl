@@ -2,7 +2,7 @@
 """
     NLLSsolver.NoRobust
 
-Identity kernel.
+The identity kernel. This does not change the cost.
 """
 struct NoRobust <: AbstractRobustifier
 end

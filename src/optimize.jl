@@ -22,6 +22,34 @@ convertunfixed(unfixed::Type, problem) = typeof.(problem.variables) .== unfixed
 convertunfixed(unfixed, problem) = unfixed
 
 # Default options
+"""
+    NLLSsolver.optimize!(problem::NLLSProblem, options=NLLSOptions(), 
+                         unfixed=nothing, callback=nullcallback)
+
+Optimize the cost defined by `problem`, and return `result::NLLSResult`.
+
+Options such as which optimizer to use and termination criteria can be defined in 
+options::[`NLLSOptions`](@ref). The default options specify Levenberg-Marquardt optimization.
+
+If not all variables should be optimzed, this can be specified using `unfixed`, which 
+defines which variables are unfixed, and therefore should be optimized. It can be an integer 
+index of a single variable, a variable type, or a boolean vector. The default (`nothing`)
+indicates that all variables should be optimized.
+
+A callback function can be supplied via the `callback` argument. This function is called 
+after each iteration of the optimization, and should take the following form:
+```julia
+    cost, terminate = callback(cost, problem, data::NLLSInternal, iteratedata)
+````
+where `cost` is the potentially updated problem cost (if the callback updates the problem), 
+and `terminate` is an integer, where non-zero values indicate the optimizer should terminate.
+The value of `terminate` is reported in the result of `optimizer!`. The default callback 
+does nothing.
+
+Variables are optimized in place, with the `variables` element of `problem::`[`NLLSProblem`](@ref).
+
+
+"""
 optimize!(problem::NLLSProblem, options::NLLSOptions=NLLSOptions(), unfixed=nothing, callback=nullcallback) = optimize!(problem, options, convertunfixed(unfixed, problem), callback)
 
 # Optimize one variable at a time
