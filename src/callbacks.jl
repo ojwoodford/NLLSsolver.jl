@@ -1,9 +1,41 @@
 import Printf.@printf
 
 # Default: do nothing
+"""
+    NLLSsolver.nullcallback(cost, problem, data, iteratedata)
+
+A callback that does nothing and returns the tuple `(cost, 0)`.
+
+# Example
+
+Optimizing an NLLSsolver problem as follows:
+```julia
+    NLLSsolver.optimize!(problem, options, unfixed, nullcallback)
+```
+will incur no callback overhead.
+
+!!! note
+    This is the default callback used by `optimize!`.
+"""
 nullcallback(cost, unusedargs...) = (cost, 0)
 
 # Print out per-iteration results
+"""
+    NLLSsolver.printoutcallback(cost, problem, data, iteratedata)
+
+A callback that prints out cost, change in cost and step size each optimization iteration.
+
+# Example
+
+Optimizing an NLLSsolver problem as follows:
+```julia
+    NLLSsolver.optimize!(problem, options, unfixed, printoutcallback)
+```
+will cause per iteration information to print out in the terminal.
+
+!!! note
+    This callback is useful for debugging, but will incur a performance penalty.
+"""
 function printoutcallback(cost, problem, data, trailingargs...)
     prevcost = data.bestcost
     if data.iternum == 1
@@ -33,6 +65,23 @@ function storecostscallback(costs::Vector{Float64}, cost, unusedargs...)
     return (cost, 0)
 end
 
+"""
+    NLLSsolver.CostTrajectory
+
+A type with the fields
+```julia
+    costs::Vector{Float64}
+    times_ns::Vector{UInt64}
+    trajectory::Vector{Vector{Float64}}
+```
+that can be used to store per iteration optimization information.
+
+---
+```julia
+    CostTrajectory()
+```
+Construct an empty `CostTrajectory` struct, ready for use with [`storecostscallback`](@ref).
+"""
 struct CostTrajectory
     costs::Vector{Float64}
     times_ns::Vector{UInt64}
@@ -58,4 +107,27 @@ function storecostscallback(store::CostTrajectory, cost, problem, data, unusedar
 end
 
 # Callback function generator
+"""
+    NLLSsolver.storecostscallback(store)
+
+Generate a callback that stores per iteration information in `store` for later inspection.
+
+# Example
+
+Optimizing an NLLSsolver problem as follows:
+```julia
+    costs = Vector{Float64}()
+    NLLSsolver.optimize!(problem, options, unfixed, storecostscallback(costs))
+```
+will cause the cost at the end of each iteration to be stored in the vector `costs`, while:
+```julia
+    costtrajectory = CostTrajectory()
+    NLLSsolver.optimize!(problem, options, unfixed, storecostscallback(costtrajectory))
+```
+will cause the cost, step and optimization time at the end of each iteration to be stored in
+a [`CostTrajectory`](@ref) structure.
+
+!!! note
+    This method is useful for debugging, but will incur a performance penalty.
+"""
 storecostscallback(store) = (args...) -> storecostscallback(store, args...)
