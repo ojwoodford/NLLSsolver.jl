@@ -82,6 +82,11 @@ function subproblem!(to::NLLSProblem{VT, CT}, from::NLLSProblem{VT, CT}, costind
     return to
 end
 
+"""
+    NLLSsolver.addcost!(problem::NLLSProblem, cost<:AbstractCost)
+
+Add the cost block defined by `cost` to `problem`.
+"""
 function addcost!(problem::NLLSProblem, cost::Cost) where Cost <: AbstractCost
     # Sanity checks
     N = ndeps(cost)
@@ -101,6 +106,11 @@ function addcost!(problem::NLLSProblem, cost::Cost) where Cost <: AbstractCost
     return nothing
 end
 
+"""
+    NLLSsolver.addcost!(problem::NLLSProblem, variable)
+
+Add the variable block defined by `variable` to `problem`.
+"""
 function addvariable!(problem::NLLSProblem, variable)
     # Sanity checks
     N = nvars(variable)

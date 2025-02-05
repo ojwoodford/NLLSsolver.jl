@@ -14,6 +14,11 @@ robustkernel(::AbstractResidual) = NoRobust()
 robustifydcost(kernel::AbstractRobustifier, cost) = autorobustifydcost(kernel, cost)
 robustifydkernel(kernel::AbstractAdaptiveRobustifier, cost) = autorobustifydkernel(kernel, cost)
 
+"""
+    NLLSsolver.Scaled
+
+The scaled kernel. This multiplies the cost by a constant.
+"""
 struct Scaled{T<:Real,Robustifier<:AbstractRobustifier} <: AbstractRobustifier
     robust::Robustifier
     height::T
@@ -26,6 +31,12 @@ function robustifydcost(kernel::Scaled, cost)
 end
 
 
+"""
+    NLLSsolver.HuberKernel
+
+The Huber kernel. This robustifier transitions from a squared cost to a linear cost at a
+user-defined threshold.
+"""
 struct HuberKernel{T<:Real, B} <: AbstractRobustifier
     width::T
     width_squared::T
@@ -43,7 +54,12 @@ function robustifydcost(kernel::HuberKernel, cost)
     return sqrtcost * (kernel.width * 2) - kernel.width_squared, kernel.width / sqrtcost, dynamic(kernel.secondorder) ? (-0.5 * kernel.width) / (cost * sqrtcost) : zero(cost)
 end
 
+"""
+    NLLSsolver.GemanMcclureKernel
 
+The Geman-McClure kernel. This robustifier is truncated, but also has non-zero derivatives
+everywhere.
+"""
 struct GemanMcclureKernel{T<:Real} <: AbstractRobustifier
     width_squared::T
     function GemanMcclureKernel{T}(w::T) where T
