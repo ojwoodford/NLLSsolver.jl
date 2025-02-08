@@ -29,6 +29,9 @@ const MAX_ARGS = 10 # Maximum number of variables a residual can depend on
 const MAX_BLOCK_SZ = 32 # Maximum DoF of a variable and also maximum length of a residual allowed for various operations, such as marginalization
 const MAX_STATIC_VAR = 64 # Maximum static variable size for static sized autodiff to be used
 
+# API method docstrings
+include("docstrings.jl")
+
 # Helper functions
 include("utils.jl")
 include("unroll.jl")

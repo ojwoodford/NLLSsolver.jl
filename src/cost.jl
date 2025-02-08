@@ -2,6 +2,11 @@ using Static
 import ForwardDiff
 import IfElse: ifelse
 
+"""
+    NLLSsolver.cost(problem::NLLSProblem)
+
+Compute and return the scalar cost defined by `problem`.
+"""
 cost(problem::NLLSProblem) = cost(problem.variables, problem.costs)
 cost(vars::Vector, costs::CostStruct)::Float64 = sum(Base.Fix1(computecost, vars), costs)
 cost(vars::Vector, costs::CostStruct, subsetfun)::Float64 = sumsubset(Base.Fix1(computecost, vars), subsetfun, costs)
