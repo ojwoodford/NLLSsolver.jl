@@ -9,7 +9,7 @@ function displaykernels(maxval, kernels...)
     d2v = [Vector{Float64}(undef, 1000) for i in 1:length(kernels)]
     for (k, kernel) in enumerate(kernels)
         for (ind, c) in enumerate(cost) 
-            v[k][ind], dv[k][ind], d2v[k][ind] = robustifyd(kernel, c)
+            v[k][ind], dv[k][ind], d2v[k][ind] = robustifydcost(kernel, c)
         end
     end
 

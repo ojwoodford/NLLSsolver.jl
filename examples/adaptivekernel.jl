@@ -30,13 +30,14 @@ function generatedata(numinliers=100, numoutliers=200, inliersigma=1.0, outliers
     end
 
     # Optimize the cost
-    result = NLLSsolver.optimize!(problem, NLLSsolver.NLLSOptions(iterator=NLLSsolver.levenbergmarquardt, storetrajectory=true))
+    costtraj = NLLSsolver.CostTrajectory()
+    result = NLLSsolver.optimize!(problem, NLLSsolver.NLLSOptions(iterator=NLLSsolver.levenbergmarquardt), nothing, NLLSsolver.storecostscallback(costtraj))
 
     # Generate the parameters
     cg = ContaminatedGaussian(startsigma1, startsigma2, startinlierratio)
     offset = startoffset
-    cgparams = Vector{SVector{4, Float64}}(undef, length(result.trajectory)+1)
-    for (ind, updatevec) in enumerate(result.trajectory)
+    cgparams = Vector{SVector{4, Float64}}(undef, length(costtraj.trajectory)+1)
+    for (ind, updatevec) in enumerate(costtraj.trajectory)
         cgparams[ind] = vcat(NLLSsolver.params(cg), offset)
         cg = update(cg, updatevec)
         offset += updatevec[end]
