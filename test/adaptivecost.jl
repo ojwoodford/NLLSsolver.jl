@@ -12,11 +12,17 @@ NLLSsolver.computeresidual(res::SimpleResidual, mean) = mean - res.data
 NLLSsolver.computeresjac(varflags, res::SimpleResidual, mean) = mean - res.data, SVector(one(mean))'
 Base.eltype(::SimpleResidual) = Float64
 
-function emcallback(cost, problem, data, trailingargs...)
+function optimisekernel!(problem, vars=problem.variables)
     # Compute the squared errors
-    squarederrors = [NLLSsolver.computeresidual(res, problem.varnext[res.varind]) ^ 2 for res in problem.costs.data[SimpleResidual]]
+    squarederrors = [NLLSsolver.computeresidual(res, vars[res.varind]) ^ 2 for res in problem.costs.data[SimpleResidual]]
     # Optimize the kernel parameters
-    problem.varnext[1] = NLLSsolver.optimize(problem.varnext[1], squarederrors)
+    vars[1] = NLLSsolver.optimize(vars[1], squarederrors)
+    return nothing
+end
+
+function emcallback(cost, problem, data, trailingargs...)
+    # Optimize the kernel parameters
+    optimisekernel!(problem, problem.varnext)
     # Recompute the cost
     data.timecost += NLLSsolver.@elapsed_ns newcost = NLLSsolver.cost(problem.varnext, problem.costs)
     data.costcomputations += 1
@@ -27,7 +33,7 @@ end
 @testset "adaptivecost.jl" begin
     # Create the problem
     problem = NLLSsolver.NLLSProblem(Union{NLLSsolver.ContaminatedGaussian{Float64}, Float64}, SimpleResidual)
-    NLLSsolver.addvariable!(problem, ContaminatedGaussian(0.5, 5.0, 0.6))
+    NLLSsolver.addvariable!(problem, ContaminatedGaussian(0.5, 5.0, 0.5))
     NLLSsolver.addvariable!(problem, 0.)
     NLLSsolver.addvariable!(problem, 0.)
     Random.seed!(1)
@@ -38,6 +44,7 @@ end
     end
 
     # Optimize the cost
+    optimisekernel!(problem) # Initial kernel optimization
     result = NLLSsolver.optimize!(problem, NLLSsolver.NLLSOptions(iterator=NLLSsolver.levenbergmarquardt))
 
     # Check the result
@@ -46,11 +53,12 @@ end
     @test isapprox(problem.variables[3], 1.0; rtol=0.1)
     
     # Reset the variable starting values
-    problem.variables[1] = ContaminatedGaussian(0.5, 5.0, 0.6)
+    problem.variables[1] = ContaminatedGaussian(0.5, 5.0, 0.5)
     problem.variables[2] = 0.
     problem.variables[3] = 0.
 
     # Optimize the cost by alternating EM & optimizing the mean
+    optimisekernel!(problem) # Initial kernel optimization
     result = NLLSsolver.optimize!(problem, NLLSsolver.NLLSOptions(iterator=NLLSsolver.newton), SVector(1, 2, 3) .> 1, emcallback)
 
     # Check the result

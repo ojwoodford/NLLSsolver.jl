@@ -24,8 +24,8 @@ end
     halftotal = sum(floats[1:5]) + sum(ints[1:5])
     rangefun(::Vector{T}) where T = T <: Char ? (1:0) : (1:5)
     indicesfun(::Vector{T}) where T = T <: Char ? Int[] : [1, 2, 3, 4, 5]
-    bitvecfun(::Vector{T}) where T = T <: Char ? BitVector() : 1:10 .<= 5
-    boolvecfun(::Vector{T}) where T = T <: Char ? Bool[] : map(x->x<=5, 1:10)
+    bitvecfun(::Vector{T}) where T = T <: Char ? BitVector() : 1:11 .<= 5
+    boolvecfun(::Vector{T}) where T = T <: Char ? Bool[] : map(x->x<=5, 1:11)
 
     # Construct repos and test the sum reduction
     # Any container

@@ -75,22 +75,7 @@ sumsubset(fun, subsetfun, vr::VectorRepo{T}) where T = sumsubsettype(fun, subset
 @inline sumsubsettype(fun, subsetfun, vr, T::DataType) = sumsubsetparamtype(fun, subsetfun, vr, T)
 @inline sumsubsetparamtype(fun, subsetfun, vr, ::Type{T}) where T = sumsubsetvec(fun, subsetfun, get(vr, T)::Vector{T})
 @inline sumsubsetvec(fun, subsetfun, vector) = sumsubsetloop(fun, subsetfun(vector), vector)
-function sumsubsetloop(fun, subset::Union{BitVector, Vector{Bool}}, vector)::Float64
-    total = 0.0
-    for (ind, val) in enumerate(subset)
-        if val
-            @fastmath total += @inbounds fun(vector[ind])::Float64
-        end
-    end
-    return total
-end
-function sumsubsetloop(fun, subset, vector)::Float64
-    total = 0.0
-    @simd for ind in subset
-        @fastmath total += @inbounds fun(vector[ind])::Float64
-    end
-    return total
-end
+@inline sumsubsetloop(fun, subset, vector) = multithreadedsum(fun, view(vector, subset); init=0.0)
 
 # Map
 Base.map(fun, vr::VectorRepo) = Dict([eltype(val)=>fun(val) for val in values(vr)]...)
