@@ -66,7 +66,7 @@ end
 # Static dispatch if types are known
 @inline Base.sum(fun, vr::VectorRepo{T}; init=0.0) where T = vrsum(fun, vr, init, T)
 @inline vrsum(fun, vr::VectorRepo, init, T::Union) = vrsum(fun, vr, init, T.a) + vrsum(fun, vr, init, T.b)
-@inline vrsum(fun, vr::VectorRepo, init, T::DataType) = sum(fun, get(vr, T); init=init)
+@inline vrsum(fun, vr::VectorRepo, init, T::DataType) = multithreadedsum(fun, get(vr, T); init=init)
 
 # Sum reduction over a subset of the elements
 sumsubset(fun, subsetfun, vr::VectorRepo{Any}) = sum(fixallbutlast(sumsubsetvec, fun, subsetfun), values(vr.data); init=0.0)

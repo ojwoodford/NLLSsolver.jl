@@ -35,6 +35,7 @@ include("docstrings.jl")
 # Helper functions
 include("utils.jl")
 include("unroll.jl")
+include("multithreading.jl")
 
 # Problem definition
 include("VectorRepo.jl")
