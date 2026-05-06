@@ -3,7 +3,7 @@ module NLLSsolver
 # Types
 export AbstractCost, AbstractResidual, AbstractRobustifier # Abstract problem definition types
 export NLLSProblem, NLLSOptions, NLLSResult, NLLSIterator # Concrete problem & solver types
-export AbstractRobustifier, NoRobust, Scaled, KernelReference, HuberKernel, Huber2oKernel, GemanMcclureKernel, GemanMcclure2oKernel # Robustifiers
+export AbstractRobustifier, NoRobust, Scaled, HuberKernel, Huber2oKernel, GemanMcclureKernel, GemanMcclure2oKernel # Robustifiers
 export ContaminatedGaussian # Adaptive robustifiers
 export EuclideanVector, ZeroToInfScalar, ZeroToOneScalar # Concrete general variables
 export SimpleError2, SimpleError3, SimpleError4 # Measurement error residuals depending on 2, 3, and 4 variables
@@ -12,7 +12,7 @@ export CostTrajectory # Object for storing opimization trajectory and costs
 export addcost!, addvariable!, updatevarcostmap!, subproblem, subproblem!, nvars, nres # Construct a problem
 export update, nvars # Variable interface
 export nres, ndeps, varindices, getvars, generatemeasurement # Residual interface
-export robustkernel, robustify, robustifydcost, robustifydkernel, setkernel! # Robustifier interface
+export robustkernel, robustify, robustifydcost, robustifydkernel # Robustifier interface
 export cost, computeresidual, computeresjac, computecost, computecostgradhess # Compute the objective
 export optimize!  # Optimize the objective
 export nullcallback, printoutcallback, storecostscallback # Callbacks to be called once per optimization iteration
