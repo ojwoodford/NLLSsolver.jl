@@ -23,14 +23,20 @@ end
 
     # No robustifier
     testrobustifier(NoRobust(), costs, costs)
+    kernel_ref = KernelReference(NoRobust())
+    testrobustifier(kernel_ref, costs, costs)
 
     # Scaled robustifier
     testrobustifier(Scaled(NoRobust(), 2.0), costs, 2 * costs)
+    setkernel!(kernel_ref, Scaled(NoRobust(), 2.0))
+    testrobustifier(kernel_ref, costs, 2 *costs)
 
     # Huber
     sigma = 0.7
     out = [ifelse(c <= sigma ^ 2, c, 2 * sigma * sqrt(c) - sigma ^ 2) for c in costs]
     testrobustifier(Huber2oKernel(sigma), costs, out)
+    setkernel!(kernel_ref, Huber2oKernel(sigma))
+    testrobustifier(kernel_ref, costs, out)
 
     # Scaled Huber
     testrobustifier(Scaled(Huber2oKernel(sigma), 3.0), costs, 3 * out)
@@ -38,7 +44,7 @@ end
     # Geman-McClure
     sigma = 0.6
     out = costs * sigma ^ 2 ./ (costs .+ sigma ^ 2)
-    testrobustifier(GemanMcclureKernel(sigma), costs, out)
+    testrobustifier(GemanMcclure2oKernel(sigma), costs, out)
 
     # Contaminated Gaussian (Adaptive kernel)
     s1 = 0.6

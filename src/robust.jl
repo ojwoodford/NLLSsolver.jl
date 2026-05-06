@@ -30,6 +30,17 @@ function robustifydcost(kernel::Scaled, cost)
     return c * kernel.height, d1 * kernel.height, d2 * kernel.height
 end
 
+"""
+    NLLSsolver.KernelReference
+
+A referenced kernel. This allows a kernel to be set at runtime.
+"""
+mutable struct KernelReference <: AbstractRobustifier
+    robust::AbstractRobustifier
+end
+setkernel!(kernel::KernelReference, newkernel::T) where T <: AbstractRobustifier = kernel.robust = newkernel
+robustify(kernel::KernelReference, cost) = robustify(kernel.robust, cost)
+robustifydcost(kernel::KernelReference, cost) = robustifydcost(kernel.robust, cost)
 
 """
     NLLSsolver.HuberKernel
