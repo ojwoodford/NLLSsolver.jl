@@ -69,16 +69,16 @@ function computerescostgradhess(varflags, residual, kernel, vars)
     res, jac = computeresjac(varflagsres, residual, vars...)
  
     # Compute the unrobust cost, gradient and Hessian
-    cost = sqnorm(res)
+    sqres = sqnorm(res)
     g = jac' * res
     H = jac' * jac
 
     if varflags & 1 == 0
         # The kernel is not optimized. Differentiate w.r.t. the cost only
-        cost, dc, d2c = robustifydcost(kernel, cost)
+        cost, dc, d2c = robustifydcost(kernel, sqres)
     else
         # Differentiate w.r.t. the cost and kernel parameters
-        cost, dc_, d2c_ = robustifydkernel(kernel, cost)
+        cost, dc_, d2c_ = robustifydkernel(kernel, sqres)
         @inbounds dc = dc_[end]
         @inbounds d2c = d2c_[end,end]
     
@@ -93,7 +93,7 @@ function computerescostgradhess(varflags, residual, kernel, vars)
     end
     # Second order correction
     if d2c != 0
-        H += ((2 * d2c) * g) * g'
+        H += (max(2 * d2c, -dc / (3 * sqres)) * g) * g' # Ensure Hessian is positive semi-definite
     end
     # IRLS reweighting of gradient
     if dc != 1
