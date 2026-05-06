@@ -19,7 +19,7 @@ function Base.String(iterator::NLLSIterator)
     return "Unknown iterator"
 end
 
-struct NLLSOptions{T}
+struct NLLSOptions
     reldcost::Float64           # Minimum relative reduction in cost required to avoid termination
     absdcost::Float64           # Minimum absolute reduction in cost required to avoid termination
     dstep::Float64              # Minimum L-infinity norm of the update vector required to avoid termination
@@ -27,11 +27,11 @@ struct NLLSOptions{T}
     maxiters::Int               # Maximum number of outer iterations
     maxtime::UInt64             # Maximum optimization time allowed, in nano-seconds (converted from seconds in the constructor)
     iterator::NLLSIterator      # Inner iterator (see above for options)
-    callback::T                 # Callback called every outer iteration - (cost, problem, data) -> (newcost, terminate::Bool) where terminate == true ends the optimization
-    iteratordata                # Iterator-specific data, to be passed to the iterator
 end
-function NLLSOptions(; maxiters=100, reldcost=1.e-15, absdcost=1.e-15, dstep=1.e-15, maxfails=3, maxtime=30.0, iterator=levenbergmarquardt, callback::T=nothing, iteratordata=nothing) where T
-    NLLSOptions{T}(reldcost, absdcost, dstep, maxfails, maxiters, UInt64(round(maxtime * 1e9)), iterator, callback, iteratordata)
+function NLLSOptions(; maxiters=100, reldcost=1.e-15, absdcost=1.e-15, dstep=1.e-15, maxfails=3, maxtime=30.0, iterator=levenbergmarquardt, callback=nothing, iteratordata=nothing)
+    @assert(isnothing(callback), "Callbacks should be passed directly to optimize!, not to the options struct.")
+    @assert(isnothing(iteratordata), "Iteratordata should not be to the options struct.")
+    NLLSOptions(reldcost, absdcost, dstep, maxfails, maxiters, UInt64(round(maxtime * 1e9)), iterator)
 end
 
 struct NLLSResult
