@@ -60,18 +60,17 @@ end
 The Geman-McClure kernel. This robustifier is truncated, but also has non-zero derivatives
 everywhere.
 """
-struct GemanMcclureKernel{T<:Real} <: AbstractRobustifier
+struct GemanMcclureKernel{T<:Real, B} <: AbstractRobustifier
     width_squared::T
-    function GemanMcclureKernel{T}(w::T) where T
-        return new(w * w)
-    end
+    secondorder::B
 end
-GemanMcclureKernel(w::T) where T = GemanMcclureKernel{T}(w)
+GemanMcclureKernel(w) = GemanMcclureKernel(w*w, static(false))
+GemanMcclure2oKernel(w) = GemanMcclureKernel(w*w, static(true))
 
 robustify(kernel::GemanMcclureKernel, cost) = cost * kernel.width_squared / (cost + kernel.width_squared)
 function robustifydcost(kernel::GemanMcclureKernel, cost)
     r = 1.0 / (cost + kernel.width_squared)
     w = kernel.width_squared * r
     w2 = w * w
-    return cost * w, w2, -2 * w2 * r
+    return cost * w, w2, dynamic(kernel.secondorder) ? -2 * w2 * r : zero(cost)
 end

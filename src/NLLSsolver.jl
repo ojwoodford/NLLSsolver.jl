@@ -3,7 +3,7 @@ module NLLSsolver
 # Types
 export AbstractCost, AbstractResidual, AbstractRobustifier # Abstract problem definition types
 export NLLSProblem, NLLSOptions, NLLSResult, NLLSIterator # Concrete problem & solver types
-export AbstractRobustifier, NoRobust, Scaled, HuberKernel, Huber2oKernel, GemanMcclureKernel # Robustifiers
+export AbstractRobustifier, NoRobust, Scaled, HuberKernel, Huber2oKernel, GemanMcclureKernel, GemanMcclure2oKernel # Robustifiers
 export ContaminatedGaussian # Adaptive robustifiers
 export EuclideanVector, ZeroToInfScalar, ZeroToOneScalar # Concrete general variables
 export SimpleError2, SimpleError3, SimpleError4 # Measurement error residuals depending on 2, 3, and 4 variables
