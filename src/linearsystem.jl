@@ -174,9 +174,6 @@ function updatesymlinearsystem!(linsystem::MultiVariateLS, g::AbstractVector, H:
     updatesymA!(linsystem.A, H, vars, varflags, blockindices)
 end
 
-uniformscaling!(linsystem, k) = uniformscaling!(linsystem.A, k)
-
-
 getgrad(linsystem) = linsystem.b
 gethessian(linsystem::UniVariateLS) = linsystem.A
 function gethessian(linsystem::MultiVariateLSsparse)

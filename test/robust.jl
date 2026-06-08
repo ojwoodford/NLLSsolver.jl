@@ -1,12 +1,16 @@
 using NLLSsolver, Test, StaticArrays
 
 # Generic function for testing a robustifier
-function testrobustifier(kernel, costs, expected)
+function testrobustifier(kernel, costs, expected, firstorder=false)
     for (i, cost) in enumerate(costs)
         # Check the value is correct
         @test robustify(kernel, cost) ≈ expected[i]
         # Check the derivatives are correct
-        @test SVector(robustifydcost(kernel, cost)) ≈ SVector(NLLSsolver.autorobustifydcost(kernel, cost))
+        ad = NLLSsolver.autorobustifydcost(kernel, cost)
+        if firstorder
+            ad = (ad[1], ad[2], 0.0)
+        end
+        @test SVector(robustifydcost(kernel, cost)) ≈ SVector(ad)
         if isa(kernel, NLLSsolver.AbstractAdaptiveRobustifier)
             # Check the derivatives w.r.t. the kernel parameters
             c, dc, d2c = robustifydkernel(kernel, cost)
@@ -31,6 +35,7 @@ end
     sigma = 0.7
     out = [ifelse(c <= sigma ^ 2, c, 2 * sigma * sqrt(c) - sigma ^ 2) for c in costs]
     testrobustifier(Huber2oKernel(sigma), costs, out)
+    testrobustifier(HuberKernel(sigma), costs, out, true)
 
     # Scaled Huber
     testrobustifier(Scaled(Huber2oKernel(sigma), 3.0), costs, 3 * out)
@@ -38,7 +43,8 @@ end
     # Geman-McClure
     sigma = 0.6
     out = costs * sigma ^ 2 ./ (costs .+ sigma ^ 2)
-    testrobustifier(GemanMcclureKernel(sigma), costs, out)
+    testrobustifier(GemanMcclure2oKernel(sigma), costs, out)
+    testrobustifier(GemanMcclureKernel(sigma), costs, out, true)
 
     # Contaminated Gaussian (Adaptive kernel)
     s1 = 0.6
