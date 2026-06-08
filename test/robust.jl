@@ -38,7 +38,7 @@ end
     # Geman-McClure
     sigma = 0.6
     out = costs * sigma ^ 2 ./ (costs .+ sigma ^ 2)
-    testrobustifier(GemanMcclureKernel(sigma), costs, out)
+    testrobustifier(GemanMcclure2oKernel(sigma), costs, out)
 
     # Contaminated Gaussian (Adaptive kernel)
     s1 = 0.6
