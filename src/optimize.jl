@@ -1,5 +1,5 @@
 # Uni-variate optimization (single unfixed variable)
-optimize!(problem::NLLSProblem, options::NLLSOptions, unfixed::Integer, callback=nullcallback, starttimens=Base.time_ns()) = setupiterator(optimizeinternal!, problem, options, NLLSInternal(UInt(unfixed), nvars(problem.variables[unfixed]), starttimens), callback)::NLLSResult
+optimize!(problem::NLLSProblem, options::NLLSOptions, unfixed::Integer, callback=nullcallback, starttimens=Base.time_ns()) = setupiterator(optimizeinternal!, checkvars!(problem), options, NLLSInternal(UInt(unfixed), nvars(problem.variables[unfixed]), starttimens), callback)::NLLSResult
 
 # Multi-variate optimization
 function optimize!(problem::NLLSProblem, options::NLLSOptions, unfixed::AbstractVector, callback)::NLLSResult
@@ -12,6 +12,7 @@ function optimize!(problem::NLLSProblem, options::NLLSOptions, unfixed::Abstract
         return optimize!(problem, options, findfirst(unfixed), callback, starttimens)
     end
     # Multiple variables
+    problem = checkvars!(problem)
     return setupiterator(optimizeinternal!, problem, options, NLLSInternal(makesymmvls(problem, unfixed, nblocks), starttimens), callback)::NLLSResult
 end
 
@@ -19,6 +20,15 @@ end
 convertunfixed(::Nothing, problem) = trues(length(problem.variables))
 convertunfixed(unfixed::Type, problem) = typeof.(problem.variables) .== unfixed
 convertunfixed(unfixed, problem) = unfixed
+
+# Helper to ensure the NLLSProblem struct has the right variable storage (e.g. varnext) for optimization
+function checkvars!(problem::NLLSProblem)::NLLSProblem
+    # Copy the variables, if need be
+    if length(problem.variables) != length(problem.varnext)
+        problem.varnext = deepcopy(problem.variables)
+    end
+    return problem
+end
 
 # Default options
 """
@@ -56,31 +66,29 @@ costs, iteration count, high level timings and reasons for termination, is retur
 optimize!(problem::NLLSProblem, options::NLLSOptions=NLLSOptions(), unfixed=nothing, callback=nullcallback) = optimize!(problem, options, convertunfixed(unfixed, problem), callback)
 
 # Optimize one variable at a time
-optimizesingles!(problem::NLLSProblem, options::NLLSOptions, type::DataType) = optimizesingles!(problem, options, findall(v->isa(v, type), problem.variables), true)
-function optimizesingles!(problem::NLLSProblem{VT, CT}, options::NLLSOptions, indices, singletype=false)::NLLSResult where {VT, CT}
-    result = NLLSResult(0.0, 0.0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0)
-    if isempty(indices)
-        return result
-    end
+function optimizesingles!(problem::NLLSProblem{VT, CT}, options::NLLSOptions, type::DataType)::NLLSResult where {VT, CT}
+    indices = findall(v->isa(v, type), problem.variables)
+    return optimizesingles!(problem, options, indices, !isempty(indices) && dynamic(is_static(nvars(problem.variables[indices[1]]))))
+end
+function optimizesingles!(problem::NLLSProblem{VT, CT}, options::NLLSOptions, indices, sortedbysize=false)::NLLSResult where {VT, CT}
+    problem = checkvars!(problem)
     # Get the indices per cost
     costindices = sparse(getvarcostmap(problem)')
     # Put the costs aside
     allcosts = problem.costs
     problem.costs = CostStruct{CT}()
-    # Check if we expect all variables to be the same size (if they're all static sized)
-    if singletype && dynamic(is_static(nvars(problem.variables[indices[1]])))
-        # Optimize all variables of the same size
-        last, result = loopvarsizes(problem, options, nvars(problem.variables[indices[1]]), allcosts, costindices, indices, 1, result)
-        @assert(last > length(indices), "Unexpected change in variables size")
-    else
-        # If the variables are not static sized, then we can optimize all variables of the same size together, so sort the indices by variable size
+    # If the variables are not static sized, then we can optimize all variables of the same size together, so sort the indices by variable size
+    if !sortedbysize
         indices = indices[sortperm([nvars(problem.variables[i]) for i in indices])]
-        first = 1
-        while first <= length(indices)
-            # Optimize all variables of the same size
-            first, result = loopvarsizes(problem, options, nvars(problem.variables[indices[first]]), allcosts, costindices, indices, first, result)
-        end
     end
+    # Loop over all the variables
+    result = NLLSResult(0.0, 0.0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0)
+    first = 1
+    while first <= length(indices)
+        # Optimize all variables of the same size at once
+        first, result = loopvarsizes(problem, options, nvars(problem.variables[indices[first]]), allcosts, costindices, indices, first, result)
+    end
+    # Put the costs back
     problem.costs = allcosts
     return result
 end
@@ -88,11 +96,6 @@ loopvarsizes(problem::NLLSProblem, options::NLLSOptions, varsz, allcosts, costin
 
 
 function setupiterator(func, problem::NLLSProblem, options::NLLSOptions, data::NLLSInternal, trailingargs...)
-    # Copy the variables, if need be
-    if length(problem.variables) != length(problem.varnext)
-        problem.varnext = deepcopy(problem.variables)
-    end
-
     # Call the optimizer with the required iterator struct
     if options.iterator == newton
         # Newton's method
