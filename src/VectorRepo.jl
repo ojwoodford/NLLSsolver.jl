@@ -40,7 +40,7 @@ end
 
 # Sum reduction
 Base.sum(fun, vr::VectorRepo{Any}; init=0.0) = sum(bindleadingargs(vrsum, fun, init), values(vr.data); init=init)
-vrsum(fun, init, v::Vector) = multithreadedsum(fun, v, init)
+vrsum(fun, init, v::Vector) = sum(fun, v; init=init)
 # Static dispatch if types are known
 Base.sum(fun, vr::VectorRepo{T}; init=0.0) where T = vrsum(fun, vr, init, T)
 vrsum(fun, vr::VectorRepo, init, T::Union) = vrsum(fun, vr, init, T.a) + vrsum(fun, vr, init, T.b)
@@ -51,4 +51,4 @@ vrsum(fun, vr::VectorRepo, init, ::Type{T}) where T = vrsum(fun, init, get(vr, T
 # sumsubset(fun, vr::VectorRepo{T}, subsetfun; init=0.0) where T = vrsumsubset(fun, subsetfun, vr, init,T)
 # vrsumsubset(fun, subsetfun, vr, init, T::Union) = vrsumsubset(fun, subsetfun, vr, init, T.a) + vrsumsubset(fun, subsetfun, vr, init, T.b)
 # vrsumsubset(fun, subsetfun, vr, init, ::Type{T}) where T = sumsubsetvec(args, subsetfun, init, get(vr, T)::Vector{T})
-# sumsubsetvec(fun, subsetfun, init, vector) = multithreadedsum(fun, view(vector, subsetfun(vector)), init)
+# sumsubsetvec(fun, subsetfun, init, vector) = sum(fun, view(vector, subsetfun(vector)); init=init)
