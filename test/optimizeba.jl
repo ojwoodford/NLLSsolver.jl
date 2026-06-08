@@ -60,7 +60,7 @@ end
 
     # Optimze just the landmarks
     result = NLLSsolver.optimizesingles!(problem, NLLSOptions(), findall(landmarks))
-    show(result)
+    display(result)
     costafter = NLLSsolver.cost(problem)
     @test costbefore ≈ result.startcost
     @test costafter ≈ result.bestcost
