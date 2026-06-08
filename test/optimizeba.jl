@@ -54,12 +54,26 @@ end
     # Test reordering the costs
     problem = perturb_ba_problem(problem, 0.003, 0.0)
     costbefore = cost(problem)
-    NLLSsolver.reordercostsforschur!(problem, isa.(problem.variables, EuclideanVector{3, Float64}))
+    landmarks = isa.(problem.variables, EuclideanVector{3, Float64})
+    NLLSsolver.reordercostsforschur!(problem, landmarks)
     @test cost(problem) ≈ costbefore
 
     # Optimze just the landmarks
-    NLLSsolver.optimizesingles!(problem, NLLSOptions(), EuclideanVector{3, Float64})
-    @test NLLSsolver.cost(problem) < 1.e-15
+    result = NLLSsolver.optimizesingles!(problem, NLLSOptions(), findall(landmarks))
+    display(result)
+    costafter = NLLSsolver.cost(problem)
+    @test costbefore ≈ result.startcost
+    @test costafter ≈ result.bestcost
+    @test costafter < 1.e-15
+
+    # Optimze just the landmarks, specified by type
+    problem = perturb_ba_problem(problem, 0.003, 0.0)
+    costbefore = cost(problem)
+    result = NLLSsolver.optimizesingles!(problem, NLLSOptions(), EuclideanVector{3, Float64})
+    costafter = NLLSsolver.cost(problem)
+    @test costbefore ≈ result.startcost
+    @test costafter ≈ result.bestcost
+    @test costafter < 1.e-15
 
     # Optimize problem
     problem = perturb_ba_problem(problem, 0.001, 0.001)
