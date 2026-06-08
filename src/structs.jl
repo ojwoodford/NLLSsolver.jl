@@ -30,23 +30,27 @@ struct NLLSOptions
 end
 function NLLSOptions(; maxiters=100, reldcost=1.e-15, absdcost=1.e-15, dstep=1.e-15, maxfails=3, maxtime=30.0, iterator=levenbergmarquardt, callback=nothing, iteratordata=nothing)
     @assert(isnothing(callback), "Callbacks should be passed directly to optimize!, not to the options struct.")
-    @assert(isnothing(iteratordata), "Iteratordata should not be to the options struct.")
+    @assert(isnothing(iteratordata), "Iteratordata should not be passed to the options struct.")
     NLLSOptions(reldcost, absdcost, dstep, maxfails, maxiters, UInt64(round(maxtime * 1e9)), iterator)
 end
 
 struct NLLSResult
-    startcost::Float64                      # The function cost prior to minimization
-    bestcost::Float64                       # The lowest function cost achieved
-    timetotal::Float64                      # The total time (in seconds) taken to run the optimization
-    timeinit::Float64                       # The time (in seconds) to initialize the internal data structures
-    timecost::Float64                       # Time (in seconds) spent computing the cost
-    timegradient::Float64                   # Time (in seconds) spent computing the residual gradients and constructing the linear problems
-    timesolver::Float64                     # Time (in seconds) spent solving the linear problems
-    termination::Int                        # Set of flags indicating which termination criteria were met - the value should not be relied upon
+    # Costs
+    startcost::Float64                    # The function cost prior to minimization
+    bestcost::Float64                     # The lowest function cost achieved
+    # Times (nano-seconds)
+    timetotal::UInt64                      # The total time taken to run the optimization
+    timeinit::UInt64                       # The time to initialize the internal data structures
+    timecost::UInt64                       # Time spent computing the cost
+    timegradient::UInt64                   # Time spent computing the residual gradients and constructing the linear problems
+    timesolver::UInt64                     # Time spent solving the linear problems
+    # Counts
     niterations::Int                        # Number of outer optimization iterations performed
     costcomputations::Int                   # Number of cost computations performed
     gradientcomputations::Int               # Number of residual gradient computations performed
     linearsolvers::Int                      # Number of linear solves performed
+    # Termination reason
+    termination::Int                        # Set of flags indicating which termination criteria were met - the value should not be relied upon
 end
 
 function Base.show(io::IO, x::NLLSResult)
@@ -57,12 +61,12 @@ function Base.show(io::IO, x::NLLSResult)
    %d linear solver computations in %f seconds (%.2f%% of total time),
    %f seconds for initialization (%.2f%% of total time), and
    %f seconds for other stuff (%.2f%% of total time).\n", 
-            x.timetotal, x.niterations, x.startcost, x.bestcost, 100*(1-x.bestcost/x.startcost), 
-            x.costcomputations, x.timecost, 100*x.timecost/x.timetotal,
-            x.gradientcomputations, x.timegradient, 100*x.timegradient/x.timetotal,
-            x.linearsolvers, x.timesolver, 100*x.timesolver/x.timetotal,
-            x.timeinit, 100*x.timeinit/x.timetotal,
-            otherstuff, 100*otherstuff/x.timetotal)
+            x.timetotal*1e-9, x.niterations, x.startcost, x.bestcost, 100*(1-x.bestcost/x.startcost), 
+            x.costcomputations, x.timecost*1e-9, 100.0*x.timecost/x.timetotal,
+            x.gradientcomputations, x.timegradient*1e-9, 100.0*x.timegradient/x.timetotal,
+            x.linearsolvers, x.timesolver*1e-9, 100.0*x.timesolver/x.timetotal,
+            x.timeinit*1e-9, 100.0*x.timeinit/x.timetotal,
+            otherstuff*1e-9, 100.0*otherstuff/x.timetotal)
     if 0 != x.termination           ; println(io, "Reason(s) for termination:"); end
     if 0 != x.termination & (1 << 0); println(io, "   Cost is infinite."); end
     if 0 != x.termination & (1 << 1); println(io, "   Cost is NaN."); end
@@ -104,7 +108,7 @@ mutable struct NLLSInternal{LSType}
 end
 @inline NLLSInternal(unfixed::UInt, varlen, starttimens) = NLLSInternal(dynamic(is_static(varlen)) && varlen <= 16 ? UniVariateLSstatic{dynamic(varlen), dynamic(varlen*varlen)}(unfixed) : UniVariateLSdynamic(unfixed, dynamic(varlen)), starttimens)
 
-getresult(data::NLLSInternal) = NLLSResult(data.startcost, data.bestcost, data.timetotal*1.e-9, data.timeinit*1.e-9, data.timecost*1.e-9, data.timegradient*1.e-9, data.timesolver*1.e-9, data.converged, data.iternum, data.costcomputations, data.gradientcomputations, data.linearsolvers)
+getresult(data::NLLSInternal) = NLLSResult(data.startcost, data.bestcost, data.timetotal, data.timeinit, data.timecost, data.timegradient, data.timesolver, data.iternum, data.costcomputations, data.gradientcomputations, data.linearsolvers, data.converged)
 
 NLLSInternalMultiVar = Union{NLLSInternal{MultiVariateLSdense}, NLLSInternal{MultiVariateLSsparse}}
 NLLSInternalSingleVar = Union{NLLSInternal{UniVariateLSstatic{N, N2}}, NLLSInternal{UniVariateLSdynamic}} where {N, N2}
