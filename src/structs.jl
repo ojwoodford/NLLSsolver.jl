@@ -98,17 +98,14 @@ mutable struct NLLSInternal{LSType}
     costcomputations::Int
     gradientcomputations::Int
     linearsolvers::Int
-    converged::Int
     # Linear system
     linsystem::LSType  
 
     function NLLSInternal(linsystem::LSType, starttimens) where LSType
-        return new{LSType}(0., 0., starttimens, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, linsystem)
+        return new{LSType}(0., 0., starttimens, 0, 0, 0, 0, 0, 0, 0, 0, 0, linsystem)
     end
 end
 @inline NLLSInternal(unfixed::UInt, varlen, starttimens) = NLLSInternal(dynamic(is_static(varlen)) && varlen <= 16 ? UniVariateLSstatic{dynamic(varlen), dynamic(varlen*varlen)}(unfixed) : UniVariateLSdynamic(unfixed, dynamic(varlen)), starttimens)
-
-getresult(data::NLLSInternal) = NLLSResult(data.startcost, data.bestcost, data.timetotal, data.timeinit, data.timecost, data.timegradient, data.timesolver, data.iternum, data.costcomputations, data.gradientcomputations, data.linearsolvers, data.converged)
 
 NLLSInternalMultiVar = Union{NLLSInternal{MultiVariateLSdense}, NLLSInternal{MultiVariateLSsparse}}
 NLLSInternalSingleVar = Union{NLLSInternal{UniVariateLSstatic{N, N2}}, NLLSInternal{UniVariateLSdynamic}} where {N, N2}

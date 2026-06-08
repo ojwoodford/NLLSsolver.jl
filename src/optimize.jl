@@ -1,5 +1,5 @@
 # Uni-variate optimization (single unfixed variable)
-optimize!(problem::NLLSProblem, options::NLLSOptions, unfixed::Integer, callback=nullcallback, starttimens=Base.time_ns())::NLLSResult = getresult(setupiterator(optimizeinternal!, problem, options, NLLSInternal(UInt(unfixed), nvars(problem.variables[unfixed]), starttimens), callback))
+optimize!(problem::NLLSProblem, options::NLLSOptions, unfixed::Integer, callback=nullcallback, starttimens=Base.time_ns()) = setupiterator(optimizeinternal!, problem, options, NLLSInternal(UInt(unfixed), nvars(problem.variables[unfixed]), starttimens), callback)::NLLSResult
 
 # Multi-variate optimization
 function optimize!(problem::NLLSProblem, options::NLLSOptions, unfixed::AbstractVector, callback)::NLLSResult
@@ -13,7 +13,7 @@ function optimize!(problem::NLLSProblem, options::NLLSOptions, unfixed::Abstract
         return optimize!(problem, options, unfixed, callback, starttimens)
     end
     # Multiple variables
-    return getresult(setupiterator(optimizeinternal!, problem, options, NLLSInternal(makesymmvls(problem, unfixed, nblocks), starttimens), callback))
+    return setupiterator(optimizeinternal!, problem, options, NLLSInternal(makesymmvls(problem, unfixed, nblocks), starttimens), callback)::NLLSResult
 end
 
 # Conversions for different types of "unfixed"
@@ -106,11 +106,12 @@ function setupiterator(func, problem::NLLSProblem, options::NLLSOptions, data::N
 end
 
 # The meat of an optimization
-function optimizeinternal!(problem::NLLSProblem, options::NLLSOptions, data, iteratedata, callback)
+function optimizeinternal!(problem::NLLSProblem, options::NLLSOptions, data, iteratedata, callback)::NLLSResult
     # Do any preoptimization for the iterator
     data.startcost = preoptimization(iteratedata, problem, options, data)::Float64
     # Other initializations
     fails = 0
+    converged = 0
     data.iternum = 0
     stoptime = data.starttime + options.maxtime
     data.timeinit += Base.time_ns() - data.starttime
@@ -147,7 +148,6 @@ function optimizeinternal!(problem::NLLSProblem, options::NLLSOptions, data, ite
         updatefromnext!(problem, data)
         # Check for termination
         maxstep = maximum(abs, data.linsystem.x)
-        converged = 0
         converged |= isinf(cost)                                     << 0 # Cost is infinite
         converged |= isnan(cost)                                     << 1 # Cost is NaN
         converged |= (dcost < data.bestcost * options.reldcost)      << 2 # Relative decrease in cost is too small
@@ -159,7 +159,6 @@ function optimizeinternal!(problem::NLLSProblem, options::NLLSOptions, data, ite
         converged |= (data.iternum >= options.maxiters)              << 8 # Max number of iterations reached
         converged |= (Base.time_ns() > stoptime)                     << 9 # Max amount of time exceeded
         converged |= terminate                                       << 16 # Terminated by the user-defined callback (room left for new flags above)
-        data.converged = converged
         if converged != 0
             break
         end
@@ -176,7 +175,7 @@ function optimizeinternal!(problem::NLLSProblem, options::NLLSOptions, data, ite
     end
     # Return the data to produce the final result
     data.timetotal += Base.time_ns() - data.starttime
-    return data
+    return NLLSResult(data.startcost, data.bestcost, data.timetotal, data.timeinit, data.timecost, data.timegradient, data.timesolver, data.iternum, data.costcomputations, data.gradientcomputations, data.linearsolvers, converged)
 end
 
 # Optimizing variables one at a time (e.g. in alternation)
