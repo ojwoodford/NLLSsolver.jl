@@ -11,8 +11,14 @@ using StaticArrays, Static, SparseArrays, LoopVectorization
     return valuedispatch(midpoint + static(1), upper, val, fun)
 end
 
-expandfunc(args, v) = args[1](args[2:end]..., v)
-fixallbutlast(func, args...) = Base.Fix1(expandfunc, (func, args...))
+struct Bind{F, A}
+    func::F
+    args::A
+end
+function (bound::Bind)(args...)
+    bound.func(bound.args..., args...)
+end
+bindleadingargs(func, args...) = Bind(func, args)
 
 SR(first, last) = StaticArrays.SUnitRange(dynamic(first), dynamic(last))
 

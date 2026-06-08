@@ -106,7 +106,7 @@ function computeresjacdynamic(varflags, residual::AbstractResidual, vars)
         # Scalar residual
         x = zeros(eltype(residual), totalnumvars)
         result = DiffResults.GradientResult(x)
-        result = ForwardDiff.gradient!(result, fixallbutlast(computeresjachelper, varflags, residual, vars), x)
+        result = ForwardDiff.gradient!(result, bindleadingargs(computeresjachelper, varflags, residual, vars), x)
         # Return the residual and jacobian
         return DiffResults.value(result), DiffResults.gradient(result)'
     end
@@ -115,7 +115,7 @@ function computeresjacdynamic(varflags, residual::AbstractResidual, vars)
     resultlength = (totalnumvars + 1) * M
     resultstorage = zeros(eltype(residual), resultlength)
     result = DiffResults.DiffResult(view(resultstorage, 1:dynamic(M)), (reshape(view(resultstorage, M+1:resultlength), dynamic(M), totalnumvars),))
-    result = ForwardDiff.jacobian!(result, fixallbutlast(computeresjachelper, varflags, residual, vars), view(resultstorage, 1:totalnumvars))
+    result = ForwardDiff.jacobian!(result, bindleadingargs(computeresjachelper, varflags, residual, vars), view(resultstorage, 1:totalnumvars))
     # Return the residual and jacobian
     return DiffResults.value(result), DiffResults.jacobian(result)
 end
@@ -149,7 +149,7 @@ function computecostgradhess(varflags, cost::AbstractCost, vars...)
     totalnumvars = computetotalnumvars(varflags, vars)
 
     # Construct the cost function that updates the variables
-    costfunc = fixallbutlast(computegradhesshelper, varflags, cost, vars)
+    costfunc = bindleadingargs(computegradhesshelper, varflags, cost, vars)
 
     # Compute hessian with either static or dynamic array
     if dynamic(is_static(totalnumvars)) && totalnumvars <= MAX_STATIC_VAR
@@ -161,5 +161,5 @@ end
 computegradhesshelper(varflags, residual, vars, x) = computecost(residual, updatevars(vars, varflags, x)...)
 
 @inline autorobustifydcost(kernel::AbstractRobustifier, cost) = computehessian(Base.Fix1(robustify, kernel), cost)
-@inline autorobustifydkernel(kernel::AbstractAdaptiveRobustifier, cost::T) where T = computehessian(fixallbutlast(computerobustgradhesshelper, kernel, cost), zeros(SVector{nvars(kernel)+1, T}))
+@inline autorobustifydkernel(kernel::AbstractAdaptiveRobustifier, cost::T) where T = computehessian(bindleadingargs(computerobustgradhesshelper, kernel, cost), zeros(SVector{nvars(kernel)+1, T}))
 computerobustgradhesshelper(kernel, cost, x) = robustify(update(kernel, x), cost+x[end])

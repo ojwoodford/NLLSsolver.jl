@@ -8,8 +8,8 @@ import IfElse: ifelse
 Compute and return the scalar cost defined by `problem`.
 """
 cost(problem::NLLSProblem) = cost(problem.variables, problem.costs)
-cost(vars::Vector, costs::CostStruct)::Float64 = sum(Base.Fix1(computecost, vars), costs)
-cost(vars::Vector, costs::CostStruct, subsetfun)::Float64 = sumsubset(Base.Fix1(computecost, vars), subsetfun, costs)
+cost(vars::Vector, costs::CostStruct)::Float64 = sum(bindleadingargs(computecost, vars), costs; init=0.0)
+# cost(vars::Vector, costs::CostStruct, subsetfun)::Float64 = sumsubset(bindleadingargs(computecost, vars), subsetfun, costs; init=0.0)
 computecost(vars::Vector, cost::AbstractCost)::Float64 = computecost(cost, getvars(cost, vars)...)
 
 function gradhesshelper!(linsystem, costblock::AbstractCost, vars, blockind, varflags)::Float64
@@ -42,8 +42,9 @@ function costgradhess!(linsystem, vars::Vector, cost::AbstractCost)
 
         # Dispatch gradient computation based on the varflags, and return the cost
         if ndeps(cost) <= 5
-            return valuedispatch(static(1), maxflags-static(1), varflags, fixallbutlast(gradhesshelper!, linsystem, cost, v, blockind))
+            return valuedispatch(static(1), maxflags-static(1), varflags, bindleadingargs(gradhesshelper!, linsystem, cost, v, blockind))
         end
+        # Fall back on dynamic dispatch
         return gradhesshelper!(linsystem, cost, v, blockind, static(varflags))
     end
 
@@ -51,5 +52,5 @@ function costgradhess!(linsystem, vars::Vector, cost::AbstractCost)
     return computecost(cost, v...)
 end
 
-costgradhess!(linsystem, vars::Vector, costs::CostStruct)::Float64 = sum(fixallbutlast(costgradhess!, linsystem, vars), costs)
-costgradhess!(linsystem, vars::Vector, costs::CostStruct, subsetfun)::Float64 = sumsubset(fixallbutlast(costgradhess!, linsystem, vars), subsetfun, costs)
+costgradhess!(linsystem, vars::Vector, costs::CostStruct)::Float64 = sum(bindleadingargs(costgradhess!, linsystem, vars), costs; init=0.0)
+# costgradhess!(linsystem, vars::Vector, costs::CostStruct, subsetfun)::Float64 = sumsubset(bindleadingargs(costgradhess!, linsystem, vars), subsetfun, costs; init=0.0)
