@@ -67,17 +67,18 @@ function Base.show(io::IO, x::NLLSResult)
             x.linearsolvers, x.timesolver*1e-9, 100.0*x.timesolver/x.timetotal,
             x.timeinit*1e-9, 100.0*x.timeinit/x.timetotal,
             otherstuff*1e-9, 100.0*otherstuff/x.timetotal)
-    if 0 != x.termination           ; println(io, "Reason(s) for termination:"); end
-    if 0 != x.termination & (1 << 0); println(io, "   Cost is infinite."); end
-    if 0 != x.termination & (1 << 1); println(io, "   Cost is NaN."); end
-    if 0 != x.termination & (1 << 2); println(io, "   Relative decrease in cost below threshold."); end
-    if 0 != x.termination & (1 << 3); println(io, "   Absolute decrease in cost below threshold."); end
-    if 0 != x.termination & (1 << 4); println(io, "   Step contains an infinite value."); end
-    if 0 != x.termination & (1 << 5); println(io, "   Step contains a NaN."); end
-    if 0 != x.termination & (1 << 6); println(io, "   Step size below threshold."); end
-    if 0 != x.termination & (1 << 7); println(io, "   Too many consecutive iterations increasing the cost."); end
-    if 0 != x.termination & (1 << 8); println(io, "   Maximum number of outer iterations reached."); end
-    if 0 != x.termination & (1 << 9); println(io, "   Maximum allowed computation time exceeded."); end
+    if 0 != x.termination           ; println(io,  "Reason(s) for termination:"); end
+    if 0 != x.termination & (1 << 0); println(io,  "   Cost is infinite."); end
+    if 0 != x.termination & (1 << 1); println(io,  "   Cost is NaN."); end
+    if 0 != x.termination & (1 << 2); println(io,  "   Relative decrease in cost below threshold."); end
+    if 0 != x.termination & (1 << 3); println(io,  "   Absolute decrease in cost below threshold."); end
+    if 0 != x.termination & (1 << 4); println(io,  "   Step contains an infinite value."); end
+    if 0 != x.termination & (1 << 5); println(io,  "   Step contains a NaN."); end
+    if 0 != x.termination & (1 << 6); println(io,  "   Step size below threshold."); end
+    if 0 != x.termination & (1 << 7); println(io,  "   Too many consecutive iterations increasing the cost."); end
+    if 0 != x.termination & (1 << 8); println(io,  "   Maximum number of outer iterations reached."); end
+    if 0 != x.termination & (1 << 9); println(io,  "   Maximum allowed computation time exceeded."); end
+    if 0 != x.termination & (1 << 10); println(io, "   Internal discrepancy in cost computations."); end
     userflags = x.termination >> 16
     if 0 != userflags; println(io, "   Terminated by user-defined callback, with flags: ", string(userflags, base=2)); end
 end

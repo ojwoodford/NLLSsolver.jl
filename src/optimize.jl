@@ -131,7 +131,10 @@ function optimizeinternal!(problem::NLLSProblem, options::NLLSOptions, data, ite
     stoptime = data.starttime + options.maxtime
     data.timeinit += Base.time_ns() - data.starttime
     # Initialize the linear problem
-    data.timegradient += @elapsed_ns cost = costgradhess!(data.linsystem, problem.variables, problem.costs)
+    data.timegradient += @elapsed_ns begin
+            zero!(data.linsystem)
+            cost = costgradhess!(data.linsystem, problem.variables, problem.costs)
+        end
     data.gradientcomputations += 1
     data.bestcost = cost
     data.startcost = max(cost, data.startcost)
@@ -140,6 +143,15 @@ function optimizeinternal!(problem::NLLSProblem, options::NLLSOptions, data, ite
         data.iternum += 1
         # Call the per iteration solver
         cost = iterate!(iteratedata, data, problem, options)::Float64
+        computegradient = isequal(cost, -Inf)
+        if computegradient
+            # Construct the linear problem now, in order to compute the correct cost
+            data.timegradient += @elapsed_ns begin
+                zero!(data.linsystem)
+                cost = costgradhess!(data.linsystem, problem.varnext, problem.costs)
+            end
+            data.gradientcomputations += 1
+        end
         # Call the user-defined callback
         cost, terminate = callback(cost, problem, data, iteratedata)::Tuple{Float64, Int}
         # Check for cost increase (only some iterators will do this)
@@ -177,12 +189,15 @@ function optimizeinternal!(problem::NLLSProblem, options::NLLSOptions, data, ite
         if converged != 0
             break
         end
-        # Construct the linear problem
-        data.timegradient += @elapsed_ns begin
-            zero!(data.linsystem)
-            costgradhess!(data.linsystem, problem.variables, problem.costs)
+        if !computegradient
+            # Construct the linear problem
+            data.timegradient += @elapsed_ns begin
+                zero!(data.linsystem)
+                cost_ = costgradhess!(data.linsystem, problem.variables, problem.costs)
+            end
+            data.gradientcomputations += 1
+            converged |= !isapprox(cost_, cost)                           << 10 # Cost computations don't agree
         end
-        data.gradientcomputations += 1
     end
     if !(data.bestcost >= cost)
         # Update the problem variables to the best ones found

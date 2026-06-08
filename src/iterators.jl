@@ -20,10 +20,8 @@ function iterate!(::NewtonData, data, problem::NLLSProblem, options::NLLSOptions
     data.linearsolvers += 1
     # Update the new variables
     update!(problem.varnext, problem.variables, data.linsystem)
-    # Return the cost
-    data.timecost += @elapsed_ns cost_ = cost(problem.varnext, problem.costs)
-    data.costcomputations += 1
-    return cost_
+    # Return -Inf to signal the cost wasn't computed
+    return -Inf
 end
 
 # Dogleg optimization
