@@ -1,12 +1,12 @@
 using SparseArrays, Static, StaticArrays, LinearAlgebra, LDLFactorizations
 
-function getresblocksizes!(resblocksizes, residuals::Vector, ind::Int)::Int
-    @inbounds for res in residuals
-        resblocksizes[ind] = nres(res)
-        ind += 1
-    end
-    return ind
-end
+# function getresblocksizes!(resblocksizes, residuals::Vector, ind::Int)::Int
+#     @inbounds for res in residuals
+#         resblocksizes[ind] = nres(res)
+#         ind += 1
+#     end
+#     return ind
+# end
 
 # Uni-variate linear system
 mutable struct UniVariateLSdynamic
