@@ -1,5 +1,4 @@
 using SparseArrays, Static
-import IfElse.ifelse
 import Printf.@printf
 
 @enum NLLSIterator newton levenbergmarquardt dogleg gradientdescent
@@ -27,11 +26,12 @@ struct NLLSOptions
     maxiters::Int               # Maximum number of outer iterations
     maxtime::UInt64             # Maximum optimization time allowed, in nano-seconds (converted from seconds in the constructor)
     iterator::NLLSIterator      # Inner iterator (see above for options)
+    numthreads::StaticInt       # Number of threads to use for parallel computations - currently not used, but may be in the future
 end
-function NLLSOptions(; maxiters=100, reldcost=1.e-15, absdcost=1.e-15, dstep=1.e-15, maxfails=3, maxtime=30.0, iterator=levenbergmarquardt, callback=nothing, iteratordata=nothing)
+function NLLSOptions(; maxiters=100, reldcost=1.e-15, absdcost=1.e-15, dstep=1.e-15, maxfails=3, maxtime=30.0, iterator=levenbergmarquardt, callback=nothing, iteratordata=nothing, numthreads::StaticInt=StaticInt(Threads.nthreads()))
     @assert(isnothing(callback), "Callbacks should be passed directly to optimize!, not to the options struct.")
     @assert(isnothing(iteratordata), "Iteratordata should not be passed to the options struct.")
-    NLLSOptions(reldcost, absdcost, dstep, maxfails, maxiters, UInt64(round(maxtime * 1e9)), iterator)
+    NLLSOptions(reldcost, absdcost, dstep, maxfails, maxiters, UInt64(round(maxtime * 1e9)), iterator, numthreads)
 end
 
 struct NLLSResult
