@@ -42,9 +42,9 @@ end
 Base.sum(fun, vr::VectorRepo{Any}; init=0.0) = sum(bindleadingargs(vrsum, fun, init), values(vr.data); init=init)
 vrsum(fun, init, v::Vector) = sum(fun, v; init=init)
 # Static dispatch if types are known
-Base.sum(fun, vr::VectorRepo{T}; init=0.0) where T = vrsum(fun, vr, init, T)
-vrsum(fun, vr::VectorRepo, init, T::Union) = vrsum(fun, vr, init, T.a) + vrsum(fun, vr, init, T.b)
-vrsum(fun, vr::VectorRepo, init, ::Type{T}) where T = vrsum(fun, init, get(vr, T)::Vector{T})
+@inline Base.sum(fun, vr::VectorRepo{T}; init=0.0) where T = vrsum(fun, vr, init, T)
+@inline vrsum(fun, vr::VectorRepo, init, T::Union) = vrsum(fun, vr, init, T.a) + vrsum(fun, vr, init, T.b)
+@inline vrsum(fun, vr::VectorRepo, init, ::Type{T}) where T = vrsum(fun, init, get(vr, T)::Vector{T})
 
 # Sum reduction over a subset of the elements
 # sumsubset(fun, vr::VectorRepo{Any}, subsetfun; init=0.0) = sum(bindleadingargs(sumsubsetvec, fun, subsetfun, init), values(vr.data); init=init)
