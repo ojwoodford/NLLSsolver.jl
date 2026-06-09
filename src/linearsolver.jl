@@ -25,7 +25,7 @@ function try_cholesky!(x, A, b)
     return ldiv!(x, qr(A), b)
 end
 
-solve!(ls, options) = solve!(ls.x, ls.A, ls.b)
+solve!(ls, options) = solve!(ls.x.x, getA(ls), getb(ls))
 solve!(ls::MultiVariateLSsparse, options) = ldiv!(ls.x, ldl_factorize!(ls.hessian, ls.ldlfac), ls.b)
 solve!(ls::MultiVariateLSdense, options) = solve!(ls.x, ls.A.data, ls.b)
 solve!(x, A, b) = try_cholesky!(x, A, b)

@@ -1,12 +1,13 @@
 using Test
 import NLLSsolver
 
+NLLSsolver.computecost(x) = x * x * x
+
 @testset "multithreading.jl" begin
     # Cost sums
-    fun(x) = x * x * x
     v = rand(1000000)
-    s1 = sum(fun, v)
-    s2 = NLLSsolver.multithreadedsum(fun, v, 0.0)
+    s1 = sum(NLLSsolver.computecost, v)
+    s2 = sum(NLLSsolver.bindleadingargs(NLLSsolver.computecost, ), v)
     @test isapprox(s1, s2; rtol=1.e-13)
     # # Subset sums with Vector{Bool}
     # subset = rand(Bool, length(v))

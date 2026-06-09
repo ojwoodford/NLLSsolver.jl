@@ -180,7 +180,7 @@ function optimizeinternal!(problem::NLLSProblem, options::NLLSOptions, data, ite
         # Update the variables
         updatefromnext!(problem, data)
         # Check for termination
-        maxstep = maximum(abs, data.linsystem.x)
+        maxstep = maximum(abs, getx(data.linsystem))
         converged |= isinf(cost)                                     << 0 # Cost is infinite
         converged |= isnan(cost)                                     << 1 # Cost is NaN
         converged |= (dcost < data.bestcost * options.reldcost)      << 2 # Relative decrease in cost is too small
@@ -215,13 +215,13 @@ function optimizeinternal!(problem::NLLSProblem, options::NLLSOptions, data, ite
 end
 
 # Optimizing variables one at a time (e.g. in alternation)
-function optimizesinglesinternal!(problem::NLLSProblem, options::NLLSOptions, data::NLLSInternal{LST}, iteratedata, allcosts::CostStruct, costindices, varindices, result) where {LST<:UniVariateLS}
+function optimizesinglesinternal!(problem::NLLSProblem, options::NLLSOptions, data::NLLSInternal{LST}, iteratedata, allcosts::CostStruct, costindices, varindices, result) where  LST<:NLLSsolver.UniVariateLS
     iternum = result.niterations
     startcost = result.startcost
     bestcost = result.bestcost
     for ind in varindices
         data.starttime = Base.time_ns()
-        data.linsystem.varindex = UInt(ind)
+        data.linsystem = updateunfixed(data.linsystem, ind)
         # Construct the subset of residuals that depend on this variable
         selectcosts!(problem.costs, allcosts, @inbounds(view(costindices.rowval, costindices.colptr[ind]:costindices.colptr[ind+1]-1)))
         # Reset the iterator data
@@ -245,14 +245,17 @@ function updatefrombest!(problem::NLLSProblem, ::NLLSInternalMultiVar)
 end
 updatetobest!(problem::NLLSProblem, data::NLLSInternalMultiVar) = updatefrombest!(problem, data)
 
-function updatefromnext!(problem::NLLSProblem, data::NLLSInternalSingleVar)
-    @inbounds problem.variables[data.linsystem.varindex] = problem.varnext[data.linsystem.varindex]
+updatefromnext!(problem::NLLSProblem, data) = updatefromnext!(problem, data.linsystem.x.varindex)
+function updatefromnext!(problem::NLLSProblem, ind::UInt)
+    @inbounds problem.variables[ind] = problem.varnext[ind]
 end
 
-function updatefrombest!(problem::NLLSProblem, data::NLLSInternalSingleVar)
-    @inbounds problem.variables[data.linsystem.varindex] = problem.varbest[data.linsystem.varindex]
+@inline updatefrombest!(problem::NLLSProblem, data) = updatefrombest!(problem, data.linsystem.x.varindex)
+function updatefrombest!(problem::NLLSProblem, ind::UInt)
+    @inbounds problem.variables[ind] = problem.varbest[ind]
 end
 
-function updatetobest!(problem::NLLSProblem, data::NLLSInternalSingleVar)
-    @inbounds problem.varbest[data.linsystem.varindex] = problem.variables[data.linsystem.varindex]
+@inline updatetobest!(problem::NLLSProblem, data) = updatetobest!(problem, data.linsystem.x.varindex)
+function updatetobest!(problem::NLLSProblem, ind::UInt)
+    @inbounds problem.varbest[ind] = problem.variables[ind]
 end

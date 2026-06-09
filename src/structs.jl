@@ -106,7 +106,8 @@ mutable struct NLLSInternal{LSType}
         return new{LSType}(0., 0., starttimens, 0, 0, 0, 0, 0, 0, 0, 0, 0, linsystem)
     end
 end
-@inline NLLSInternal(unfixed::UInt, varlen, starttimens) = NLLSInternal(dynamic(is_static(varlen)) && varlen <= 16 ? UniVariateLSstatic{dynamic(varlen), dynamic(varlen*varlen)}(unfixed) : UniVariateLSdynamic(unfixed, dynamic(varlen)), starttimens)
+@inline NLLSInternal(unfixed::UInt, varlen, starttimens) = NLLSInternal(dynamic(is_static(varlen)) && varlen <= 16 ? LinearSystem{UniVariateLSstatic_ls{dynamic(varlen), dynamic(varlen*varlen)}, UniVariateLSstatic_x{dynamic(varlen)}}((), (unfixed,)) : 
+                                                                                                                     LinearSystem{UniVariateLSdynamic_ls, UniVariateLSdynamic_x}((dynamic(varlen),), (unfixed, dynamic(varlen))), starttimens)
 
 NLLSInternalMultiVar = Union{NLLSInternal{MultiVariateLSdense}, NLLSInternal{MultiVariateLSsparse}}
-NLLSInternalSingleVar = Union{NLLSInternal{UniVariateLSstatic{N, N2}}, NLLSInternal{UniVariateLSdynamic}} where {N, N2}
+NLLSInternalSingleVar = NLLSInternal{UniVariateLS}

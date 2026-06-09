@@ -20,7 +20,7 @@ StaticArrays = "90137ffa-7385-5640-81b9-e52037218182"
 [compat]
 DiffResults = "1.1"
 ForwardDiff = "0.10, 1"
-GLMakie = "0.13"
+GLMakie = "0"
 HybridArrays = "0.4"
 IfElse = "0.1.1"
 LDLFactorizations = "0.10"
