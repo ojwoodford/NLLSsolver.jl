@@ -8,23 +8,23 @@ using SparseArrays, Static, StaticArrays, LinearAlgebra, LDLFactorizations
 #     return ind
 # end
 
-struct LinearSystemShared{V, F, N}
-    ls::StaticVector{N, V}
+struct LinearSystemShared{F, V, N}
     x::F
+    ls::StaticVector{N, V}
 end
-LinearSystemShared{V, F, N}(lsargs::Tuple, xargs::Tuple) where {V, F, N} = LinearSystemShared{V, F, N}(StaticVector{N, V}(ntuple(i -> V(lsargs...), N)), F(xargs...))
-updateunfixed(old::LinearSystemShared{V, F, N}, unfixed) where {V, F, N} = LinearSystemShared{V, F, N}(old.ls, F(unfixed, old.x))
+LinearSystemShared{F, V, N}(xargs::Tuple, lsargs::Tuple) where {F, V, N} = LinearSystemShared{F, V, N}(StaticVector{N, V}(F(xargs...), ntuple(i -> V(lsargs...), N)))
+updateunfixed(old::LinearSystemShared{F, V, N}, unfixed) where {F, V, N} = LinearSystemShared{F, V, N}(F(unfixed, old.x), old.ls)
 getA(ls::LinearSystemShared) = ls.ls[1].A
 getb(ls::LinearSystemShared) = ls.ls[1].b
 getx(ls::LinearSystemShared) = ls.x.x
 
-struct LinearSystem{V, F}
-    ls::V
+struct LinearSystem{F, V}
     x::F
+    ls::V
 end
-LinearSystem{V, F}(lsargs::Tuple, xargs::Tuple) where {V, F} = LinearSystem{V, F}(V(lsargs...), F(xargs...))
-LinearSystem(ls::LinearSystemShared{V, F, N}, ind) where {V, F, N} = LinearSystem{V, F}(ls.ls[ind], ls.x)
-updateunfixed(old::LinearSystem{V, F}, unfixed) where {V, F} = LinearSystem{V, F}(old.ls, F(unfixed, old.x))
+LinearSystem{F, V}(xargs::Tuple, lsargs::Tuple) where {F, V} = LinearSystem{F, V}(F(xargs...), V(lsargs...))
+LinearSystem(ls::LinearSystemShared{F, V, N}, ind) where {F, V, N} = LinearSystem{F, V}(ls.ls[ind], ls.x)
+updateunfixed(old::LinearSystem{F, V}, unfixed) where {F, V} = LinearSystem{F, V}(F(unfixed, old.x),old.ls)
 getA(ls::LinearSystem) = ls.ls.A
 getb(ls::LinearSystem) = ls.ls.b
 getx(ls::LinearSystem) = ls.x.x
@@ -44,14 +44,14 @@ struct UniVariateLSdynamic_ls
 end
 
 struct UniVariateLSdynamic_x
-    x::Vector{Float64}
     varindex::UInt
+    x::Vector{Float64}
 
     function UniVariateLSdynamic_x(unfixed, varlen)
-        return new(Vector{Float64}(undef, varlen), UInt(unfixed))
+        return new(UInt(unfixed), Vector{Float64}(undef, varlen))
     end
     function UniVariateLSdynamic_x(unfixed, old::UniVariateLSdynamic_x)
-        return new(old.x, UInt(unfixed))
+        return new(UInt(unfixed), old.x)
     end
 end
 
@@ -64,19 +64,19 @@ struct UniVariateLSstatic_ls{N, N2}
     end
 end
 struct UniVariateLSstatic_x{N}
-    x::MVector{N, Float64}
     varindex::UInt
+    x::MVector{N, Float64}
 
     function UniVariateLSstatic_x{N}(unfixed) where N
-        return new(MVector{N, Float64}(undef), UInt(unfixed))
+        return new(UInt(unfixed), MVector{N, Float64}(undef))
     end
     function UniVariateLSstatic_x{N}(unfixed, old::UniVariateLSstatic_x{N}) where N
-        return new(old.x, UInt(unfixed))
+        return new(UInt(unfixed), old.x)
     end
 end
 
-UniVariateLSdynamic = Union{LinearSystem{UniVariateLSdynamic_ls, UniVariateLSdynamic_x}, LinearSystemShared{UniVariateLSdynamic_ls, UniVariateLSdynamic_x, M} where M}
-UniVariateLSstatic = Union{LinearSystem{UniVariateLSstatic_ls{N, N2}, UniVariateLSstatic_x{N}} where {N, N2}, LinearSystemShared{UniVariateLSstatic_ls{N, N2}, UniVariateLSstatic_x{N}, M} where {N, N2, M}}
+UniVariateLSdynamic = Union{LinearSystem{UniVariateLSdynamic_x, UniVariateLSdynamic_ls}, LinearSystemShared{UniVariateLSdynamic_x, UniVariateLSdynamic_ls, M} where M}
+UniVariateLSstatic = Union{LinearSystem{UniVariateLSstatic_x{N}, UniVariateLSstatic_ls{N, N2}} where {N, N2}, LinearSystemShared{UniVariateLSstatic_x{N}, UniVariateLSstatic_ls{N, N2}, M} where {N, N2, M}}
 UniVariateLS = Union{UniVariateLSdynamic, UniVariateLSstatic}
 
 function computestartindices(blocksizes)
