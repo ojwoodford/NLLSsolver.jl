@@ -100,31 +100,7 @@ function optimizesingles!(problem::NLLSProblem{VT, CT}, options::NLLSOptions, in
     return result
 end
 
-
-function setupiterator(func, problem::NLLSProblem, options::NLLSOptions, data::NLLSInternal, trailingargs...)::NLLSResult
-    # Call the optimizer with the required iterator struct
-    if options.iterator == newton
-        # Newton's method
-        newtondata = NewtonData(problem, data)
-        return func(problem, options, data, newtondata, trailingargs...)
-    end
-    if options.iterator == levenbergmarquardt
-        # Levenberg-Marquardt
-        levmardata = LevMarData(problem, data)
-        return func(problem, options, data, levmardata, trailingargs...)
-    end
-    if options.iterator == dogleg
-        # Dogleg
-        doglegdata = DoglegData(problem, data)
-        return func(problem, options, data, doglegdata, trailingargs...)
-    end
-    if options.iterator == gradientdescent
-        # Gradient descent
-        gddata = GradientDescentData(problem, data)
-        return func(problem, options, data, gddata, trailingargs...)
-    end
-    error("Iterator not recognized")
-end
+@inline setupiterator(func, problem::NLLSProblem, options::NLLSOptions, data::NLLSInternal, trailingargs...)::NLLSResult = func(problem, options, data, options.iterator(problem, data), trailingargs...)
 
 # The meat of an optimization
 function optimizeinternal!(problem::NLLSProblem, options::NLLSOptions, data, iteratedata, callback)::NLLSResult

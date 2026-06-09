@@ -6,11 +6,30 @@ negate!(x) = @.(x = -x)
 preoptimization(::Any, unusedargs...) = -Inf
 
 # Iterators assume that the linear problem has been constructed
+function getiteratortype(iterator::NLLSIterator)
+    # Call the optimizer with the required iterator struct
+    if iterator === newton
+        # Newton's method
+        return NewtonData
+    elseif iterator === levenbergmarquardt
+        # Levenberg-Marquardt
+        return LevMarData
+    elseif iterator === dogleg
+        # Dogleg
+        return DoglegData
+    elseif iterator === gradientdescent
+        # Gradient descent
+        return GradientDescentData
+    else
+        error("Iterator not recognized")
+    end
+end
 
 # Newton optimization (undamped-Hessian form)
 struct NewtonData
 end
 NewtonData(::NLLSProblem, ::NLLSInternal) = NewtonData()
+Base.String(::Type{NewtonData}) = "Newton"
 reset!(nd::NewtonData, ::NLLSProblem, ::NLLSInternal) = nd
 
 function iterate!(::NewtonData, data, problem::NLLSProblem, options::NLLSOptions)::Float64
@@ -33,6 +52,7 @@ mutable struct DoglegData{T}
         return new{typeof(getx(data.linsystem))}(0.0, similar(getx(data.linsystem)))
     end
 end
+Base.String(::Type{DoglegData}) = "Dogleg"
 gettr(dd::DoglegData) = dd.trustradius
 settr!(dd::DoglegData, tr) = dd.trustradius = tr
 function reset!(dd::DoglegData{T}, ::NLLSProblem, data::NLLSInternal) where T<:Vector
@@ -122,6 +142,7 @@ mutable struct LevMarData
         return new(0.0)
     end
 end
+Base.String(::Type{LevMarData}) = "Levenberg-Marquardt"
 gettr(lmd::LevMarData) = lmd.lambda
 settr!(lmd::LevMarData, tr) = lmd.lambda = tr
 reset!(lmd::LevMarData, ::NLLSProblem, ::NLLSInternal) = settr!(lmd, 0.0)
@@ -179,6 +200,7 @@ mutable struct GradientDescentData
         return new(1.0)
     end
 end
+Base.String(::Type{GradientDescentData}) = "Gradient descent"
 reset!(gdd::GradientDescentData, ::NLLSProblem, ::NLLSInternal) = gdd.stepsize = 1.0
 
 function iterate!(gddata::GradientDescentData, data, problem::NLLSProblem, options::NLLSOptions)::Float64
