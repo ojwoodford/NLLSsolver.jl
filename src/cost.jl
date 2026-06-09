@@ -1,6 +1,5 @@
 using Static
 import ForwardDiff
-import IfElse: ifelse
 
 """
     NLLSsolver.cost(problem::NLLSProblem)

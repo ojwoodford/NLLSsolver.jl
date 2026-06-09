@@ -3,11 +3,13 @@ uuid = "50b5cf9e-bf7a-4e29-8981-4280cbba70cb"
 version = "4.1.0"
 authors = ["Oliver Woodford"]
 
+[workspace]
+projects = ["examples", "test"]
+
 [deps]
 DiffResults = "163ba53b-c6d8-5494-b064-1a9d43ac40c5"
 ForwardDiff = "f6369f11-7733-5829-9624-2563aa707210"
 HybridArrays = "1baab800-613f-4b0a-84e4-9cd3431bfbb9"
-IfElse = "615f187c-cbe4-4ef1-ba3b-2fcf58d6d173"
 LDLFactorizations = "40e66cde-538c-5869-a4ad-c39174c6795b"
 LinearAlgebra = "37e2e46d-f89d-539d-b4ee-838fcccc9c8e"
 LoopVectorization = "bdcacae8-1622-11e9-2a5c-532679323890"
@@ -21,7 +23,6 @@ StaticArrays = "90137ffa-7385-5640-81b9-e52037218182"
 DiffResults = "1.1"
 ForwardDiff = "0.10, 1"
 HybridArrays = "0.4"
-IfElse = "0.1.1"
 LDLFactorizations = "0.10"
 LinearAlgebra = "1.10"
 LoopVectorization = "0.12.165"
@@ -31,6 +32,3 @@ SparseArrays = "1.10"
 Static = "0.8.7, 1"
 StaticArrays = "1"
 julia = "1.10"
-
-[workspace]
-projects = ["examples", "test"]
