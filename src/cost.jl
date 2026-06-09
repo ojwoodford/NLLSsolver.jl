@@ -6,10 +6,11 @@ import ForwardDiff
 
 Compute and return the scalar cost defined by `problem`.
 """
-cost(problem::NLLSProblem) = cost(problem.variables, problem.costs)
-cost(vars::Vector, costs::CostStruct)::Float64 = sum(bindleadingargs(computecost, vars), costs; init=0.0)
+cost(problem::NLLSProblem, numthreads::StaticInt=StaticInt(Threads.nthreads())) = cost(problem.variables, problem.costs, numthreads)
+cost(vars::Vector, costs::CostStruct, numthreads::StaticInt)::Float64 = sum(bindleadingargs(computecost, numthreads, vars), costs; init=0.0)
 # cost(vars::Vector, costs::CostStruct, subsetfun)::Float64 = sumsubset(bindleadingargs(computecost, vars), subsetfun, costs; init=0.0)
 computecost(vars::Vector, cost::AbstractCost)::Float64 = computecost(cost, getvars(cost, vars)...)
+computecost(::StaticInt, vars::Vector, cost::AbstractCost) = computecost(vars, cost)
 
 function gradhesshelper!(linsystem, costblock::AbstractCost, vars, blockind, varflags)::Float64
     # Compute the residual

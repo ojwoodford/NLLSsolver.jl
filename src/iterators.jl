@@ -95,7 +95,7 @@ function iterate!(doglegdata::DoglegData, data, problem::NLLSProblem, options::N
         # Update the new variables
         update!(problem.varnext, problem.variables, data.linsystem)
         # Compute the cost
-        data.timecost += @elapsed_ns cost_ = cost(problem.varnext, problem.costs)
+        data.timecost += @elapsed_ns cost_ = cost(problem.varnext, problem.costs, options.numthreads)
         data.costcomputations += 1
         # Update trust region radius
         mu = (data.bestcost - cost_) / linear_approx
@@ -152,7 +152,7 @@ function iterate!(levmardata::LevMarData, data, problem::NLLSProblem, options::N
         # Update the new variables
         update!(problem.varnext, problem.variables, data.linsystem)
         # Compute the cost
-        data.timecost += @elapsed_ns cost_ = cost(problem.varnext, problem.costs)
+        data.timecost += @elapsed_ns cost_ = cost(problem.varnext, problem.costs, options.numthreads)
         data.costcomputations += 1
         # Check for exit
         if !(cost_ > data.bestcost) || maximum(abs, getx(data.linsystem)) < options.dstep
@@ -186,7 +186,7 @@ function iterate!(gddata::GradientDescentData, data, problem::NLLSProblem, optio
     # Evaluate the current step size
     getx(data.linsystem) .= -gradient * gddata.stepsize
     update!(problem.varnext, problem.variables, data.linsystem)
-    data.timecost += @elapsed_ns costc = cost(problem.varnext, problem.costs)
+    data.timecost += @elapsed_ns costc = cost(problem.varnext, problem.costs, options.numthreads)
     data.costcomputations += 1
     # Iterate until we find a lower cost
     while costc > data.bestcost
@@ -198,7 +198,7 @@ function iterate!(gddata::GradientDescentData, data, problem::NLLSProblem, optio
         # Evaluate the new step size
         getx(data.linsystem) .= -gradient * gddata.stepsize
         update!(problem.varnext, problem.variables, data.linsystem)
-        data.timecost += @elapsed_ns costc = cost(problem.varnext, problem.costs)
+        data.timecost += @elapsed_ns costc = cost(problem.varnext, problem.costs, options.numthreads)
         data.costcomputations += 1
     end
     gddata.stepsize *= 2
