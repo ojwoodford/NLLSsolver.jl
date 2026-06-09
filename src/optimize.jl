@@ -104,9 +104,7 @@ end
 
 # The meat of an optimization
 function optimizeinternal!(problem::NLLSProblem, options::NLLSOptions, data, iteratedata, callback)::NLLSResult
-    # Do any preoptimization for the iterator
-    data.startcost = preoptimization(iteratedata, problem, options, data)::Float64
-    # Other initializations
+    # Initializations
     fails = 0
     converged = 0
     data.iternum = 0
@@ -115,10 +113,9 @@ function optimizeinternal!(problem::NLLSProblem, options::NLLSOptions, data, ite
     # Initialize the linear problem
     data.gradients += @stats begin
             zero!(data.linsystem)
-            cost = costgradhess!(data.linsystem, problem.variables, problem.costs)
+            data.startcost = costgradhess!(data.linsystem, problem.variables, problem.costs)
         end
     data.bestcost = cost
-    data.startcost = max(cost, data.startcost)
     # Do the iterations
     while true
         data.iternum += 1
