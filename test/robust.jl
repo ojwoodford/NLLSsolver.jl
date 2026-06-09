@@ -33,7 +33,7 @@ end
 
     # Huber
     sigma = 0.7
-    out = [ifelse(c <= sigma ^ 2, c, 2 * sigma * sqrt(c) - sigma ^ 2) for c in costs]
+    out = [c <= sigma ^ 2 ? c : 2 * sigma * sqrt(c) - sigma ^ 2 for c in costs]
     testrobustifier(Huber2oKernel(sigma), costs, out)
     testrobustifier(HuberKernel(sigma), costs, out, true)
 
