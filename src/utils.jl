@@ -57,11 +57,36 @@ function runlengthencodesortedints(sortedints)
     return runindices
 end
 
+
 macro elapsed_ns(ex)
     quote
         local t0 = Base.time_ns()
         $(esc(ex))
         Base.time_ns() - t0
+    end
+end
+
+struct Stats
+    num_allocs::Int64
+    bytes_allocd::Int64
+    time_ns::UInt64
+    count::Int64
+end
+Stats() = Stats(0, 0, 0, 0)
+struct StatsUpdate
+    num_allocs::Int64
+    bytes_allocd::Int64
+    time_ns::UInt64
+end
+Base.:+(x::Stats, u::StatsUpdate)::Stats = Stats(x.num_allocs + u.num_allocs, x.bytes_allocd + u.bytes_allocd, x.time_ns + u.time_ns, x.count + 1)
+
+macro stats(ex)
+    quote
+        local t0 = Base.time_ns()
+        local allocs = Base.gc_num()
+        $(esc(ex))
+        local diff = Base.GC_Diff(Base.gc_num(), allocs)
+        StatsUpdate(Base.gc_alloc_count(diff), diff.allocd, Base.time_ns() - t0)
     end
 end
 

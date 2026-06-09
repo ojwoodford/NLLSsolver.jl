@@ -113,11 +113,10 @@ function optimizeinternal!(problem::NLLSProblem, options::NLLSOptions, data, ite
     stoptime = data.starttime + options.maxtime
     data.timeinit += Base.time_ns() - data.starttime
     # Initialize the linear problem
-    data.timegradient += @elapsed_ns begin
+    data.gradients += @stats begin
             zero!(data.linsystem)
             cost = costgradhess!(data.linsystem, problem.variables, problem.costs)
         end
-    data.gradientcomputations += 1
     data.bestcost = cost
     data.startcost = max(cost, data.startcost)
     # Do the iterations
@@ -128,11 +127,10 @@ function optimizeinternal!(problem::NLLSProblem, options::NLLSOptions, data, ite
         computegradient = isequal(cost, -Inf)
         if computegradient
             # Construct the linear problem now, in order to compute the correct cost
-            data.timegradient += @elapsed_ns begin
+            data.gradients += @stats begin
                 zero!(data.linsystem)
                 cost = costgradhess!(data.linsystem, problem.varnext, problem.costs)
             end
-            data.gradientcomputations += 1
         end
         # Call the user-defined callback
         cost, terminate = callback(cost, problem, data, iteratedata)::Tuple{Float64, Int}
@@ -173,11 +171,10 @@ function optimizeinternal!(problem::NLLSProblem, options::NLLSOptions, data, ite
         end
         if !computegradient
             # Construct the linear problem
-            data.timegradient += @elapsed_ns begin
+            data.gradients += @stats begin
                 zero!(data.linsystem)
                 cost_ = costgradhess!(data.linsystem, problem.variables, problem.costs)
             end
-            data.gradientcomputations += 1
             converged |= !isapprox(cost_, cost)                      << 10 # Cost computations don't agree
         end
     end
@@ -187,7 +184,7 @@ function optimizeinternal!(problem::NLLSProblem, options::NLLSOptions, data, ite
     end
     # Return the data to produce the final result
     data.timetotal += Base.time_ns() - data.starttime
-    return NLLSResult(data.startcost, data.bestcost, data.timetotal, data.timeinit, data.timecost, data.timegradient, data.timesolver, data.iternum, data.costcomputations, data.gradientcomputations, data.linearsolvers, converged)
+    return NLLSResult(data.startcost, data.bestcost, data.timetotal, data.timeinit, data.costs.time_ns, data.gradients.time_ns, data.solves.time_ns, data.iternum, data.costs.count, data.gradients.count, data.solves.count, converged)
 end
 
 # Optimizing variables one at a time (e.g. in alternation)
@@ -209,7 +206,7 @@ function optimizesinglesinternal!(problem::NLLSProblem, options::NLLSOptions, da
         bestcost += data.bestcost
         iternum += data.iternum
     end
-    return NLLSResult(startcost, bestcost, result.timetotal+data.timetotal, result.timeinit+data.timeinit, result.timecost+data.timecost, result.timegradient+data.timegradient, result.timesolver+data.timesolver, iternum, result.costcomputations+data.costcomputations, result.gradientcomputations+data.gradientcomputations, result.linearsolvers+data.linearsolvers, 0)
+    return NLLSResult(startcost, bestcost, result.timetotal+data.timetotal, result.timeinit+data.timeinit, result.timecost+data.costs.time_ns, result.timegradient+data.gradients.time_ns, result.timesolver+data.solves.time_ns, iternum, result.costcomputations+data.costs.count, result.gradientcomputations+data.gradients.count, result.linearsolvers+data.solves.count, 0)
 end
 
 function updatefromnext!(problem::NLLSProblem, ::NLLSInternalMultiVar)
