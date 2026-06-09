@@ -33,7 +33,7 @@ end
 @testset "adaptivecost.jl" begin
     # Create the problem
     problem = NLLSsolver.NLLSProblem(Union{NLLSsolver.ContaminatedGaussian{Float64}, Float64}, SimpleResidual)
-    NLLSsolver.addvariable!(problem, ContaminatedGaussian(0.5, 5.0, 0.5))
+    NLLSsolver.addvariable!(problem, ContaminatedGaussian(0.5, 5.0, 0.4))
     NLLSsolver.addvariable!(problem, 0.)
     NLLSsolver.addvariable!(problem, 0.)
     Random.seed!(1)
@@ -44,6 +44,7 @@ end
     end
 
     # Optimize the cost
+    startcost = NLLSsolver.cost(problem)
     optimisekernel!(problem) # Initial kernel optimization
     result = NLLSsolver.optimize!(problem, NLLSsolver.NLLSOptions(iterator=NLLSsolver.levenbergmarquardt))
 
@@ -53,9 +54,10 @@ end
     @test isapprox(problem.variables[3], 1.0; rtol=0.1)
     
     # Reset the variable starting values
-    problem.variables[1] = ContaminatedGaussian(0.5, 5.0, 0.5)
+    problem.variables[1] = ContaminatedGaussian(5.0, 0.5, 0.6)
     problem.variables[2] = 0.
     problem.variables[3] = 0.
+    @test isapprox(NLLSsolver.cost(problem), startcost)
 
     # Optimize the cost by alternating EM & optimizing the mean
     optimisekernel!(problem) # Initial kernel optimization
