@@ -113,9 +113,10 @@ function optimizeinternal!(problem::NLLSProblem, options::NLLSOptions, data, ite
     # Initialize the linear problem
     data.gradients += @stats begin
             zero!(data.linsystem)
-            data.startcost = costgradhess!(data.linsystem, problem.variables, problem.costs)
+            cost = costgradhess!(data.linsystem, problem.variables, problem.costs)
         end
     data.bestcost = cost
+    data.startcost = cost
     # Do the iterations
     while true
         data.iternum += 1

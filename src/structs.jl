@@ -78,16 +78,16 @@ mutable struct NLLSInternal{LSType}
     timetotal::UInt64
     timeinit::UInt64
     # Stats for key computations
-    costs::Stats
-    gradients::Stats
-    solves::Stats
+    costs::StatsCounter
+    gradients::StatsCounter
+    solves::StatsCounter
     # Counts
     iternum::Int
     # Linear system
     linsystem::LSType  
 
     function NLLSInternal(linsystem::LSType, starttimens) where LSType
-        return new{LSType}(0., 0., starttimens, 0, 0, Stats(), Stats(), Stats(), 0, linsystem)
+        return new{LSType}(0., 0., starttimens, 0, 0, StatsCounter(), StatsCounter(), StatsCounter(), 0, linsystem)
     end
 end
 @inline NLLSInternal(unfixed::UInt, varlen, starttimens) = NLLSInternal(dynamic(is_static(varlen)) && varlen <= 16 ? LinearSystem{UniVariateLSstatic_x{dynamic(varlen)}, UniVariateLSstatic_ls{dynamic(varlen), dynamic(varlen*varlen)}}((unfixed,), ()) : 
