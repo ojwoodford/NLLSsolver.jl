@@ -204,5 +204,4 @@ resnum(vec::Vector)   = length(vec) != 0 ? (dynamic(is_static( nres(vec[1]))) ? 
 countcosts(fun, costs::CostStruct{Any}) = sum(fun, values(costs); init=0)
 countcosts(fun, costs::CostStruct{T}) where T = countcosts(fun, costs, T)
 countcosts(fun, costs, T::Union) = countcosts(fun, costs, T.a) + countcosts(fun, costs, T.b)
-countcosts(fun, costs, ::Type{T}) where T = fun(get(costs, T)::Vector{T})
-
+countcosts(fun, costs, T::DataType) = fun(get(costs, T))
