@@ -51,6 +51,14 @@ function compute_cost(problem)
     return (cost, allocd)
 end
 
+function split_optimize(problem, options)
+    starttimens = Base.time_ns()
+    unfixed = trues(length(problem.variables))
+    return split_optimize(problem, options, NLLSsolver.NLLSInternal(NLLSsolver.makesymmvls(problem, unfixed, sum(unfixed)), starttimens))
+end
+split_optimize(problem, options, data) = split_optimize(NLLSsolver.checkvars!(problem), options, data, options.iterator(problem, data))
+split_optimize(problem, options, data, iteratedata) = @allocated NLLSsolver.optimizeinternal!(problem, options, data, iteratedata, NLLSsolver.nullcallback)
+
 @testset "optimizeba.jl" begin
     # Generate some test data for a dense problem
     Random.seed!(1)
@@ -87,6 +95,9 @@ end
     result = optimize!(problem, options)
     @test NLLSsolver.cost(problem) == result.bestcost
     @test result.bestcost < 1.e-15
+    problem = perturb_ba_problem(problem, 0.001, 0.001)
+    allocd = split_optimize(problem, options)
+    @test allocd <= 30960
 
     # Generate & optimize a sparse problem
     problem = create_ba_problem(10, 50, 0.3)
@@ -94,4 +105,7 @@ end
     result = optimize!(problem, options)
     @test NLLSsolver.cost(problem) == result.bestcost
     @test result.bestcost < 1.e-15
+    problem = perturb_ba_problem(problem, 0.001, 0.001)
+    allocd = split_optimize(problem, options)
+    @test allocd == 0
 end
