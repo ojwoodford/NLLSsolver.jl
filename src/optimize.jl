@@ -104,7 +104,9 @@ end
 
 # The meat of an optimization
 function optimizeinternal!(problem::NLLSProblem, options::NLLSOptions, data, iteratedata, callback)::NLLSResult
-    # Initializations
+    # Do any preoptimization for the iterator
+    preoptimization(iteratedata, problem, options, data)
+    # Other initializations
     fails = 0
     converged = 0
     data.iternum = 0

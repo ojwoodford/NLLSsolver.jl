@@ -2,6 +2,9 @@ using SparseArrays
 
 negate!(x) = @.(x = -x)
 
+# Default preoptimization - do nothing
+@inline preoptimization(unusedargs...) = nothing
+
 # Iterators assume that the linear problem has been constructed
 function getiteratortype(iterator::NLLSIterator)
     # Call the optimizer with the required iterator struct
