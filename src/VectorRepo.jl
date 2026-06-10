@@ -1,21 +1,29 @@
 
 struct VectorRepo{T}
     data::Dict{DataType, Vector}
-    function VectorRepo{T}(args...) where T
-        return new{T}(Dict{DataType, Vector}(args...))
+    function VectorRepo{Any}()
+        return new{Any}(Dict{DataType, Vector}())
+    end
+    function VectorRepo{T}() where T
+        vr = new{T}(Dict{DataType, Vector}())
+        foreach(t -> vr.data[t] = Vector{t}(), uniontotuple(T))
+        return vr
     end
 end
-VectorRepo(args...) = VectorRepo{Any}(args...)
+VectorRepo() = VectorRepo{Any}()
+
+function Base.get(vr::VectorRepo{Any}, ::Type{type})::Vector{type} where type
+    return haskey(vr.data, type) ? @inbounds(vr.data[type]::Vector{type}) : Vector{type}()
+end
 
 function Base.get(vr::VectorRepo{T}, ::Type{type})::Vector{type} where {T, type}
     @assert type<:T "Invalid type"
-    return haskey(vr.data, type) ? vr.data[type]::Vector{type} : Vector{type}()
+    return @inbounds vr.data[type]::Vector{type}
 end
 
-function Base.get!(vr::VectorRepo{T}, ::Type{type})::Vector{type} where {T, type}
-    @assert type<:T "Invalid type"
+function Base.get!(vr::VectorRepo{Any}, ::Type{type})::Vector{type} where type
     if haskey(vr.data, type)
-        vec = vr.data[type]::Vector{type}
+        vec = @inbounds vr.data[type]::Vector{type}
     else
         vec = Vector{type}()
         vr.data[type] = vec
@@ -23,6 +31,7 @@ function Base.get!(vr::VectorRepo{T}, ::Type{type})::Vector{type} where {T, type
     return vec
 end
 
+Base.get!(vr::VectorRepo{T}, ::Type{type}) where {T, type} = get(vr, type)
 Base.push!(vr::VectorRepo, v::T) where T = push!(get!(vr, T), v)
 Base.append!(vr::VectorRepo, v::Vector{T}) where T = append!(get!(vr, T), v)
 
