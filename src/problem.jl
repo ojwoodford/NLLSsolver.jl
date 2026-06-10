@@ -93,7 +93,7 @@ function addcost!(problem::NLLSProblem, cost::Cost) where Cost <: AbstractCost
     @assert isa(N, StaticInt) && N>0 && N<=MAX_ARGS "Problem with ndeps()"
     @assert length(varindices(cost))==N "Problem with varindices()"
     vars = getvars(cost, problem.variables)
-    @assert length(vars)==N "Problem with getvars()"
+    @assert isa(vars, Tuple) && isconcretetype(typeof(vars)) && length(vars)==N "getvars(::$(typeof(cost)), vars) should return a concretely typed tuple of length $(dynamic(N)), but returned $(typeof(vars))."
     @assert (!(Cost <: AbstractAdaptiveResidual) || isa(vars[1], AbstractAdaptiveRobustifier)) "Adaptive residual without adaptive robustifier"
     if Cost <: AbstractResidual
         M = nres(cost)
