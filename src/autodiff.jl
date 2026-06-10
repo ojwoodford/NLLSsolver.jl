@@ -75,7 +75,7 @@ end
 extractvaldual(dual::ForwardDiff.Dual{TG, T, N}) where {TG, T, N} = ForwardDiff.value(dual), SVector{N, T}(dual.partials.values...)'
 
 # Automatic Jacobian computation
-@inline computeresjac(varflags, residual, vars...) = usestatic(varflags, vars) ? computeresjacstatic(varflags, residual, vars) : computeresjacdynamic(varflags, residual, vars)
+computeresjac(varflags, residual, vars...) = usestatic(varflags, vars) ? computeresjacstatic(varflags, residual, vars) : computeresjacdynamic(varflags, residual, vars)
 
 # Automatic statically-sized Jacobian computation
 function computeresjacstatic(varflags::StaticInt, residual::AbstractResidual, vars)
@@ -160,6 +160,6 @@ end
 
 computegradhesshelper(varflags, residual, vars, x) = computecost(residual, updatevars(vars, varflags, x)...)
 
-@inline autorobustifydcost(kernel::AbstractRobustifier, cost) = computehessian(Base.Fix1(robustify, kernel), cost)
-@inline autorobustifydkernel(kernel::AbstractAdaptiveRobustifier, cost::T) where T = computehessian(bindleadingargs(computerobustgradhesshelper, kernel, cost), zeros(SVector{nvars(kernel)+1, T}))
+autorobustifydcost(kernel::AbstractRobustifier, cost) = computehessian(Base.Fix1(robustify, kernel), cost)
+autorobustifydkernel(kernel::AbstractAdaptiveRobustifier, cost::T) where T = computehessian(bindleadingargs(computerobustgradhesshelper, kernel, cost), zeros(SVector{nvars(kernel)+1, T}))
 computerobustgradhesshelper(kernel, cost, x) = robustify(update(kernel, x), cost+x[end])

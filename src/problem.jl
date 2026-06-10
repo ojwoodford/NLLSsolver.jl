@@ -203,6 +203,6 @@ costdeps(vec::Vector) = length(vec) != 0 ? length(vec) * ndeps(vec[1]) : 0
 resnum(vec::Vector)   = length(vec) != 0 ? (dynamic(is_static( nres(vec[1]))) ? length(vec) *  nres(vec[1]) : sum( nres, vec; init=0)) : 0 # Support variable length costs
 countcosts(fun, costs::CostStruct{Any}) = sum(fun, values(costs); init=0)
 countcosts(fun, costs::CostStruct{T}) where T = countcosts(fun, costs, T)
-@inline countcosts(fun, costs, T::Union) = countcosts(fun, costs, T.a) + countcosts(fun, costs, T.b)
-@inline countcosts(fun, costs, ::Type{T}) where T = fun(get(costs, T)::Vector{T})
+countcosts(fun, costs, T::Union) = countcosts(fun, costs, T.a) + countcosts(fun, costs, T.b)
+countcosts(fun, costs, ::Type{T}) where T = fun(get(costs, T)::Vector{T})
 

@@ -100,7 +100,7 @@ function optimizesingles!(problem::NLLSProblem{VT, CT}, options::NLLSOptions, in
     return result
 end
 
-@inline setupiterator(func, problem::NLLSProblem, options::NLLSOptions, data::NLLSInternal, trailingargs...)::NLLSResult = func(problem, options, data, options.iterator(problem, data), trailingargs...)
+setupiterator(func, problem::NLLSProblem, options::NLLSOptions, data::NLLSInternal, trailingargs...)::NLLSResult = func(problem, options, data, options.iterator(problem, data), trailingargs...)
 
 # The meat of an optimization
 function optimizeinternal!(problem::NLLSProblem, options::NLLSOptions, data, iteratedata, callback)::NLLSResult
@@ -223,12 +223,12 @@ function updatefromnext!(problem::NLLSProblem, ind::UInt)
     @inbounds problem.variables[ind] = problem.varnext[ind]
 end
 
-@inline updatefrombest!(problem::NLLSProblem, data) = updatefrombest!(problem, data.linsystem.x.varindex)
+updatefrombest!(problem::NLLSProblem, data) = updatefrombest!(problem, data.linsystem.x.varindex)
 function updatefrombest!(problem::NLLSProblem, ind::UInt)
     @inbounds problem.variables[ind] = problem.varbest[ind]
 end
 
-@inline updatetobest!(problem::NLLSProblem, data) = updatetobest!(problem, data.linsystem.x.varindex)
+updatetobest!(problem::NLLSProblem, data) = updatetobest!(problem, data.linsystem.x.varindex)
 function updatetobest!(problem::NLLSProblem, ind::UInt)
     @inbounds problem.varbest[ind] = problem.variables[ind]
 end

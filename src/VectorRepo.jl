@@ -23,28 +23,28 @@ function Base.get!(vr::VectorRepo{T}, ::Type{type})::Vector{type} where {T, type
     return vec
 end
 
-@inline Base.push!(vr::VectorRepo, v::T) where T = push!(get!(vr, T), v)
-@inline Base.append!(vr::VectorRepo, v::Vector{T}) where T = append!(get!(vr, T), v)
+Base.push!(vr::VectorRepo, v::T) where T = push!(get!(vr, T), v)
+Base.append!(vr::VectorRepo, v::Vector{T}) where T = append!(get!(vr, T), v)
 
 # Get the keys
-@inline Base.keys(vr::VectorRepo{Any}) = keys(vr.data)
+Base.keys(vr::VectorRepo{Any}) = keys(vr.data)
 # Get a typed Tuple of keys
-@inline Base.keys(::VectorRepo{T}) where T = uniontotuple(T)
+Base.keys(::VectorRepo{T}) where T = uniontotuple(T)
 
 # Get a vector of the vectors (allocates)
-@inline Base.values(vr::VectorRepo{Any}) = values(vr.data)
+Base.values(vr::VectorRepo{Any}) = values(vr.data)
 # Get a typed Tuple of vectors
-@inline Base.values(vr::VectorRepo{T}) where T = (valuetuple(vr, T)...,)
-@inline valuetuple(vr::VectorRepo, T::Union) = (valuetuple(vr, T.a)..., valuetuple(vr, T.b)...)
-@inline valuetuple(vr::VectorRepo, ::Type{T}) where T = (get(vr, T)::Vector{T},)
+Base.values(vr::VectorRepo{T}) where T = (valuetuple(vr, T)...,)
+valuetuple(vr::VectorRepo, T::Union) = (valuetuple(vr, T.a)..., valuetuple(vr, T.b)...)
+valuetuple(vr::VectorRepo, ::Type{T}) where T = (get(vr, T)::Vector{T},)
 
 # Sum reduction
 Base.sum(fun, vr::VectorRepo{Any}; init=0.0) = sum(bindleadingargs(vrsum, fun, init), values(vr.data); init=init)
 vrsum(fun, init, v::Vector) = sum(fun, v; init=init)
 # Static dispatch if types are known
-@inline Base.sum(fun, vr::VectorRepo{T}; init=0.0) where T = vrsum(fun, vr, init, T)
-@inline vrsum(fun, vr::VectorRepo, init, T::Union) = vrsum(fun, vr, init, T.a) + vrsum(fun, vr, init, T.b)
-@inline vrsum(fun, vr::VectorRepo, init, ::Type{T}) where T = vrsum(fun, init, get(vr, T)::Vector{T})
+Base.sum(fun, vr::VectorRepo{T}; init=0.0) where T = vrsum(fun, vr, init, T)
+vrsum(fun, vr::VectorRepo, init, T::Union) = vrsum(fun, vr, init, T.a) + vrsum(fun, vr, init, T.b)
+vrsum(fun, vr::VectorRepo, init, ::Type{T}) where T = vrsum(fun, init, get(vr, T)::Vector{T})
 
 # Sum reduction over a subset of the elements
 # sumsubset(fun, vr::VectorRepo{Any}, subsetfun; init=0.0) = sum(bindleadingargs(sumsubsetvec, fun, subsetfun, init), values(vr.data); init=init)

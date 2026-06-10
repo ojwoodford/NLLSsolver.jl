@@ -8,8 +8,8 @@ struct NoRobust <: AbstractRobustifier
 end
 
 robustkernel(::AbstractResidual) = NoRobust()
-@inline robustify(::NoRobust, cost) = cost
-@inline robustifydcost(::NoRobust, cost) = cost, one(cost), zero(cost)
+robustify(::NoRobust, cost) = cost
+robustifydcost(::NoRobust, cost) = cost, one(cost), zero(cost)
 
 robustifydcost(kernel::AbstractRobustifier, cost) = autorobustifydcost(kernel, cost)
 robustifydkernel(kernel::AbstractAdaptiveRobustifier, cost) = autorobustifydkernel(kernel, cost)
