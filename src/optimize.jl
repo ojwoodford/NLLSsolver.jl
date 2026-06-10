@@ -18,7 +18,7 @@ end
 
 # Conversions for different types of "unfixed"
 convertunfixed(::Nothing, problem) = trues(length(problem.variables))
-convertunfixed(unfixed::Type, problem) = typeof.(problem.variables) .== unfixed
+convertunfixed(unfixed::DataType, problem) = isa.(problem.variables, unfixed)
 convertunfixed(unfixed, problem) = unfixed
 
 # Helper to ensure the NLLSProblem struct has the right variable storage (e.g. varnext) for optimization
