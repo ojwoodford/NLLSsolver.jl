@@ -30,9 +30,9 @@ end
     # Construct repos and test the sum reduction
     # Any container
     vr1 = NLLSsolver.VectorRepo()
-    @test sum(i->2i, vr1) == 0.0
+    @test sum(i->2i, vr1; init=0.0) == 0.0
     fillrepo(vr1, floats, ints)
-    @test sum(i->π*i, vr1) ≈ total * π
+    @test sum(i->π*i, vr1; init=0.0) ≈ total * π
     vec = values(vr1)
     @test length(vec) == 2 && any(Base.Fix2(isa, Vector{Float64}), vec) && any(Base.Fix2(isa, Vector{Int}), vec)
 
@@ -47,9 +47,9 @@ end
     keytup = keys(vr2)
     @test isa(keytup, Tuple) && length(keytup) == 3
     @test any(keytup .== Float64) && any(keytup .== Int) && any(keytup .== Char)
-    @test sum(i->2i, vr2) == 0.0
+    @test sum(i->2i, vr2; init=0.0) == 0.0
     fillrepo(vr2, floats, ints)
-    @test sum(i->π*i, vr2) ≈ total * π
+    @test sum(i->π*i, vr2; init=0.0) ≈ total * π
     valuetup = values(vr2)
     @test isa(valuetup, Tuple) && length(valuetup) == 3
     @test any(Base.Fix2(isa, Vector{Float64}), valuetup) && any(Base.Fix2(isa, Vector{Int}), valuetup) && any(Base.Fix2(isa, Vector{Char}), valuetup)

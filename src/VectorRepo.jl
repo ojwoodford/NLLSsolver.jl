@@ -36,19 +36,19 @@ Base.values(vr::VectorRepo{Any}) = values(vr.data)
 # Get a typed Tuple of vectors
 Base.values(vr::VectorRepo{T}) where T = (valuetuple(vr, T)...,)
 valuetuple(vr::VectorRepo, T::Union) = (valuetuple(vr, T.a)..., valuetuple(vr, T.b)...)
-valuetuple(vr::VectorRepo, ::Type{T}) where T = (get(vr, T)::Vector{T},)
+valuetuple(vr::VectorRepo, T::DataType) = (get(vr, T),)
 
 # Sum reduction
-Base.sum(fun, vr::VectorRepo{Any}; init=0.0) = sum(bindleadingargs(vrsum, fun, init), values(vr.data); init=init)
-vrsum(fun, init, v::Vector) = sum(fun, v; init=init)
+Base.sum(fun, vr::VectorRepo{Any}; kw...) = sum(bindleadingargs(vrsum, fun, kw), values(vr.data); kw...)
+vrsum(fun, kw, v::Vector) = sum(fun, v; kw...)
 # Static dispatch if types are known
-Base.sum(fun, vr::VectorRepo{T}; init=0.0) where T = vrsum(fun, vr, init, T)
-vrsum(fun, vr::VectorRepo, init, T::Union) = vrsum(fun, vr, init, T.a) + vrsum(fun, vr, init, T.b)
-vrsum(fun, vr::VectorRepo, init, ::Type{T}) where T = vrsum(fun, init, get(vr, T)::Vector{T})
+Base.sum(fun, vr::VectorRepo{T}; kw...) where T = vrsum(fun, vr, kw, T)
+vrsum(fun, vr::VectorRepo, kw, T::Union) = vrsum(fun, vr, kw, T.a) + vrsum(fun, vr, kw, T.b)
+vrsum(fun, vr::VectorRepo, kw, T::DataType) = vrsum(fun, kw, get(vr, T))
 
 # Sum reduction over a subset of the elements
 # sumsubset(fun, vr::VectorRepo{Any}, subsetfun; init=0.0) = sum(bindleadingargs(sumsubsetvec, fun, subsetfun, init), values(vr.data); init=init)
 # sumsubset(fun, vr::VectorRepo{T}, subsetfun; init=0.0) where T = vrsumsubset(fun, subsetfun, vr, init,T)
 # vrsumsubset(fun, subsetfun, vr, init, T::Union) = vrsumsubset(fun, subsetfun, vr, init, T.a) + vrsumsubset(fun, subsetfun, vr, init, T.b)
-# vrsumsubset(fun, subsetfun, vr, init, ::Type{T}) where T = sumsubsetvec(args, subsetfun, init, get(vr, T)::Vector{T})
+# vrsumsubset(fun, subsetfun, vr, init, T::DataType)= sumsubsetvec(args, subsetfun, init, get(vr, T))
 # sumsubsetvec(fun, subsetfun, init, vector) = sum(fun, view(vector, subsetfun(vector)); init=init)
