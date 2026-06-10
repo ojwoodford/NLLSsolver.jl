@@ -1,5 +1,5 @@
 # Uni-variate optimization (single unfixed variable)
-optimize!(problem::NLLSProblem, options::NLLSOptions, unfixed::Integer, callback=nullcallback, starttimens=Base.time_ns()) = setupiterator(optimizeinternal!, checkvars!(problem), options, NLLSInternal(UInt(unfixed), nvars(problem.variables[unfixed]), starttimens), callback)
+optimize!(problem::NLLSProblem, options::NLLSOptions, unfixed::Integer, callback=nullcallback, starttimens=Base.time_ns()) = setupiterator(optimizeinternal!, problem, options, NLLSInternal(UInt(unfixed), nvars(problem.variables[unfixed]), starttimens), callback)
 
 # Multi-variate optimization
 function optimize!(problem::NLLSProblem, options::NLLSOptions, unfixed::AbstractVector, callback)::NLLSResult
@@ -12,7 +12,6 @@ function optimize!(problem::NLLSProblem, options::NLLSOptions, unfixed::Abstract
         return optimize!(problem, options, findfirst(unfixed), callback, starttimens)
     end
     # Multiple variables
-    problem = checkvars!(problem)
     return setupiterator(optimizeinternal!, problem, options, NLLSInternal(makesymmvls(problem, unfixed, nblocks), starttimens), callback)
 end
 
@@ -71,7 +70,6 @@ function optimizesingles!(problem::NLLSProblem{VT, CT}, options::NLLSOptions, ty
     return optimizesingles!(problem, options, indices, !isempty(indices) && dynamic(is_static(nvars(problem.variables[indices[1]]))))
 end
 function optimizesingles!(problem::NLLSProblem{VT, CT}, options::NLLSOptions, indices, sortedbysize=false)::NLLSResult where {VT, CT}
-    problem = checkvars!(problem)
     # Get the indices per cost
     costindices = sparse(getvarcostmap(problem)')
     # Put the costs aside
@@ -100,7 +98,7 @@ function optimizesingles!(problem::NLLSProblem{VT, CT}, options::NLLSOptions, in
     return result
 end
 
-setupiterator(func, problem::NLLSProblem, options::NLLSOptions, data::NLLSInternal, trailingargs...)::NLLSResult = func(problem, options, data, options.iterator(problem, data), trailingargs...)
+setupiterator(func, problem::NLLSProblem, options::NLLSOptions, data::NLLSInternal, trailingargs...)::NLLSResult = func(checkvars!(problem), options, data, options.iterator(problem, data), trailingargs...)
 
 # The meat of an optimization
 function optimizeinternal!(problem::NLLSProblem, options::NLLSOptions, data, iteratedata, callback)::NLLSResult
