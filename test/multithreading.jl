@@ -1,5 +1,4 @@
-using Test, Static
-import NLLSsolver
+using Test, Static, NLLSsolver
 
 myfun(x) = x * x * x
 NLLSsolver.computecost(::StaticInt, ::Vector{Int}, x::Float64) = myfun(x)
@@ -9,9 +8,9 @@ NLLSsolver.computecost(::Vector{Int}, x::Float64) = myfun(x)
     # Cost sums
     v = rand(Int(1e6))
     s1 = sum(myfun, v)
-    s2 = sum(NLLSsolver.bindleadingargs(NLLSsolver.computecost, static(1), Vector{Int}()), v)
+    s2 = sum(NLLSsolver.bindleadingargs(computecost, static(1), Vector{Int}()), v)
     @test isapprox(s1, s2; rtol=1.e-13)
-    s3 = sum(NLLSsolver.bindleadingargs(NLLSsolver.computecost, static(Threads.nthreads()), Vector{Int}()), v)
+    s3 = sum(NLLSsolver.bindleadingargs(computecost, static(Threads.nthreads()), Vector{Int}()), v)
     @test isapprox(s1, s3; rtol=1.e-13)
     # # Subset sums with Vector{Bool}
     # subset = rand(Bool, length(v))
