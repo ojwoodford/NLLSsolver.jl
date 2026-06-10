@@ -199,8 +199,8 @@ function reordercostsforschur!(problem::NLLSProblem, schurvars)
 end
 
 costnum(vec::Vector)  = length(vec)
-costdeps(vec::Vector) = length(vec) > 0 ? (dynamic(is_static(ndeps(vec[1]))) ? length(vec) * ndeps(vec[1]) : sum(ndeps, vec; init=0)) : 0 # Support variable number of dependencies
-resnum(vec::Vector)   = length(vec) > 0 ? (dynamic(is_static( nres(vec[1]))) ? length(vec) *  nres(vec[1]) : sum( nres, vec; init=0)) : 0 # Support variable length costs
+costdeps(vec::Vector) = length(vec) != 0 ? length(vec) * ndeps(vec[1]) : 0
+resnum(vec::Vector)   = length(vec) != 0 ? (dynamic(is_static( nres(vec[1]))) ? length(vec) *  nres(vec[1]) : sum( nres, vec; init=0)) : 0 # Support variable length costs
 countcosts(fun, costs::CostStruct{Any}) = sum(fun, values(costs); init=0)
 countcosts(fun, costs::CostStruct{T}) where T = countcosts(fun, costs, T)
 @inline countcosts(fun, costs, T::Union) = countcosts(fun, costs, T.a) + countcosts(fun, costs, T.b)

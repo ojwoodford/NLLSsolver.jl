@@ -27,13 +27,18 @@ Base.eltype(::RosenbrockB) = Float64
 @testset "functional.jl" begin
     # Create the problem
     problem = NLLSsolver.NLLSProblem(Float64)
+    @test NLLSsolver.countcosts(NLLSsolver.costnum, problem.costs) == 0
+    @test NLLSsolver.countcosts(NLLSsolver.costdeps, problem.costs) == 0
+    @test NLLSsolver.countcosts(NLLSsolver.resnum, problem.costs) == 0
     @test NLLSsolver.addvariable!(problem, 0.) == 1
-    @test NLLSsolver.addvariable!(problem, 0.) == 2
     NLLSsolver.addcost!(problem, RosenbrockA(1.0))
     @test NLLSsolver.countcosts(NLLSsolver.costnum, problem.costs) == 1
+    @test NLLSsolver.countcosts(NLLSsolver.costdeps, problem.costs) == 1
     @test NLLSsolver.countcosts(NLLSsolver.resnum, problem.costs) == 1
+    @test NLLSsolver.addvariable!(problem, 0.) == 2
     NLLSsolver.addcost!(problem, RosenbrockB(10.))
     @test NLLSsolver.countcosts(NLLSsolver.costnum, problem.costs) == 2
+    @test NLLSsolver.countcosts(NLLSsolver.costdeps, problem.costs) == 3
     @test NLLSsolver.countcosts(NLLSsolver.resnum, problem.costs) == 2
     @test NLLSsolver.cost(problem) == 0.5
     @test problem.varcostmapvalid == false
