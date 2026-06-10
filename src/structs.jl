@@ -4,15 +4,19 @@ import Printf.@printf
 @enum NLLSIterator newton levenbergmarquardt dogleg gradientdescent
 Base.String(iterator::NLLSIterator) = String(getiteratortype(iterator))
 
-struct NLLSOptions
+struct NLLSOptions{T, N}
     reldcost::Float64           # Minimum relative reduction in cost required to avoid termination
     absdcost::Float64           # Minimum absolute reduction in cost required to avoid termination
     dstep::Float64              # Minimum L-infinity norm of the update vector required to avoid termination
     maxfails::Int               # Maximum number of consecutive iterations that have a higher cost than the current best before termination
     maxiters::Int               # Maximum number of outer iterations
     maxtime::UInt64             # Maximum optimization time allowed, in nano-seconds (converted from seconds in the constructor)
-    iterator::Type              # Type of the inner iterator (see above for options)
-    numthreads::StaticInt       # Number of threads to use for parallel computations - currently not used, but may be in the future
+    iterator::Type{T}           # Type of the inner iterator (see above for options for iterators)
+    numthreads::StaticInt{N}    # Number of threads to use for parallel computations - currently not used, but may be in the future
+
+    function NLLSOptions(reldcost, abscost, dstep, maxfails, maxiters, maxtime, iterator::Type{T}, numthreads::StaticInt{N}) where {T, N}
+        return new{T, N}(reldcost, abscost, dstep, maxfails, maxiters, maxtime, iterator,          numthreads)
+    end
 end
 function NLLSOptions(; maxiters=100, reldcost=1.e-15, absdcost=1.e-15, dstep=1.e-15, maxfails=3, maxtime=30.0, iterator::NLLSIterator=levenbergmarquardt, callback=nothing, iteratordata=nothing, numthreads::StaticInt=StaticInt(Threads.nthreads()))
     @assert(isnothing(callback), "Callbacks should be passed directly to optimize!, not to the options struct.")
@@ -90,7 +94,7 @@ mutable struct NLLSInternal{LSType}
         return new{LSType}(0., 0., starttimens, 0, 0, StatsCounter(), StatsCounter(), StatsCounter(), 0, linsystem)
     end
 end
-@inline NLLSInternal(unfixed::UInt, varlen, starttimens) = NLLSInternal(dynamic(is_static(varlen)) && varlen <= 16 ? LinearSystem{UniVariateLSstatic_x{dynamic(varlen)}, UniVariateLSstatic_ls{dynamic(varlen), dynamic(varlen*varlen)}}((unfixed,), ()) : 
+NLLSInternal(unfixed::UInt, varlen, starttimens) = NLLSInternal(dynamic(is_static(varlen)) && varlen <= 16 ? LinearSystem{UniVariateLSstatic_x{dynamic(varlen)}, UniVariateLSstatic_ls{dynamic(varlen), dynamic(varlen*varlen)}}((unfixed,), ()) : 
                                                                                                                      LinearSystem{UniVariateLSdynamic_x, UniVariateLSdynamic_ls}((unfixed, dynamic(varlen)), (dynamic(varlen),)), starttimens)
 
 NLLSInternalMultiVar = Union{NLLSInternal{MultiVariateLSdense}, NLLSInternal{MultiVariateLSsparse}}
