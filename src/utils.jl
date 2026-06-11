@@ -57,6 +57,13 @@ function runlengthencodesortedints(sortedints)
     return runindices
 end
 
+struct TimeCounter
+    time_ns::UInt64
+    count::Int64
+end
+TimeCounter() = TimeCounter(0, 0)
+Base.:+(x::TimeCounter, u::UInt64) = TimeCounter(x.time_ns + u, x.count + 1)
+
 macro elapsed_ns(ex)
     quote
         local t0 = Base.time_ns()

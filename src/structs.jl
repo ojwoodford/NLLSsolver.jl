@@ -35,13 +35,15 @@ struct NLLSResult
     timegradient::UInt64                   # Time spent computing the residual gradients and constructing the linear problems
     timesolver::UInt64                     # Time spent solving the linear problems
     # Counts
-    niterations::Int                        # Number of outer optimization iterations performed
-    costcomputations::Int                   # Number of cost computations performed
-    gradientcomputations::Int               # Number of residual gradient computations performed
-    linearsolvers::Int                      # Number of linear solves performed
+    niterations::Int                       # Number of outer optimization iterations performed
+    costcomputations::Int                  # Number of cost computations performed
+    gradientcomputations::Int              # Number of residual gradient computations performed
+    linearsolves::Int                      # Number of linear solves performed
     # Termination reason
-    termination::Int                        # Set of flags indicating which termination criteria were met - the value should not be relied upon
+    termination::Int                       # Set of flags indicating which termination criteria were met - the value should not be relied upon
 end
+NLLSResult(data, termination) = NLLSResult(data.startcost, data.bestcost, data.optimize.time_ns-data.start.time_ns, data.init.time_ns-data.start.time_ns, data.costs.time_ns, data.gradients.time_ns, data.solves.time_ns, data.iternum, data.costs.count, data.gradients.count, data.solves.count, termination)
+Base.:+(a::NLLSResult, b::NLLSResult) = NLLSResult(a.startcost+b.startcost, a.bestcost+b.bestcost, a.timetotal+b.timetotal, a.timecost+b.timecost, a.timeinit+b.timeinit, a.timegradient+b.timegradient, a.timesolver+b.timesolver, a.niterations+b.niterations, a.costcomputations+b.costcomputations, a.gradientcomputations+b.gradientcomputations, a.linearsolves+b.linearsolves, a.termination|b.termination)
 
 function Base.show(io::IO, x::NLLSResult)
     otherstuff = x.timetotal - x.timecost - x.timegradient - x.timesolver - x.timeinit
@@ -54,7 +56,7 @@ function Base.show(io::IO, x::NLLSResult)
             x.timetotal*1e-9, x.niterations, x.startcost, x.bestcost, 100*(1-x.bestcost/x.startcost), 
             x.costcomputations, x.timecost*1e-9, 100.0*x.timecost/x.timetotal,
             x.gradientcomputations, x.timegradient*1e-9, 100.0*x.timegradient/x.timetotal,
-            x.linearsolvers, x.timesolver*1e-9, 100.0*x.timesolver/x.timetotal,
+            x.linearsolves, x.timesolver*1e-9, 100.0*x.timesolver/x.timetotal,
             x.timeinit*1e-9, 100.0*x.timeinit/x.timetotal,
             otherstuff*1e-9, 100.0*otherstuff/x.timetotal)
     if 0 != x.termination           ; println(io,  "Reason(s) for termination:"); end
@@ -82,16 +84,16 @@ mutable struct NLLSInternal{LSType}
     init::Stats
     optimize::Stats
     # Stats for key computations
-    costs::StatsCounter
-    gradients::StatsCounter
-    solves::StatsCounter
+    costs::TimeCounter
+    gradients::TimeCounter
+    solves::TimeCounter
     # Counts
     iternum::Int
     # Linear system
     linsystem::LSType  
 
     function NLLSInternal(linsystem::LSType, startstats) where LSType
-        return new{LSType}(0., 0., startstats, Stats(0), Stats(0), StatsCounter(), StatsCounter(), StatsCounter(), 0, linsystem)
+        return new{LSType}(0., 0., startstats, Stats(0), Stats(0), TimeCounter(), TimeCounter(), TimeCounter(), 0, linsystem)
     end
 end
 NLLSInternal(unfixed::UInt, varlen, startstats) = NLLSInternal(dynamic(is_static(varlen)) && varlen <= 16 ? LinearSystem{UniVariateLSstatic_x{dynamic(varlen)}, UniVariateLSstatic_ls{dynamic(varlen), dynamic(varlen*varlen)}}((unfixed,), ()) : 

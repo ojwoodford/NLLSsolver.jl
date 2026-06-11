@@ -32,7 +32,7 @@ reset!(nd::NewtonData, ::NLLSProblem, ::NLLSInternal) = nothing
 function iterate!(::NewtonData, data, problem::NLLSProblem, options::NLLSOptions)::Float64
     # Compute the step
     gethessian(data.linsystem)
-    data.solves += @stats negate!(solve!(data.linsystem, options))
+    data.solves += @elapsed_ns negate!(solve!(data.linsystem, options))
     # Update the new variables
     update!(problem.varnext, problem.variables, data.linsystem)
     # Return -Inf to signal the cost wasn't computed
@@ -53,7 +53,7 @@ reset!(dd::DoglegData, ::NLLSProblem, data::NLLSInternal) = dd.trustradius = 0.0
 
 function iterate!(doglegdata::DoglegData, data, problem::NLLSProblem, options::NLLSOptions)::Float64
     hessian, gradient = gethessgrad(data.linsystem)
-    data.solves += @stats begin
+    data.solves += @elapsed_ns begin
         # Compute the Cauchy step
         gnorm2 = gradient' * gradient
         a = gnorm2 / (fast_bAb(hessian, gradient) + floatmin(eltype(gradient)))
@@ -103,7 +103,7 @@ function iterate!(doglegdata::DoglegData, data, problem::NLLSProblem, options::N
         # Update the new variables
         update!(problem.varnext, problem.variables, data.linsystem)
         # Compute the cost
-        data.costs += @stats cost_ = cost(problem.varnext, problem.costs, options.numthreads)
+        data.costs += @elapsed_ns cost_ = cost(problem.varnext, problem.costs, options.numthreads)
         # Update trust region radius
         mu = (data.bestcost - cost_) / linear_approx
         if mu > 0.375
@@ -153,11 +153,11 @@ function iterate!(levmardata::LevMarData, data, problem::NLLSProblem, options::N
         uniformscaling!(hessian, levmardata.lambda - lastlambda)
         lastlambda = levmardata.lambda
         # Solve the linear system
-        data.solves += @stats negate!(solve!(data.linsystem, options))
+        data.solves += @elapsed_ns negate!(solve!(data.linsystem, options))
         # Update the new variables
         update!(problem.varnext, problem.variables, data.linsystem)
         # Compute the cost
-        data.costs += @stats cost_ = cost(problem.varnext, problem.costs, options.numthreads)
+        data.costs += @elapsed_ns cost_ = cost(problem.varnext, problem.costs, options.numthreads)
         # Check for exit
         if !(cost_ > data.bestcost) || maximum(abs, getx(data.linsystem)) < options.dstep
             # Success (or convergence) - update lambda
@@ -191,7 +191,7 @@ function iterate!(gddata::GradientDescentData, data, problem::NLLSProblem, optio
     # Evaluate the current step size
     getx(data.linsystem) .= -gradient * gddata.stepsize
     update!(problem.varnext, problem.variables, data.linsystem)
-    data.costs += @stats costc = cost(problem.varnext, problem.costs, options.numthreads)
+    data.costs += @elapsed_ns costc = cost(problem.varnext, problem.costs, options.numthreads)
     # Iterate until we find a lower cost
     while costc > data.bestcost
         # Compute the expected cost
@@ -202,7 +202,7 @@ function iterate!(gddata::GradientDescentData, data, problem::NLLSProblem, optio
         # Evaluate the new step size
         getx(data.linsystem) .= -gradient * gddata.stepsize
         update!(problem.varnext, problem.variables, data.linsystem)
-        data.costs += @stats costc = cost(problem.varnext, problem.costs, options.numthreads)
+        data.costs += @elapsed_ns costc = cost(problem.varnext, problem.costs, options.numthreads)
     end
     gddata.stepsize *= 2
     return costc
