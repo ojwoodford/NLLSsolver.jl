@@ -2,9 +2,6 @@ using SparseArrays
 
 negate!(x) = @.(x = -x)
 
-# Default preoptimization - do nothing
-preoptimization(unusedargs...) = nothing
-
 # Iterators assume that the linear problem has been constructed
 function getiteratortype(iterator::NLLSIterator)
     # Call the optimizer with the required iterator struct
@@ -30,7 +27,7 @@ struct NewtonData
 end
 NewtonData(::NLLSProblem, ::NLLSInternal) = NewtonData()
 Base.String(::Type{NewtonData}) = "Newton"
-reset!(nd::NewtonData, ::NLLSProblem, ::NLLSInternal) = nd
+reset!(nd::NewtonData, ::NLLSProblem, ::NLLSInternal) = nothing
 
 function iterate!(::NewtonData, data, problem::NLLSProblem, options::NLLSOptions)::Float64
     # Compute the step
@@ -52,14 +49,7 @@ mutable struct DoglegData{T}
     end
 end
 Base.String(::Type{DoglegData}) = "Dogleg"
-gettr(dd::DoglegData) = dd.trustradius
-settr!(dd::DoglegData, tr) = dd.trustradius = tr
-function reset!(dd::DoglegData{T}, ::NLLSProblem, data::NLLSInternal) where T<:Vector
-    settr!(dd, 0.0)
-    resize!(dd.cauchy, length(getx(data.linsystem)))
-    return
-end
-reset!(dd::DoglegData{T}, ::NLLSProblem, data::NLLSInternal) where T<:StaticVector = settr!(dd, 0.0)
+reset!(dd::DoglegData, ::NLLSProblem, data::NLLSInternal) = dd.trustradius = 0.0
 
 function iterate!(doglegdata::DoglegData, data, problem::NLLSProblem, options::NLLSOptions)::Float64
     hessian, gradient = gethessgrad(data.linsystem)
@@ -140,9 +130,7 @@ mutable struct LevMarData
     end
 end
 Base.String(::Type{LevMarData}) = "Levenberg-Marquardt"
-gettr(lmd::LevMarData) = lmd.lambda
-settr!(lmd::LevMarData, tr) = lmd.lambda = tr
-reset!(lmd::LevMarData, ::NLLSProblem, ::NLLSInternal) = settr!(lmd, 0.0)
+reset!(lmd::LevMarData, ::NLLSProblem, ::NLLSInternal) = lmd.lambda = 0.0
 
 function initlambda(hessian)
     m = zero(eltype(hessian))
