@@ -77,6 +77,7 @@ struct Stats
     bytes_allocd::Int64
     time_ns::UInt64
 end
+Stats(init) = Stats(init, init, init)
 function Stats()
     gc_data = Base.gc_num()
     return Stats(gc_data.malloc + gc_data.realloc + gc_data.poolalloc + gc_data.bigalloc, gc_data.allocd, Base.time_ns())

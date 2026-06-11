@@ -1,18 +1,18 @@
 # Uni-variate optimization (single unfixed variable)
-optimize!(problem::NLLSProblem, options::NLLSOptions, unfixed::Integer, callback=nullcallback, starttimens=Base.time_ns()) = setupiterator(optimizeinternal!, problem, options, NLLSInternal(UInt(unfixed), nvars(problem.variables[unfixed]), starttimens), callback)
+optimize!(problem::NLLSProblem, options::NLLSOptions, unfixed::Integer, callback=nullcallback, startstats::Stats=Stats()) = setupiterator(optimizeinternal!, problem, options, NLLSInternal(UInt(unfixed), nvars(problem.variables[unfixed]), startstats), callback)
 
 # Multi-variate optimization
 function optimize!(problem::NLLSProblem, options::NLLSOptions, unfixed::AbstractVector, callback)::NLLSResult
-    starttimens = Base.time_ns()
+    startstats = Stats()
     @assert length(problem.variables) > 0
     # Compute the number of free variables (nblocks)
     nblocks = sum(unfixed)
     if nblocks == 1
         # One unfixed variable
-        return optimize!(problem, options, findfirst(unfixed), callback, starttimens)
+        return optimize!(problem, options, findfirst(unfixed), callback, startstats)
     end
     # Multiple variables
-    return setupiterator(optimizeinternal!, problem, options, NLLSInternal(makesymmvls(problem, unfixed, nblocks), starttimens), callback)
+    return setupiterator(optimizeinternal!, problem, options, NLLSInternal(makesymmvls(problem, unfixed, nblocks), startstats), callback)
 end
 
 # Conversions for different types of "unfixed"
@@ -90,7 +90,7 @@ function optimizesingles!(problem::NLLSProblem{VT, CT}, options::NLLSOptions, in
             last += 1
         end
         # Optimize all variables of the same size at once
-        result = setupiterator(optimizesinglesinternal!, problem, options, NLLSInternal(UInt(1), nvars(problem.variables[indices[first]]), UInt64(0)), allcosts, costindices, @inbounds(view(indices, first:last-1)), result)
+        result = setupiterator(optimizesinglesinternal!, problem, options, NLLSInternal(UInt(1), nvars(problem.variables[indices[first]]), Stats(0)), allcosts, costindices, @inbounds(view(indices, first:last-1)), result)
         first = last
     end
     # Put the costs back
@@ -103,11 +103,11 @@ setupiterator(func, problem::NLLSProblem, options::NLLSOptions, data::NLLSIntern
 # The meat of an optimization
 function optimizeinternal!(problem::NLLSProblem, options::NLLSOptions, data, iteratedata, callback)::NLLSResult
     # Initializations
+    data.init = Stats()
     fails = 0
     converged = 0
     data.iternum = 0
-    stoptime = data.starttime + options.maxtime
-    data.timeinit += Base.time_ns() - data.starttime
+    stoptime = data.init.time_ns + options.maxtime
     # Initialize the linear problem
     data.gradients += @stats begin
             zero!(data.linsystem)
@@ -179,8 +179,8 @@ function optimizeinternal!(problem::NLLSProblem, options::NLLSOptions, data, ite
         updatefrombest!(problem, data)
     end
     # Return the data to produce the final result
-    data.timetotal += Base.time_ns() - data.starttime
-    return NLLSResult(data.startcost, data.bestcost, data.timetotal, data.timeinit, data.costs.time_ns, data.gradients.time_ns, data.solves.time_ns, data.iternum, data.costs.count, data.gradients.count, data.solves.count, converged)
+    data.optimize = Stats()
+    return NLLSResult(data.startcost, data.bestcost, data.optimize.time_ns-data.start.time_ns, data.init.time_ns-data.start.time_ns, data.costs.time_ns, data.gradients.time_ns, data.solves.time_ns, data.iternum, data.costs.count, data.gradients.count, data.solves.count, converged)
 end
 
 # Optimizing variables one at a time (e.g. in alternation)
@@ -188,8 +188,10 @@ function optimizesinglesinternal!(problem::NLLSProblem, options::NLLSOptions, da
     iternum = result.niterations
     startcost = result.startcost
     bestcost = result.bestcost
+    timeinit = result.timeinit
+    timetotal = result.timetotal
+    data.start = Stats()
     for ind in varindices
-        data.starttime = Base.time_ns()
         data.linsystem = updateunfixed(data.linsystem, ind)
         # Construct the subset of residuals that depend on this variable
         selectcosts!(problem.costs, allcosts, @inbounds(view(costindices.rowval, costindices.colptr[ind]:costindices.colptr[ind+1]-1)))
@@ -197,12 +199,15 @@ function optimizesinglesinternal!(problem::NLLSProblem, options::NLLSOptions, da
         reset!(iteratedata, problem, data)
         # Optimize the subproblem
         optimizeinternal!(problem, options, data, iteratedata, nullcallback)
-        # Increment
+        # Increment stats
         startcost += data.startcost
         bestcost += data.bestcost
         iternum += data.iternum
+        timeinit += data.init.time_ns - data.start.time_ns
+        timetotal += data.optimize.time_ns - data.start.time_ns
+        data.start = data.optimize
     end
-    return NLLSResult(startcost, bestcost, result.timetotal+data.timetotal, result.timeinit+data.timeinit, result.timecost+data.costs.time_ns, result.timegradient+data.gradients.time_ns, result.timesolver+data.solves.time_ns, iternum, result.costcomputations+data.costs.count, result.gradientcomputations+data.gradients.count, result.linearsolvers+data.solves.count, 0)
+    return NLLSResult(startcost, bestcost, timetotal, timeinit, result.timecost+data.costs.time_ns, result.timegradient+data.gradients.time_ns, result.timesolver+data.solves.time_ns, iternum, result.costcomputations+data.costs.count, result.gradientcomputations+data.gradients.count, result.linearsolvers+data.solves.count, 0)
 end
 
 function updatefromnext!(problem::NLLSProblem, ::NLLSInternalMultiVar)

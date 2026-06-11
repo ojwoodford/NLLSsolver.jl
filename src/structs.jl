@@ -78,9 +78,9 @@ mutable struct NLLSInternal{LSType}
     startcost::Float64
     bestcost::Float64
     # Times (nano-seconds)
-    starttime::UInt64
-    timetotal::UInt64
-    timeinit::UInt64
+    start::Stats
+    init::Stats
+    optimize::Stats
     # Stats for key computations
     costs::StatsCounter
     gradients::StatsCounter
@@ -90,12 +90,12 @@ mutable struct NLLSInternal{LSType}
     # Linear system
     linsystem::LSType  
 
-    function NLLSInternal(linsystem::LSType, starttimens) where LSType
-        return new{LSType}(0., 0., starttimens, 0, 0, StatsCounter(), StatsCounter(), StatsCounter(), 0, linsystem)
+    function NLLSInternal(linsystem::LSType, startstats) where LSType
+        return new{LSType}(0., 0., startstats, Stats(0), Stats(0), StatsCounter(), StatsCounter(), StatsCounter(), 0, linsystem)
     end
 end
-NLLSInternal(unfixed::UInt, varlen, starttimens) = NLLSInternal(dynamic(is_static(varlen)) && varlen <= 16 ? LinearSystem{UniVariateLSstatic_x{dynamic(varlen)}, UniVariateLSstatic_ls{dynamic(varlen), dynamic(varlen*varlen)}}((unfixed,), ()) : 
-                                                                                                                     LinearSystem{UniVariateLSdynamic_x, UniVariateLSdynamic_ls}((unfixed, dynamic(varlen)), (dynamic(varlen),)), starttimens)
+NLLSInternal(unfixed::UInt, varlen, startstats) = NLLSInternal(dynamic(is_static(varlen)) && varlen <= 16 ? LinearSystem{UniVariateLSstatic_x{dynamic(varlen)}, UniVariateLSstatic_ls{dynamic(varlen), dynamic(varlen*varlen)}}((unfixed,), ()) : 
+                                                                                                                     LinearSystem{UniVariateLSdynamic_x, UniVariateLSdynamic_ls}((unfixed, dynamic(varlen)), (dynamic(varlen),)), startstats)
 
 NLLSInternalMultiVar = Union{NLLSInternal{MultiVariateLSdense}, NLLSInternal{MultiVariateLSsparse}}
 NLLSInternalSingleVar = NLLSInternal{UniVariateLS}

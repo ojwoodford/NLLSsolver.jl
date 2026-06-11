@@ -52,9 +52,9 @@ function compute_cost(problem)
 end
 
 function split_optimize(problem, options)
-    starttimens = Base.time_ns()
+    startstats = NLLSsolver.Stats()
     unfixed = trues(length(problem.variables))
-    return split_optimize(problem, options, NLLSsolver.NLLSInternal(NLLSsolver.makesymmvls(problem, unfixed, sum(unfixed)), starttimens))
+    return split_optimize(problem, options, NLLSsolver.NLLSInternal(NLLSsolver.makesymmvls(problem, unfixed, sum(unfixed)), startstats))
 end
 split_optimize(problem, options, data) = split_optimize(NLLSsolver.checkvars!(problem), options, data, options.iterator(problem, data))
 split_optimize(problem, options, data, iteratedata) = @allocated NLLSsolver.optimizeinternal!(problem, options, data, iteratedata, NLLSsolver.nullcallback)

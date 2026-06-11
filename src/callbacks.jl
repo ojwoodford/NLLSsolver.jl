@@ -101,7 +101,7 @@ end
 # Store per-iteration costs and trajectory
 function storecostscallback(store::CostTrajectory, cost, problem, data, unusedargs...)
     push!(store.costs, cost)
-    push!(store.times_ns, Base.time_ns() - data.starttime)
+    push!(store.times_ns, Base.time_ns() - data.start.time_ns)
     push!(store.trajectory, Vector{Float64}(getx(data.linsystem)))
     return (cost, 0)
 end
