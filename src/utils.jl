@@ -1,4 +1,4 @@
-using StaticArrays, Static, SparseArrays, LoopVectorization
+using StaticArrays, Static, SparseArrays, LoopVectorization, Printf
 
 @inline function valuedispatch(lower::StaticInt, upper::StaticInt, val::Int, fun)
     if lower >= upper
@@ -99,6 +99,16 @@ macro stats(ex)
         local diff = Base.GC_Diff(Base.gc_num(), allocs)
         Stats(Base.gc_alloc_count(diff), diff.allocd, Base.time_ns() - t0)
     end
+end
+
+function bytesstring(nb)
+    bytessuffix = (" bytes", "KB", "MB", "GB", "TB")
+    suffix = 1
+    while nb >= 1024 && suffix <= length(bytessuffix)
+        nb /= 1024
+        suffix += 1
+    end
+    return @sprintf("%d%s", nb, bytessuffix[suffix])
 end
 
 function Base.cumsum!(A::AbstractVector)
