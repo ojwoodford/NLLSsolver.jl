@@ -7,8 +7,9 @@ using StaticArrays, Static, SparseArrays, LoopVectorization, Printf
     midpoint = lower + div(upper - lower, static(2))
     if val <= midpoint
         return valuedispatch(lower, midpoint, val, fun)
+    else
+        return valuedispatch(midpoint + static(1), upper, val, fun)
     end
-    return valuedispatch(midpoint + static(1), upper, val, fun)
 end
 
 struct Bind{F, A}
