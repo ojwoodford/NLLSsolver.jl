@@ -74,7 +74,6 @@ split_optimize(problem, options, data, iteratedata) = @allocated NLLSsolver.opti
 
     # Optimze just the landmarks
     result = NLLSsolver.optimizesingles!(problem, options, findall(landmarks))
-    display(result)
     costafter = NLLSsolver.cost(problem, static(1))
     @test costbefore ≈ result.startcost
     @test costafter ≈ result.bestcost
@@ -85,6 +84,7 @@ split_optimize(problem, options, data, iteratedata) = @allocated NLLSsolver.opti
     costbefore, allocd = compute_cost(problem)
     @test allocd == 0
     result = NLLSsolver.optimizesingles!(problem, options, EuclideanVector{3, Float64})
+    display(result)
     costafter = NLLSsolver.cost(problem)
     @test costbefore ≈ result.startcost
     @test costafter ≈ result.bestcost
