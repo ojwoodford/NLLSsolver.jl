@@ -158,7 +158,8 @@ function fast_bAb(A::SparseMatrixCSC, b::Vector)
     return total
 end
 
-sparse_dense_decision(d, nnz) = (nnz * 64) < (25 * d * (d - 40)) # Threshold nnz (for lower triangle) = 25/64 * (d^2 - 40d)
+sparse_dense_decision(ndims, sparsity, blocksizes) = sparse_dense_decision(ndims, block_sparse_nnz(sparsity, blocksizes))
+sparse_dense_decision(ndims, nnz) = (nnz * 64) < (25 * ndims * (ndims - 40)) # Threshold nnz (for lower triangle) = 25/64 * (d^2 - 40d)
 
 function block_sparse_nnz(sparsity, blocksizes)
     # Compute the number of non-zeros in a block sparse matrix
@@ -170,4 +171,26 @@ function block_sparse_nnz(sparsity, blocksizes)
         end
     end
     return nnz
+end
+
+function block_sparsity(problem, unfixed)
+    # Compute the block sparsity
+    sparsity = getvarcostmap(problem)
+    sparsity = sparsity[unfixed,:]
+    sparsity = triu(sparse(sparsity * sparsity' .> 0))
+    return sparsity
+end
+
+function block_sizes_indices(variables, unfixed, nblocks)
+    blockindices = zeros(UInt, length(variables))
+    blocksizes = zeros(UInt, nblocks)
+    nblocks = 0
+    for (index, unfixed_) in enumerate(unfixed)
+        if unfixed_
+            nblocks += 1
+            blockindices[index] = nblocks
+            blocksizes[nblocks] = nvars(variables[index])
+        end
+    end
+    return blocksizes, blockindices
 end

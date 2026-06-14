@@ -134,41 +134,6 @@ end
 
 MultiVariateLS = Union{MultiVariateLSsparse, MultiVariateLSdense}
 
-function makesymmvls(problem, unfixed, nblocks, formarginalization=false)
-    # Multiple variables. Use a block sparse matrix
-    blockindices = zeros(UInt, length(problem.variables))
-    blocksizes = zeros(UInt, nblocks)
-    nblocks = 0
-    for (index, unfixed_) in enumerate(unfixed)
-        if unfixed_
-            nblocks += 1
-            blockindices[index] = nblocks
-            blocksizes[nblocks] = nvars(problem.variables[index])
-        end
-    end
-
-    # Decide whether to have a sparse or a dense system
-    len = formarginalization ? 40 : sum(blocksizes)
-    if len >= 40
-        # Compute the block sparsity
-        sparsity = getvarcostmap(problem)
-        sparsity = sparsity[unfixed,:]
-        sparsity = triu(sparse(sparsity * sparsity' .> 0))
-
-        # Check sparsity level
-        if formarginalization || sparse_dense_decision(len, block_sparse_nnz(sparsity, blocksizes))
-            # Construct the BSM
-            bsm = BlockSparseMatrix{Float64}(sparsity, blocksizes, blocksizes)
-
-            # Construct the sparse MultiVariateLS
-            return MultiVariateLSsparse(bsm, blockindices, !formarginalization)
-        end
-    end
-
-    # Construct the dense MultiVariateLS
-    return MultiVariateLSdense(blocksizes, blockindices)
-end
-
 function updatesymlinearsystem!(linsystem::UniVariateLS, g, H, unusedargs...)
     # Update the blocks in the problem
     getb(linsystem) .+= g
