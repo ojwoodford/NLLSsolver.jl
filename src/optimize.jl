@@ -79,7 +79,7 @@ function optimizesingles!(problem::NLLSProblem{VT, CT}, options::NLLSOptions, in
     problem.costs = CostStruct{CT}()
     # Group variables of the same size together to minimize allocations, so sort the indices by variable size
     if !sortedbysize
-        indices = indices[sortperm([nvars(problem.variables[i]) for i in indices])]
+        indices = sort!(indices, lt=(i, j)->nvars(problem.variables[i])<=nvars(problem.variables[j]))
     end
     # Loop over all the variables
     result = NLLSResult(0.0, 0.0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0)
