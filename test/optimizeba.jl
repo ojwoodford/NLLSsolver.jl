@@ -89,7 +89,7 @@ end
     @test result.bestcost < 1.e-15
     problem = perturb_ba_problem(problem, 0.001, 0.001)
     result = optimize!(problem, options)
-    @test result.optimizeallocations <= 30960
+    @test result.optimizeallocated <= 30960
 
     # Generate & optimize a sparse problem
     problem = create_ba_problem(10, 50, 0.3)
@@ -99,5 +99,5 @@ end
     @test result.bestcost < 1.e-15
     problem = perturb_ba_problem(problem, 0.001, 0.001)
     result = optimize!(problem, options)
-    @test result.optimizeallocations == 0
+    @test result.optimizeallocated == 0
 end
