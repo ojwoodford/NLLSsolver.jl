@@ -101,19 +101,23 @@ function optimizesingles!(problem::NLLSProblem{VT, CT}, options::NLLSOptions, in
     return result
 end
 
-function setupsinglevarls(func, problem::NLLSProblem, options::NLLSOptions, unfixed::Integer, startstats, trailingargs...)
+function setupsinglevarls(func, problem::NLLSProblem, options::NLLSOptions, unfixed::Integer, startstats, trailingargs...)::NLLSResult
     problem = checkvars!(problem)
     varlen = nvars(problem.variables[unfixed])
     if dynamic(is_static(varlen)) && varlen <= 16
-        data = NLLSInternal(LinearSystem{UniVariateLSstatic_x{dynamic(varlen)}, UniVariateLSstatic_ls{dynamic(varlen), dynamic(varlen*varlen)}}((unfixed,), ()), startstats)
-        return func(problem, options, data, options.iterator(problem, data), trailingargs...)::NLLSResult
+        return setupstaticvarls(func, problem, options, unfixed, startstats, varlen, trailingargs)::NLLSResult
     else
-        data = NLLSInternal(LinearSystem{UniVariateLSdynamic_x, UniVariateLSdynamic_ls}((unfixed, dynamic(varlen)), (dynamic(varlen),)), startstats)
-        return func(problem, options, data, options.iterator(problem, data), trailingargs...)::NLLSResult
+        dynamicdata = NLLSInternal(LinearSystem{UniVariateLSdynamic_x, UniVariateLSdynamic_ls}((unfixed, dynamic(varlen)), (dynamic(varlen),)), startstats)
+        return func(problem, options, dynamicdata, options.iterator(problem, dynamicdata), trailingargs...)::NLLSResult
     end
 end
 
-function setupsmultivarls(func, problem::NLLSProblem, options::NLLSOptions, unfixed, startstats, nblocks, trailingargs...)
+function setupstaticvarls(func, problem::NLLSProblem, options::NLLSOptions, unfixed::Integer, startstats, varlen::StaticInt, trailingargs)::NLLSResult
+    staticdata = NLLSInternal(LinearSystem{UniVariateLSstatic_x{dynamic(varlen)}, UniVariateLSstatic_ls{dynamic(varlen), dynamic(varlen*varlen)}}((unfixed,), ()), startstats)
+    return func(problem, options, staticdata, options.iterator(problem, staticdata), trailingargs...)::NLLSResult
+end
+
+function setupsmultivarls(func, problem::NLLSProblem, options::NLLSOptions, unfixed, startstats, nblocks, trailingargs...)::NLLSResult
     problem = checkvars!(problem)
     # Multiple variables. Decide whether to have a sparse or a dense system
     blocksizes, blockindices = block_sizes_indices(problem.variables, unfixed, nblocks)
@@ -129,18 +133,18 @@ function setupsmultivarls(func, problem::NLLSProblem, options::NLLSOptions, unfi
             bsm = BlockSparseMatrix{Float64}(sparsity, blocksizes, blocksizes)
 
             # Construct the sparse MultiVariateLS
-            data = NLLSInternal(MultiVariateLSsparse(bsm, blockindices, !formarginalization), startstats)
-            return func(problem, options, data, options.iterator(problem, data), trailingargs...)::NLLSResult
+            sparsedata = NLLSInternal(MultiVariateLSsparse(bsm, blockindices, !formarginalization), startstats)
+            return func(problem, options, sparsedata, options.iterator(problem, sparsedata), trailingargs...)::NLLSResult
         end
     end
 
     # Construct the dense MultiVariateLS
-    data = NLLSInternal(MultiVariateLSdense(blocksizes, blockindices), startstats)
-    return func(problem, options, data, options.iterator(problem, data), trailingargs...)::NLLSResult
+    densedata = NLLSInternal(MultiVariateLSdense(blocksizes, blockindices), startstats)
+    return func(problem, options, densedata, options.iterator(problem, densedata), trailingargs...)::NLLSResult
 end
 
 # The meat of an optimization
-@inline function optimizeloop!(problem::NLLSProblem, options::NLLSOptions, data, iteratedata, callback)
+@inline function optimizeloop!(problem::NLLSProblem, options::NLLSOptions, data, iteratedata, callback)::Int64
     # Initializations
     stoptime = Base.time_ns() + options.maxtime
     fails = 0
@@ -188,7 +192,7 @@ end
         # Update the variables
         updatefromnext!(problem, data)
         # Check for termination
-        maxstep = maximum(abs, getx(data.linsystem))
+        maxstep = maximum(abs, getx(data.linsystem))::Float64
         converged |= isinf(cost)                                     << 0 # Cost is infinite
         converged |= isnan(cost)                                     << 1 # Cost is NaN
         converged |= (dcost < data.bestcost * options.reldcost)      << 2 # Relative decrease in cost is too small
