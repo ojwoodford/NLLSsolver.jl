@@ -18,5 +18,9 @@ docs/site/
 # IDE files
 .vscode
 
+# AI agent files
+.claude
+CLAUDE.md
+
 # OS generated files
 .DS_Store
