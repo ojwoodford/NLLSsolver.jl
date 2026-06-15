@@ -65,11 +65,11 @@ The optimizer builds and solves a linear system each iteration:
 The choice between sparse and dense is automatic based on problem size (threshold: total DoF ≥ 40).
 
 ### Optimization Flow (`src/optimize.jl`, `src/iterators.jl`)
-`optimize!(problem, options, unfixed, callback)` dispatches to `optimizeinternal!`, which:
-1. Calls `preoptimization` (iterator-specific setup)
-2. Builds the linear system via `costgradhess!` (`src/cost.jl`)
-3. Iterates: solve linear system → update variables → check termination
-4. Restores best variables on exit
+`optimize!(problem, options, unfixed, callback)` sets up the linear system (`setupsinglevarls`/`setupsmultivarls`) and dispatches to `optimizeinternal!`, which runs `optimizeloop!` (and records `Stats` before/after). `optimizeloop!` (`src/optimize.jl`) iterates:
+1. Build the linear system via `costgradhess!` (`src/cost.jl`)
+2. Take a step via the iterator's `iterate!` (`src/iterators.jl`): solve linear system → update variables
+3. Check termination (cost/step thresholds, fail count, iteration/time limits)
+4. Restore best variables on exit
 
 **Available iterators** (set via `NLLSOptions(iterator=...)`):
 - `levenbergmarquardt` (default) — adaptive damping
@@ -78,7 +78,7 @@ The choice between sparse and dense is automatic based on problem size (threshol
 - `gradientdescent` — steepest descent with line search
 
 ### Robustifiers (`src/robust.jl`, `src/robustadaptive.jl`)
-Standard: `NoRobust`, `Scaled`, `HuberKernel`, `Huber2oKernel`, `GemanMcclureKernel`.
+Standard: `NoRobust`, `Scaled`, `HuberKernel`, `Huber2oKernel`, `GemanMcclureKernel`, `GemanMcclure2oKernel`.
 Adaptive: `ContaminatedGaussian` — robustifier parameters are variables optimized jointly.
 
 ### Key Constants (`src/NLLSsolver.jl`)
@@ -89,5 +89,7 @@ Adaptive: `ContaminatedGaussian` — robustifier parameters are variables optimi
 ### Performance Notes
 - Use `StaticInt` returns from `nvars()` and `nres()` wherever possible — enables compile-time unrolling and static dispatch.
 - The `@unroll` macro (`src/unroll.jl`) unrolls loops up to `MAX_ARGS` iterations at compile time for inner loops over variable dependencies.
-- `LoopVectorization` and `OhMyThreads` are used for SIMD and multi-threaded cost accumulation (`src/multithreading.jl`).
+- `LoopVectorization` (`@turbo`/`@tturbo`) is used for SIMD in `src/utils.jl`.
+- `OhMyThreads` multithreads the **objective cost summation** only (`src/multithreading.jl` overloads `Base.sum` over the cost `VectorRepo` using `StaticScheduler(ntasks=numthreads)`); it kicks in only when `numthreads > 1` and there are ≥ `1e5` cost blocks. The gradient/Hessian build (`costgradhess!`) is currently single-threaded.
+- `numthreads` is a `StaticInt` field of `NLLSOptions` (defaults to `Threads.nthreads()`); it is threaded into the `cost(...)` calls during iteration (`src/iterators.jl`).
 - Autodiff (`src/autodiff.jl`) uses ForwardDiff with static dual numbers when variable size ≤ `MAX_STATIC_VAR`.
