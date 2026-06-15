@@ -1,6 +1,6 @@
 name = "NLLSsolver"
 uuid = "50b5cf9e-bf7a-4e29-8981-4280cbba70cb"
-version = "4.1.0"
+version = "4.0.5"
 authors = ["Oliver Woodford"]
 
 [workspace]
@@ -23,10 +23,10 @@ DiffResults = "1.1"
 ForwardDiff = "0.10, 1"
 HybridArrays = "0.4"
 LDLFactorizations = "0.10"
-LinearAlgebra = "1.10"
+LinearAlgebra = "1.6"
 LoopVectorization = "0.12.165"
-Printf = "1.10"
-SparseArrays = "1.10"
+Printf = "1.6"
+SparseArrays = "1.6"
 Static = "0.8.7, 1"
 StaticArrays = "1"
-julia = "1.10"
+julia = "1.6"
