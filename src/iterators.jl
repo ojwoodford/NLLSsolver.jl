@@ -32,7 +32,7 @@ reset!(nd::NewtonData, ::NLLSProblem, ::NLLSInternal) = nothing
 function iterate!(::NewtonData, data, problem::NLLSProblem, options::NLLSOptions)::Float64
     # Compute the step
     gethessian(data.linsystem)
-    data.solves += @elapsed_ns negate!(solve!(data.linsystem, options))
+    data.solves += @elapsed_ns negate!(solve!(data.linsystem))
     # Update the new variables
     update!(problem.varnext, problem.variables, data.linsystem)
     # Return -Inf to signal the cost wasn't computed
@@ -66,7 +66,7 @@ function iterate!(doglegdata::DoglegData, data, problem::NLLSProblem, options::N
         end
         if alpha < doglegdata.trustradius
             # Compute the Newton step
-            negate!(solve!(data.linsystem, options))
+            negate!(solve!(data.linsystem))
             beta = norm(getx(data.linsystem))
         end
     end
@@ -153,7 +153,7 @@ function iterate!(levmardata::LevMarData, data, problem::NLLSProblem, options::N
         uniformscaling!(hessian, levmardata.lambda - lastlambda)
         lastlambda = levmardata.lambda
         # Solve the linear system
-        data.solves += @elapsed_ns negate!(solve!(data.linsystem, options))
+        data.solves += @elapsed_ns negate!(solve!(data.linsystem))
         # Update the new variables
         update!(problem.varnext, problem.variables, data.linsystem)
         # Compute the cost
