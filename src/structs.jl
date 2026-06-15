@@ -41,11 +41,6 @@ struct NLLSResult
     linearsolves::Int                      # Number of linear solves performed
     # Termination reason
     termination::Int                       # Set of flags indicating which termination criteria were met - the value should not be relied upon
-    # Allocations
-    initallocations::Int                   # Number of seperate allocations during problem initialization
-    initallocated::Int                     # Total number of bytes allocated during problem initialization
-    optimizeallocations::Int               # Number of seperate allocations during problem optimization
-    optimizeallocated::Int                 # Number of seperate allocations during problem optimization
 end
 NLLSResult(data, termination) = NLLSResult(data.startcost, 
                                            data.bestcost, 
@@ -58,11 +53,7 @@ NLLSResult(data, termination) = NLLSResult(data.startcost,
                                            data.costs.count, 
                                            data.gradients.count, 
                                            data.solves.count, 
-                                           termination, 
-                                           data.init.num_allocs-data.start.num_allocs, 
-                                           data.init.bytes_allocd-data.start.bytes_allocd, 
-                                           data.optimize.num_allocs-data.init.num_allocs, 
-                                           data.optimize.bytes_allocd-data.init.bytes_allocd)
+                                           termination)
 Base.:+(a::NLLSResult, b::NLLSResult) = NLLSResult(a.startcost+b.startcost, 
                                                    a.bestcost+b.bestcost, 
                                                    a.timetotal+b.timetotal, 
@@ -74,24 +65,20 @@ Base.:+(a::NLLSResult, b::NLLSResult) = NLLSResult(a.startcost+b.startcost,
                                                    a.costcomputations+b.costcomputations, 
                                                    a.gradientcomputations+b.gradientcomputations, 
                                                    a.linearsolves+b.linearsolves, 
-                                                   a.termination|b.termination, 
-                                                   a.initallocations+b.initallocations, 
-                                                   a.initallocated+b.initallocated, 
-                                                   a.optimizeallocations+b.optimizeallocations, 
-                                                   a.optimizeallocated+b.optimizeallocated)
+                                                   a.termination|b.termination)
 
 function Base.show(io::IO, x::NLLSResult)
     optimtime = x.timetotal - x.timeinit
     timedoptim = max(x.timecost + x.timegradient + x.timesolver, optimtime)
     @printf(io, "NLLSsolver optimization took %f seconds and %d iterations to reduce the cost from %e to %e (a %.2f%% reduction), using:
-   %f seconds for initialization (%.2f%% of total time, with %d allocations totalling %s), and
-   %f seconds for optimization (%.2f%% of total time, with %d allocations totalling %s), of which:
+   %f seconds for initialization (%.2f%% of total time), and
+   %f seconds for optimization (%.2f%% of total time), of which:
         %d cost computations accounted for %.2f%% of the time,
         %d gradient computations accounted for %.2f%%, and
         %d linear solver computations accounted for %.2f%%.\n", 
             x.timetotal*1e-9, x.niterations, x.startcost, x.bestcost, 100*(1-x.bestcost/x.startcost),
-            x.timeinit*1e-9, 100.0*x.timeinit/x.timetotal, x.initallocations, bytesstring(x.initallocated),
-            optimtime*1e-9, 100.0*optimtime/x.timetotal, x.optimizeallocations, bytesstring(x.optimizeallocated),
+            x.timeinit*1e-9, 100.0*x.timeinit/x.timetotal,
+            optimtime*1e-9, 100.0*optimtime/x.timetotal,
             x.costcomputations, 100.0*x.timecost/timedoptim,
             x.gradientcomputations, 100.0*x.timegradient/timedoptim,
             x.linearsolves, 100.0*x.timesolver/timedoptim)

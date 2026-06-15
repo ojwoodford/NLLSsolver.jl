@@ -82,7 +82,7 @@ function optimizesingles!(problem::NLLSProblem{VT, CT}, options::NLLSOptions, in
         indices = sort!(indices, lt=(i, j)->nvars(problem.variables[i])<=nvars(problem.variables[j]))
     end
     # Loop over all the variables
-    result = NLLSResult(0.0, 0.0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0)
+    result = NLLSResult(0.0, 0.0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0)
     first = 1
     while first <= length(indices)
         # Compute the run length of the current variable size
