@@ -12,7 +12,7 @@ struct NLLSOptions{T, N}
     maxiters::Int               # Maximum number of outer iterations
     maxtime::UInt64             # Maximum optimization time allowed, in nano-seconds (converted from seconds in the constructor)
     iterator::Type{T}           # Type of the inner iterator (see above for options for iterators)
-    numthreads::StaticInt{N}    # Number of threads to use for parallel computations - currently not used, but may be in the future
+    numthreads::StaticInt{N}    # Number of threads to use for parallel computations
 
     function NLLSOptions(reldcost, abscost, dstep, maxfails, maxiters, maxtime, iterator::Type{T}, numthreads::StaticInt{N}) where {T, N}
         return new{T, N}(reldcost, abscost, dstep, maxfails, maxiters, maxtime, iterator,          numthreads)
