@@ -144,7 +144,7 @@ function setupsmultivarls(func, problem::NLLSProblem, options::NLLSOptions, unfi
 end
 
 # The meat of an optimization
-@inline function optimizeloop!(problem::NLLSProblem, options::NLLSOptions, data, iteratedata, callback)::Int64
+@inline function optimizeloop!(problem::NLLSProblem, options::NLLSOptions, data, iteratedata, callback)::Int
     # Initializations
     stoptime = Base.time_ns() + options.maxtime
     fails = 0
@@ -161,7 +161,7 @@ end
     while true
         data.iternum += 1
         # Call the per iteration solver
-        cost = iterate!(iteratedata, data, problem, options)::Float64
+        cost = iterate!(iteratedata, data, problem, options)
         computegradient = isequal(cost, -Inf)
         if computegradient
             # Construct the linear problem now, in order to compute the correct cost
@@ -171,7 +171,7 @@ end
             end
         end
         # Call the user-defined callback
-        cost, terminate = callback(cost, problem, data, iteratedata)::Tuple{Float64, Int}
+        cost, terminate = callback(cost, problem, data, iteratedata)
         # Check for cost increase (only some iterators will do this)
         dcost = data.bestcost - cost
         if dcost >= 0
