@@ -38,7 +38,7 @@ struct NLLSResult
     niterations::Int                       # Number of outer optimization iterations performed
     costcomputations::Int                  # Number of cost computations performed
     gradientcomputations::Int              # Number of residual gradient computations performed
-    linearsolvers::Int                      # Number of linear solves performed
+    linearsolvers::Int                     # Number of linear solves performed
     # Termination reason
     termination::Int                       # Set of flags indicating which termination criteria were met - the value should not be relied upon
 end
