@@ -11,7 +11,11 @@ struct ContaminatedGaussian{T<:Real} <: AbstractAdaptiveRobustifier
 end
 function ContaminatedGaussian(s1::ZeroToInfScalar{T}, s2::ZeroToInfScalar{T}, w::ZeroToOneScalar{T}) where T <: Real
     if T <: AbstractFloat # Don't bother for autodiff duals
-        s1, s2 = ifelse(s1.val >= s2.val, (s1, s2), (s2, s1)) # Ensure the the first Gaussian is the narrowest (so largest inverse sigma)
+        if s1.val < s2.val
+            # Ensure the the first Gaussian is the narrowest (so largest inverse sigma)
+            s1, s2 =  s2, s1
+            w = ZeroToOneScalar(1 - w.val)
+        end
     end
     s1sq = s1.val * s1.val
     s2sq = s2.val * s2.val

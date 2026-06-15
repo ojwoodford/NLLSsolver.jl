@@ -1,4 +1,4 @@
-using StaticArrays, Static, SparseArrays, LoopVectorization
+using StaticArrays, Static, SparseArrays, LoopVectorization, Printf
 
 @inline function valuedispatch(lower::StaticInt, upper::StaticInt, val::Int, fun)
     if lower >= upper
@@ -7,12 +7,19 @@ using StaticArrays, Static, SparseArrays, LoopVectorization
     midpoint = lower + div(upper - lower, static(2))
     if val <= midpoint
         return valuedispatch(lower, midpoint, val, fun)
+    else
+        return valuedispatch(midpoint + static(1), upper, val, fun)
     end
-    return valuedispatch(midpoint + static(1), upper, val, fun)
 end
 
-expandfunc(args, v) = args[1](args[2:end]..., v)
-fixallbutlast(func, args...) = Base.Fix1(expandfunc, (func, args...))
+struct Bind{F, A}
+    func::F
+    args::A
+end
+function (bound::Bind)(args...)
+    bound.func(bound.args..., args...)
+end
+bindleadingargs(func, args...) = Bind(func, args)
 
 SR(first, last) = StaticArrays.SUnitRange(dynamic(first), dynamic(last))
 
@@ -23,8 +30,8 @@ end
 bitiset(flags::StaticInt, bit) = (static(1 << (bit - 1)) & flags) != static(0)
 bitiset(flags, bit) = (1 << (bit - 1)) & flags != 0
 
-@inline uniontotuple(T::Union) = (uniontotuple(T.a)..., uniontotuple(T.b)...)
-@inline uniontotuple(T::DataType) = (T,)
+uniontotuple(T::Union) = (uniontotuple(T.a)..., uniontotuple(T.b)...)
+uniontotuple(T::DataType) = (T,)
 
 sqnorm(x::Number) = @fastmath x * x
 function sqnorm(vec::AbstractVector)
@@ -51,12 +58,58 @@ function runlengthencodesortedints(sortedints)
     return runindices
 end
 
+struct TimeCounter
+    time_ns::UInt64
+    count::Int64
+end
+TimeCounter() = TimeCounter(0, 0)
+Base.:+(x::TimeCounter, u::UInt64) = TimeCounter(x.time_ns + u, x.count + 1)
+
 macro elapsed_ns(ex)
     quote
         local t0 = Base.time_ns()
         $(esc(ex))
         Base.time_ns() - t0
     end
+end
+
+struct StatsCounter
+    num_allocs::Int64
+    bytes_allocd::Int64
+    time_ns::UInt64
+    count::Int64
+end
+StatsCounter() = StatsCounter(0, 0, 0, 0)
+struct Stats
+    num_allocs::Int64
+    bytes_allocd::Int64
+    time_ns::UInt64
+end
+Stats(init) = Stats(init, init, init)
+function Stats()
+    gc_data = Base.gc_num()
+    return Stats(gc_data.malloc + gc_data.realloc + gc_data.poolalloc + gc_data.bigalloc, gc_data.allocd, Base.time_ns())
+end
+Base.:+(x::StatsCounter, u::Stats) = StatsCounter(x.num_allocs + u.num_allocs, x.bytes_allocd + u.bytes_allocd, x.time_ns + u.time_ns, x.count + 1)
+
+macro stats(ex)
+    quote
+        local t0 = Base.time_ns()
+        local allocs = Base.gc_num()
+        $(esc(ex))
+        local diff = Base.GC_Diff(Base.gc_num(), allocs)
+        Stats(Base.gc_alloc_count(diff), diff.allocd, Base.time_ns() - t0)
+    end
+end
+
+function bytesstring(nb)
+    bytessuffix = (" bytes", "KB", "MB", "GB", "TB")
+    suffix = 1
+    while nb >= 1024 && suffix <= length(bytessuffix)
+        nb /= 1024
+        suffix += 1
+    end
+    return @sprintf("%d%s", nb, bytessuffix[suffix])
 end
 
 function Base.cumsum!(A::AbstractVector)
@@ -105,7 +158,8 @@ function fast_bAb(A::SparseMatrixCSC, b::Vector)
     return total
 end
 
-sparse_dense_decision(d, nnz) = (nnz * 64) < (25 * d * (d - 40)) # Threshold nnz (for lower triangle) = 25/64 * (d^2 - 40d)
+sparse_dense_decision(ndims, sparsity, blocksizes) = sparse_dense_decision(ndims, block_sparse_nnz(sparsity, blocksizes))
+sparse_dense_decision(ndims, nnz) = (nnz * 64) < (25 * ndims * (ndims - 40)) # Threshold nnz (for lower triangle) = 25/64 * (d^2 - 40d)
 
 function block_sparse_nnz(sparsity, blocksizes)
     # Compute the number of non-zeros in a block sparse matrix
@@ -117,4 +171,26 @@ function block_sparse_nnz(sparsity, blocksizes)
         end
     end
     return nnz
+end
+
+function block_sparsity(problem, unfixed)
+    # Compute the block sparsity
+    sparsity = getvarcostmap(problem)
+    sparsity = sparsity[unfixed,:]
+    sparsity = triu(sparse(sparsity * sparsity' .> 0))
+    return sparsity
+end
+
+function block_sizes_indices(variables, unfixed, nblocks)
+    blockindices = zeros(UInt, length(variables))
+    blocksizes = zeros(UInt, nblocks)
+    nblocks = 0
+    for (index, unfixed_) in enumerate(unfixed)
+        if unfixed_
+            nblocks += 1
+            blockindices[index] = nblocks
+            blocksizes[nblocks] = nvars(variables[index])
+        end
+    end
+    return blocksizes, blockindices
 end

@@ -46,10 +46,16 @@ function perturb_ba_problem(problem, pointnoise, posenoise)
     return problem
 end
 
+function compute_cost(problem)
+    allocd = @allocated cost = NLLSsolver.cost(problem, static(1))
+    return (cost, allocd)
+end
+
 @testset "optimizeba.jl" begin
     # Generate some test data for a dense problem
     Random.seed!(1)
     problem = create_ba_problem(3, 5, 1.0)
+    options = NLLSOptions(numthreads = static(1))
 
     # Test reordering the costs
     problem = perturb_ba_problem(problem, 0.003, 0.0)
@@ -59,17 +65,18 @@ end
     @test cost(problem) ≈ costbefore
 
     # Optimze just the landmarks
-    result = NLLSsolver.optimizesingles!(problem, NLLSOptions(), findall(landmarks))
-    display(result)
-    costafter = NLLSsolver.cost(problem)
+    result = NLLSsolver.optimizesingles!(problem, options, findall(landmarks))
+    costafter = NLLSsolver.cost(problem, static(1))
     @test costbefore ≈ result.startcost
     @test costafter ≈ result.bestcost
     @test costafter < 1.e-15
 
     # Optimze just the landmarks, specified by type
     problem = perturb_ba_problem(problem, 0.003, 0.0)
-    costbefore = cost(problem)
-    result = NLLSsolver.optimizesingles!(problem, NLLSOptions(), EuclideanVector{3, Float64})
+    costbefore, allocd = compute_cost(problem)
+    @test allocd == 0
+    result = NLLSsolver.optimizesingles!(problem, options, EuclideanVector{3, Float64})
+    display(result)
     costafter = NLLSsolver.cost(problem)
     @test costbefore ≈ result.startcost
     @test costafter ≈ result.bestcost
@@ -77,14 +84,14 @@ end
 
     # Optimize problem
     problem = perturb_ba_problem(problem, 0.001, 0.001)
-    result = optimize!(problem)
+    result = optimize!(problem, options)
     @test NLLSsolver.cost(problem) == result.bestcost
     @test result.bestcost < 1.e-15
 
     # Generate & optimize a sparse problem
     problem = create_ba_problem(10, 50, 0.3)
     problem = perturb_ba_problem(problem, 0.001, 0.001)
-    result = optimize!(problem)
+    result = optimize!(problem, options)
     @test NLLSsolver.cost(problem) == result.bestcost
     @test result.bestcost < 1.e-15
 end

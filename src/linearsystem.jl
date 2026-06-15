@@ -1,37 +1,83 @@
 using SparseArrays, Static, StaticArrays, LinearAlgebra, LDLFactorizations
 
-function getresblocksizes!(resblocksizes, residuals::Vector, ind::Int)::Int
-    @inbounds for res in residuals
-        resblocksizes[ind] = nres(res)
-        ind += 1
-    end
-    return ind
+# function getresblocksizes!(resblocksizes, residuals::Vector, ind::Int)::Int
+#     @inbounds for res in residuals
+#         resblocksizes[ind] = nres(res)
+#         ind += 1
+#     end
+#     return ind
+# end
+
+struct LinearSystemShared{F, V, N}
+    x::F
+    ls::StaticVector{N, V}
 end
+LinearSystemShared{F, V, N}(xargs::Tuple, lsargs::Tuple) where {F, V, N} = LinearSystemShared{F, V, N}(StaticVector{N, V}(F(xargs...), ntuple(i -> V(lsargs...), N)))
+updateunfixed(old::LinearSystemShared{F, V, N}, unfixed) where {F, V, N} = LinearSystemShared{F, V, N}(F(unfixed, old.x), old.ls)
+getA(ls::LinearSystemShared) = ls.ls[1].A
+getb(ls::LinearSystemShared) = ls.ls[1].b
+getx(ls::LinearSystemShared) = ls.x.x
+
+struct LinearSystem{F, V}
+    x::F
+    ls::V
+end
+LinearSystem{F, V}(xargs::Tuple, lsargs::Tuple) where {F, V} = LinearSystem{F, V}(F(xargs...), V(lsargs...))
+LinearSystem(ls::LinearSystemShared{F, V, N}, ind) where {F, V, N} = LinearSystem{F, V}(ls.ls[ind], ls.x)
+updateunfixed(old::LinearSystem{F, V}, unfixed) where {F, V} = LinearSystem{F, V}(F(unfixed, old.x),old.ls)
+getA(ls::LinearSystem) = ls.ls.A
+getb(ls::LinearSystem) = ls.ls.b
+getx(ls::LinearSystem) = ls.x.x
+
+getA(ls) = ls.A
+getb(ls) = ls.b
+getx(ls) = ls.x
 
 # Uni-variate linear system
-mutable struct UniVariateLSdynamic
+struct UniVariateLSdynamic_ls
     A::Matrix{Float64}
     b::Vector{Float64}
-    x::Vector{Float64}
-    varindex::UInt
 
-    function UniVariateLSdynamic(unfixed, varlen)
-        return new(zeros(Float64, varlen, varlen), zeros(Float64, varlen), Vector{Float64}(undef, varlen), UInt(unfixed))
+    function UniVariateLSdynamic_ls(varlen)
+        return new(Matrix{Float64}(undef, varlen, varlen), Vector{Float64}(undef, varlen))
     end
 end
 
-mutable struct UniVariateLSstatic{N, N2}
+struct UniVariateLSdynamic_x
+    varindex::UInt
+    x::Vector{Float64}
+
+    function UniVariateLSdynamic_x(unfixed, varlen)
+        return new(UInt(unfixed), Vector{Float64}(undef, varlen))
+    end
+    function UniVariateLSdynamic_x(unfixed, old::UniVariateLSdynamic_x)
+        return new(UInt(unfixed), old.x)
+    end
+end
+
+struct UniVariateLSstatic_ls{N, N2}
     A::MMatrix{N, N, Float64, N2}
     b::MVector{N, Float64}
-    x::MVector{N, Float64}
-    varindex::UInt
 
-    function UniVariateLSstatic{N, N2}(unfixed) where {N, N2}
-        return new(zeros(MMatrix{N, N, Float64, N2}), zeros(MVector{N, Float64}), MVector{N, Float64}(undef), UInt(unfixed))
+    function UniVariateLSstatic_ls{N, N2}() where {N, N2}
+        return new(MMatrix{N, N, Float64, N2}(undef), MVector{N, Float64}(undef))
+    end
+end
+struct UniVariateLSstatic_x{N}
+    varindex::UInt
+    x::MVector{N, Float64}
+
+    function UniVariateLSstatic_x{N}(unfixed) where N
+        return new(UInt(unfixed), MVector{N, Float64}(undef))
+    end
+    function UniVariateLSstatic_x{N}(unfixed, old::UniVariateLSstatic_x{N}) where N
+        return new(UInt(unfixed), old.x)
     end
 end
 
-UniVariateLS = Union{UniVariateLSdynamic, UniVariateLSstatic{N, N2}} where {N, N2}
+UniVariateLSdynamic = Union{LinearSystem{UniVariateLSdynamic_x, UniVariateLSdynamic_ls}, LinearSystemShared{UniVariateLSdynamic_x, UniVariateLSdynamic_ls, M} where M}
+UniVariateLSstatic = Union{LinearSystem{UniVariateLSstatic_x{N}, UniVariateLSstatic_ls{N, N2}} where {N, N2}, LinearSystemShared{UniVariateLSstatic_x{N}, UniVariateLSstatic_ls{N, N2}, M} where {N, N2, M}}
+UniVariateLS = Union{UniVariateLSdynamic, UniVariateLSstatic}
 
 function computestartindices(blocksizes)
     startind = Vector{Int}(undef, length(blocksizes))
@@ -88,45 +134,10 @@ end
 
 MultiVariateLS = Union{MultiVariateLSsparse, MultiVariateLSdense}
 
-function makesymmvls(problem, unfixed, nblocks, formarginalization=false)
-    # Multiple variables. Use a block sparse matrix
-    blockindices = zeros(UInt, length(problem.variables))
-    blocksizes = zeros(UInt, nblocks)
-    nblocks = 0
-    for (index, unfixed_) in enumerate(unfixed)
-        if unfixed_
-            nblocks += 1
-            blockindices[index] = nblocks
-            blocksizes[nblocks] = nvars(problem.variables[index])
-        end
-    end
-
-    # Decide whether to have a sparse or a dense system
-    len = formarginalization ? 40 : sum(blocksizes)
-    if len >= 40
-        # Compute the block sparsity
-        sparsity = getvarcostmap(problem)
-        sparsity = sparsity[unfixed,:]
-        sparsity = triu(sparse(sparsity * sparsity' .> 0))
-
-        # Check sparsity level
-        if formarginalization || sparse_dense_decision(len, block_sparse_nnz(sparsity, blocksizes))
-            # Construct the BSM
-            bsm = BlockSparseMatrix{Float64}(sparsity, blocksizes, blocksizes)
-
-            # Construct the sparse MultiVariateLS
-            return MultiVariateLSsparse(bsm, blockindices, !formarginalization)
-        end
-    end
-
-    # Construct the dense MultiVariateLS
-    return MultiVariateLSdense(blocksizes, blockindices)
-end
-
 function updatesymlinearsystem!(linsystem::UniVariateLS, g, H, unusedargs...)
     # Update the blocks in the problem
-    linsystem.b .+= g
-    linsystem.A .+= H
+    getb(linsystem) .+= g
+    getA(linsystem) .+= H
 end
 
 function updatesymA!(A, a, vars, varflags, blockindices)
@@ -175,7 +186,8 @@ function updatesymlinearsystem!(linsystem::MultiVariateLS, g::AbstractVector, H:
 end
 
 getgrad(linsystem) = linsystem.b
-gethessian(linsystem::UniVariateLS) = linsystem.A
+getgrad(linsystem::UniVariateLS) = getb(linsystem)
+gethessian(linsystem::UniVariateLS) = getA(linsystem)
 function gethessian(linsystem::MultiVariateLSsparse)
     # Fill sparse hessian
     @inbounds for (i, si) in enumerate(linsystem.sparseindices)
@@ -184,20 +196,20 @@ function gethessian(linsystem::MultiVariateLSsparse)
     return linsystem.hessian
 end
 gethessian(linsystem::MultiVariateLSdense) = symmetrifyfull(linsystem.A)
-gethessgrad(linsystem) = gethessian(linsystem), linsystem.b
+gethessgrad(linsystem) = gethessian(linsystem), getgrad(linsystem)
 
 function zero!(linsystem)
-    fill!(linsystem.b, 0)
-    zero!(linsystem.A)
+    fill!(getb(linsystem), 0)
+    zero!(getA(linsystem))
 end
 
 getoffsets(block, linsystem::MultiVariateLS) = @inbounds(linsystem.blockindices[varindices(block)])
 function getoffsets(block, linsystem::UniVariateLS)
     varind = varindices(block)
     if isa(varind, Number)
-        return SVector(UInt(varind == linsystem.varindex))
+        return SVector(UInt(varind == linsystem.x.varindex))
     end
-    return convert.(UInt, varind .== linsystem.varindex)
+    return convert.(UInt, varind .== linsystem.x.varindex)
 end
 
 function update!(to::Vector, from::Vector, linsystem::MultiVariateLS, step=linsystem.x)
@@ -209,7 +221,7 @@ function update!(to::Vector, from::Vector, linsystem::MultiVariateLS, step=linsy
     end
 end
 
-@inline function update!(to::Vector, from::Vector, linsystem::UniVariateLS, step=linsystem.x)
+function update!(to::Vector, from::Vector, linsystem::UniVariateLS, step=linsystem.x.x)
     # Update one variable
-    @inbounds to[linsystem.varindex] = update(from[linsystem.varindex], step)
+    @inbounds to[linsystem.x.varindex] = update(from[linsystem.x.varindex], step)
 end

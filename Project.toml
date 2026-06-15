@@ -1,13 +1,15 @@
 name = "NLLSsolver"
 uuid = "50b5cf9e-bf7a-4e29-8981-4280cbba70cb"
+version = "4.0.5"
 authors = ["Oliver Woodford"]
-version = "4.0.4"
+
+[workspace]
+projects = ["examples", "test"]
 
 [deps]
 DiffResults = "163ba53b-c6d8-5494-b064-1a9d43ac40c5"
 ForwardDiff = "f6369f11-7733-5829-9624-2563aa707210"
 HybridArrays = "1baab800-613f-4b0a-84e4-9cd3431bfbb9"
-IfElse = "615f187c-cbe4-4ef1-ba3b-2fcf58d6d173"
 LDLFactorizations = "40e66cde-538c-5869-a4ad-c39174c6795b"
 LinearAlgebra = "37e2e46d-f89d-539d-b4ee-838fcccc9c8e"
 LoopVectorization = "bdcacae8-1622-11e9-2a5c-532679323890"
@@ -19,25 +21,12 @@ StaticArrays = "90137ffa-7385-5640-81b9-e52037218182"
 [compat]
 DiffResults = "1.1"
 ForwardDiff = "0.10, 1"
-GLMakie = "0.13"
 HybridArrays = "0.4"
-IfElse = "0.1.1"
 LDLFactorizations = "0.10"
 LinearAlgebra = "1.6"
 LoopVectorization = "0.12.165"
 Printf = "1.6"
-Random = "1.6"
 SparseArrays = "1.6"
 Static = "0.8.7, 1"
 StaticArrays = "1"
-Test = "1.6"
 julia = "1.6"
-
-[extras]
-GLMakie = "e9467ef8-e4e7-5192-8a1a-b1aee30e663a"
-Random = "9a3f8284-a2c9-5f02-9a11-845980a1fd5c"
-Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
-
-[targets]
-examples = ["GLMakie"]
-test = ["Test", "Random"]

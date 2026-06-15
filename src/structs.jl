@@ -1,37 +1,27 @@
 using SparseArrays, Static
-import IfElse.ifelse
 import Printf.@printf
 
 @enum NLLSIterator newton levenbergmarquardt dogleg gradientdescent
-function Base.String(iterator::NLLSIterator) 
-    if iterator == newton
-        return "Newton"
-    end
-    if iterator == levenbergmarquardt
-        return "Levenberg-Marquardt"
-    end
-    if iterator == dogleg
-        return "Dogleg"
-    end
-    if iterator == gradientdescent
-        return "Gradient descent"
-    end
-    return "Unknown iterator"
-end
+Base.String(iterator::NLLSIterator) = String(getiteratortype(iterator))
 
-struct NLLSOptions
+struct NLLSOptions{T, N}
     reldcost::Float64           # Minimum relative reduction in cost required to avoid termination
     absdcost::Float64           # Minimum absolute reduction in cost required to avoid termination
     dstep::Float64              # Minimum L-infinity norm of the update vector required to avoid termination
     maxfails::Int               # Maximum number of consecutive iterations that have a higher cost than the current best before termination
     maxiters::Int               # Maximum number of outer iterations
     maxtime::UInt64             # Maximum optimization time allowed, in nano-seconds (converted from seconds in the constructor)
-    iterator::NLLSIterator      # Inner iterator (see above for options)
+    iterator::Type{T}           # Type of the inner iterator (see above for options for iterators)
+    numthreads::StaticInt{N}    # Number of threads to use for parallel computations
+
+    function NLLSOptions(reldcost, abscost, dstep, maxfails, maxiters, maxtime, iterator::Type{T}, numthreads::StaticInt{N}) where {T, N}
+        return new{T, N}(reldcost, abscost, dstep, maxfails, maxiters, maxtime, iterator,          numthreads)
+    end
 end
-function NLLSOptions(; maxiters=100, reldcost=1.e-15, absdcost=1.e-15, dstep=1.e-15, maxfails=3, maxtime=30.0, iterator=levenbergmarquardt, callback=nothing, iteratordata=nothing)
+function NLLSOptions(; maxiters=100, reldcost=1.e-15, absdcost=1.e-15, dstep=1.e-15, maxfails=3, maxtime=30.0, iterator::NLLSIterator=levenbergmarquardt, callback=nothing, iteratordata=nothing, numthreads::StaticInt=StaticInt(Threads.nthreads()))
     @assert(isnothing(callback), "Callbacks should be passed directly to optimize!, not to the options struct.")
     @assert(isnothing(iteratordata), "Iteratordata should not be passed to the options struct.")
-    NLLSOptions(reldcost, absdcost, dstep, maxfails, maxiters, UInt64(round(maxtime * 1e9)), iterator)
+    NLLSOptions(reldcost, absdcost, dstep, maxfails, maxiters, UInt64(round(maxtime * 1e9)), getiteratortype(iterator), numthreads)
 end
 
 struct NLLSResult
@@ -45,28 +35,53 @@ struct NLLSResult
     timegradient::UInt64                   # Time spent computing the residual gradients and constructing the linear problems
     timesolver::UInt64                     # Time spent solving the linear problems
     # Counts
-    niterations::Int                        # Number of outer optimization iterations performed
-    costcomputations::Int                   # Number of cost computations performed
-    gradientcomputations::Int               # Number of residual gradient computations performed
-    linearsolvers::Int                      # Number of linear solves performed
+    niterations::Int                       # Number of outer optimization iterations performed
+    costcomputations::Int                  # Number of cost computations performed
+    gradientcomputations::Int              # Number of residual gradient computations performed
+    linearsolvers::Int                     # Number of linear solves performed
     # Termination reason
-    termination::Int                        # Set of flags indicating which termination criteria were met - the value should not be relied upon
+    termination::Int                       # Set of flags indicating which termination criteria were met - the value should not be relied upon
 end
+NLLSResult(data, termination) = NLLSResult(data.startcost, 
+                                           data.bestcost, 
+                                           data.optimize.time_ns-data.start.time_ns, 
+                                           data.init.time_ns-data.start.time_ns, 
+                                           data.costs.time_ns, 
+                                           data.gradients.time_ns, 
+                                           data.solves.time_ns, 
+                                           data.iternum, 
+                                           data.costs.count, 
+                                           data.gradients.count, 
+                                           data.solves.count, 
+                                           termination)
+Base.:+(a::NLLSResult, b::NLLSResult) = NLLSResult(a.startcost+b.startcost, 
+                                                   a.bestcost+b.bestcost, 
+                                                   a.timetotal+b.timetotal, 
+                                                   a.timecost+b.timecost, 
+                                                   a.timeinit+b.timeinit, 
+                                                   a.timegradient+b.timegradient, 
+                                                   a.timesolver+b.timesolver, 
+                                                   a.niterations+b.niterations, 
+                                                   a.costcomputations+b.costcomputations, 
+                                                   a.gradientcomputations+b.gradientcomputations, 
+                                                   a.linearsolvers+b.linearsolvers, 
+                                                   a.termination|b.termination)
 
 function Base.show(io::IO, x::NLLSResult)
-    otherstuff = x.timetotal - x.timecost - x.timegradient - x.timesolver - x.timeinit
+    optimtime = x.timetotal - x.timeinit
+    timedoptim = max(x.timecost + x.timegradient + x.timesolver, optimtime)
     @printf(io, "NLLSsolver optimization took %f seconds and %d iterations to reduce the cost from %e to %e (a %.2f%% reduction), using:
-   %d cost computations in %f seconds (%.2f%% of total time),
-   %d gradient computations in %f seconds (%.2f%% of total time),
-   %d linear solver computations in %f seconds (%.2f%% of total time),
    %f seconds for initialization (%.2f%% of total time), and
-   %f seconds for other stuff (%.2f%% of total time).\n", 
-            x.timetotal*1e-9, x.niterations, x.startcost, x.bestcost, 100*(1-x.bestcost/x.startcost), 
-            x.costcomputations, x.timecost*1e-9, 100.0*x.timecost/x.timetotal,
-            x.gradientcomputations, x.timegradient*1e-9, 100.0*x.timegradient/x.timetotal,
-            x.linearsolvers, x.timesolver*1e-9, 100.0*x.timesolver/x.timetotal,
+   %f seconds for optimization (%.2f%% of total time), of which:
+        %d cost computations accounted for %.2f%% of the time,
+        %d gradient computations accounted for %.2f%%, and
+        %d linear solver computations accounted for %.2f%%.\n", 
+            x.timetotal*1e-9, x.niterations, x.startcost, x.bestcost, 100*(1-x.bestcost/x.startcost),
             x.timeinit*1e-9, 100.0*x.timeinit/x.timetotal,
-            otherstuff*1e-9, 100.0*otherstuff/x.timetotal)
+            optimtime*1e-9, 100.0*optimtime/x.timetotal,
+            x.costcomputations, 100.0*x.timecost/timedoptim,
+            x.gradientcomputations, 100.0*x.timegradient/timedoptim,
+            x.linearsolvers, 100.0*x.timesolver/timedoptim)
     if 0 != x.termination           ; println(io,  "Reason(s) for termination:"); end
     if 0 != x.termination & (1 << 0); println(io,  "   Cost is infinite."); end
     if 0 != x.termination & (1 << 1); println(io,  "   Cost is NaN."); end
@@ -88,25 +103,22 @@ mutable struct NLLSInternal{LSType}
     startcost::Float64
     bestcost::Float64
     # Times (nano-seconds)
-    starttime::UInt64
-    timetotal::UInt64
-    timeinit::UInt64
-    timecost::UInt64
-    timegradient::UInt64
-    timesolver::UInt64
+    start::Stats
+    init::Stats
+    optimize::Stats
+    # Stats for key computations
+    costs::TimeCounter
+    gradients::TimeCounter
+    solves::TimeCounter
     # Counts
     iternum::Int
-    costcomputations::Int
-    gradientcomputations::Int
-    linearsolvers::Int
     # Linear system
     linsystem::LSType  
 
-    function NLLSInternal(linsystem::LSType, starttimens) where LSType
-        return new{LSType}(0., 0., starttimens, 0, 0, 0, 0, 0, 0, 0, 0, 0, linsystem)
+    function NLLSInternal(linsystem::LSType, startstats) where LSType
+        return new{LSType}(0., 0., startstats, Stats(0), Stats(0), TimeCounter(), TimeCounter(), TimeCounter(), 0, linsystem)
     end
 end
-@inline NLLSInternal(unfixed::UInt, varlen, starttimens) = NLLSInternal(dynamic(is_static(varlen)) && varlen <= 16 ? UniVariateLSstatic{dynamic(varlen), dynamic(varlen*varlen)}(unfixed) : UniVariateLSdynamic(unfixed, dynamic(varlen)), starttimens)
 
 NLLSInternalMultiVar = Union{NLLSInternal{MultiVariateLSdense}, NLLSInternal{MultiVariateLSsparse}}
-NLLSInternalSingleVar = Union{NLLSInternal{UniVariateLSstatic{N, N2}}, NLLSInternal{UniVariateLSdynamic}} where {N, N2}
+NLLSInternalSingleVar = NLLSInternal{UniVariateLS}

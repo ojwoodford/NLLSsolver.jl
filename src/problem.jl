@@ -93,7 +93,7 @@ function addcost!(problem::NLLSProblem, cost::Cost) where Cost <: AbstractCost
     @assert isa(N, StaticInt) && N>0 && N<=MAX_ARGS "Problem with ndeps()"
     @assert length(varindices(cost))==N "Problem with varindices()"
     vars = getvars(cost, problem.variables)
-    @assert length(vars)==N "Problem with getvars()"
+    @assert isa(vars, Tuple) && isconcretetype(typeof(vars)) && length(vars)==N "getvars(::$(typeof(cost)), vars) should return a concretely typed tuple of length $(dynamic(N)), but returned $(typeof(vars))."
     @assert (!(Cost <: AbstractAdaptiveResidual) || isa(vars[1], AbstractAdaptiveRobustifier)) "Adaptive residual without adaptive robustifier"
     if Cost <: AbstractResidual
         M = nres(cost)
@@ -199,10 +199,9 @@ function reordercostsforschur!(problem::NLLSProblem, schurvars)
 end
 
 costnum(vec::Vector)  = length(vec)
-costdeps(vec::Vector) = length(vec) > 0 ? (dynamic(is_static(ndeps(vec[1]))) ? length(vec) * ndeps(vec[1]) : sum(ndeps, vec; init=0)) : 0 # Support variable number of dependencies
-resnum(vec::Vector)   = length(vec) > 0 ? (dynamic(is_static( nres(vec[1]))) ? length(vec) *  nres(vec[1]) : sum( nres, vec; init=0)) : 0 # Support variable length costs
-@inline countcosts(fun, costs::CostStruct{Any}) = sum(fun, values(costs); init=0)
-@inline countcosts(fun, costs::CostStruct{T}) where T = countcosts(fun, costs, T)
-@inline countcosts(fun, costs, T::Union) = countcosts(fun, costs, T.a) + countcosts(fun, costs, T.b)
-@inline countcosts(fun, costs, T::DataType) = fun(get(costs, T))
-
+costdeps(vec::Vector) = length(vec) != 0 ? length(vec) * ndeps(vec[1]) : 0
+resnum(vec::Vector)   = length(vec) != 0 ? (dynamic(is_static( nres(vec[1]))) ? length(vec) *  nres(vec[1]) : sum( nres, vec; init=0)) : 0 # Support variable length costs
+countcosts(fun, costs::CostStruct{Any}) = sum(fun, values(costs); init=0)
+countcosts(fun, costs::CostStruct{T}) where T = countcosts(fun, costs, T)
+countcosts(fun, costs, T::Union) = countcosts(fun, costs, T.a) + countcosts(fun, costs, T.b)
+countcosts(fun, costs, T::DataType) = fun(get(costs, T))
