@@ -144,7 +144,7 @@ function setupsmultivarls(func, problem::NLLSProblem, options::NLLSOptions, unfi
 end
 
 # The meat of an optimization
-@inline function optimizeloop!(problem::NLLSProblem, options::NLLSOptions, data, iteratedata, callback)::Int
+@inline function optimizeloop!(problem::NLLSProblem, options::NLLSOptions, data, iteratedata, callback)
     # Initializations
     stoptime = Base.time_ns() + options.maxtime
     fails = 0

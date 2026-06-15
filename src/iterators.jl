@@ -112,7 +112,7 @@ function iterate!(doglegdata::DoglegData, data, problem::NLLSProblem, options::N
             doglegdata.trustradius *= 0.5
         end
         # Check for exit
-        if !(cost_ > data.bestcost) || (maximum(abs, getx(data.linsystem)) < options.dstep)
+        if !(cost_ > data.bestcost) || (maximum(abs, getx(data.linsystem))::Float64 < options.dstep)
             # Return the cost
             return cost_
         end
@@ -159,7 +159,7 @@ function iterate!(levmardata::LevMarData, data, problem::NLLSProblem, options::N
         # Compute the cost
         data.costs += @elapsed_ns cost_ = cost(problem.varnext, problem.costs, options.numthreads)
         # Check for exit
-        if !(cost_ > data.bestcost) || maximum(abs, getx(data.linsystem)) < options.dstep
+        if !(cost_ > data.bestcost) || maximum(abs, getx(data.linsystem))::Float64 < options.dstep
             # Success (or convergence) - update lambda
             uniformscaling!(hessian, -lastlambda)
             stepquality = (cost_ - data.bestcost) / (0.5 * fast_bAb(hessian, getx(data.linsystem)) + dot(gradient, getx(data.linsystem)))
