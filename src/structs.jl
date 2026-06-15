@@ -38,7 +38,7 @@ struct NLLSResult
     niterations::Int                       # Number of outer optimization iterations performed
     costcomputations::Int                  # Number of cost computations performed
     gradientcomputations::Int              # Number of residual gradient computations performed
-    linearsolves::Int                      # Number of linear solves performed
+    linearsolvers::Int                      # Number of linear solves performed
     # Termination reason
     termination::Int                       # Set of flags indicating which termination criteria were met - the value should not be relied upon
 end
@@ -64,7 +64,7 @@ Base.:+(a::NLLSResult, b::NLLSResult) = NLLSResult(a.startcost+b.startcost,
                                                    a.niterations+b.niterations, 
                                                    a.costcomputations+b.costcomputations, 
                                                    a.gradientcomputations+b.gradientcomputations, 
-                                                   a.linearsolves+b.linearsolves, 
+                                                   a.linearsolvers+b.linearsolvers, 
                                                    a.termination|b.termination)
 
 function Base.show(io::IO, x::NLLSResult)
@@ -81,7 +81,7 @@ function Base.show(io::IO, x::NLLSResult)
             optimtime*1e-9, 100.0*optimtime/x.timetotal,
             x.costcomputations, 100.0*x.timecost/timedoptim,
             x.gradientcomputations, 100.0*x.timegradient/timedoptim,
-            x.linearsolves, 100.0*x.timesolver/timedoptim)
+            x.linearsolvers, 100.0*x.timesolver/timedoptim)
     if 0 != x.termination           ; println(io,  "Reason(s) for termination:"); end
     if 0 != x.termination & (1 << 0); println(io,  "   Cost is infinite."); end
     if 0 != x.termination & (1 << 1); println(io,  "   Cost is NaN."); end
