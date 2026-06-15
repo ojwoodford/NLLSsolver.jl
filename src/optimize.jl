@@ -1,15 +1,15 @@
 # Uni-variate optimization (single unfixed variable)
-optimize!(problem::NLLSProblem, options::NLLSOptions, unfixed::Integer, callback=nullcallback, startstats::Stats=Stats()) = setupsinglevarls(optimizeinternal!, problem, options, unfixed, startstats, callback)
+optimize!(problem::NLLSProblem, options::NLLSOptions, unfixed::Integer, callback=nullcallback) = setupsinglevarls(optimizeinternal!, problem, options, unfixed, Stats(), callback)
 
 # Multi-variate optimization
-function optimize!(problem::NLLSProblem, options::NLLSOptions, unfixed::AbstractVector, callback)::NLLSResult
+function optimize!(problem::NLLSProblem, options::NLLSOptions, unfixed::AbstractVector, callback=nullcallback)::NLLSResult
     startstats = Stats()
     @assert length(problem.variables) > 0
     # Compute the number of free variables (nblocks)
     nblocks = sum(unfixed)
     if nblocks == 1
         # One unfixed variable
-        return optimize!(problem, options, findfirst(unfixed), callback, startstats)
+        return setupsinglevarls(optimizeinternal!, problem, options, findfirst(unfixed), startstats, callback)
     else
         # Multiple variables
         return setupsmultivarls(optimizeinternal!, problem, options, unfixed, startstats, nblocks, callback)
