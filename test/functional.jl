@@ -44,14 +44,18 @@ Base.eltype(::RosenbrockB) = Float64
     NLLSsolver.updatevarcostmap!(problem)
     @test problem.varcostmapvalid == true
     @test vec(sum(Matrix(problem.varcostmap); dims=2)) == [2; 1]
-
     # Create a subproblem
     @test NLLSsolver.countcosts(NLLSsolver.resnum, NLLSsolver.subproblem(problem, trues(2)).costs) == 2
     subprob = NLLSsolver.subproblem(problem, 2)
     @test NLLSsolver.countcosts(NLLSsolver.resnum, subprob.costs) == 1
     @test NLLSsolver.cost(subprob) == 0.
 
+    # Optimize a subset of variables, such that some of the costs have no free variables
+    @test_logs (:warn, "A cost for which all variables are fixed is being optimized. Remove such cost functions from the cost to avoid redundant computation, using the subproblem() method.") optimize!(problem, NLLSOptions(), 2)
+
     # Check callback and max time termination
+    problem.variables[1] = -0.5
+    problem.variables[2] = 2.5
     result = optimize!(problem, NLLSOptions(maxtime=0.0), nothing, (cost, unusedargs...)->(cost, 13))
     @test cost(problem) == result.bestcost
     @test result.termination == (1 << 9) | (13 << 16)

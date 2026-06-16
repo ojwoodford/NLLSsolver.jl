@@ -22,7 +22,10 @@ function gradhesshelper!(linsystem, cost::AbstractCost, vars, blockind, varflags
     # Return the cost
     return c
 end
-gradhesshelper!(linsystem, cost::AbstractCost, vars, blockind, varflags::StaticInt{0})::Float64 = computecost(cost, vars)
+function gradhesshelper!(linsystem, cost::AbstractCost, vars, blockind, varflags::StaticInt{0})::Float64
+    @warn "A cost for which all variables are fixed is being optimized. Remove such cost functions from the cost to avoid redundant computation, using the subproblem() method."
+    return computecost(cost, vars...)
+end
 
 function gradhesshelper!(linsystem, cost::AbstractCost, vars, blockind, varflags::Integer)::Float64
     # Common case - all unfixed
