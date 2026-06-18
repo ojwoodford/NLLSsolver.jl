@@ -108,13 +108,13 @@ function setupsinglevarls(func, problem::NLLSProblem, options::NLLSOptions, unfi
         return setupstaticvarls(func, problem, options, unfixed, startstats, varlen, trailingargs)::NLLSResult
     else
         dynamicdata = NLLSInternal(LinearSystem{UniVariateLSdynamic_x, UniVariateLSdynamic_ls}((unfixed, dynamic(varlen)), (dynamic(varlen),)), startstats)
-        return func(problem, options, dynamicdata, options.iterator(problem, dynamicdata), trailingargs...)::NLLSResult
+        return func(problem, options, dynamicdata, construct(options.iterator, problem, dynamicdata), trailingargs...)::NLLSResult
     end
 end
 
 function setupstaticvarls(func, problem::NLLSProblem, options::NLLSOptions, unfixed::Integer, startstats, varlen::StaticInt, trailingargs)::NLLSResult
     staticdata = NLLSInternal(LinearSystem{UniVariateLSstatic_x{dynamic(varlen)}, UniVariateLSstatic_ls{dynamic(varlen), dynamic(varlen*varlen)}}((unfixed,), ()), startstats)
-    return func(problem, options, staticdata, options.iterator(problem, staticdata), trailingargs...)::NLLSResult
+    return func(problem, options, staticdata, construct(options.iterator, problem, staticdata), trailingargs...)::NLLSResult
 end
 
 function setupsmultivarls(func, problem::NLLSProblem, options::NLLSOptions, unfixed, startstats, nblocks, trailingargs...)::NLLSResult
@@ -134,13 +134,13 @@ function setupsmultivarls(func, problem::NLLSProblem, options::NLLSOptions, unfi
 
             # Construct the sparse MultiVariateLS
             sparsedata = NLLSInternal(MultiVariateLSsparse(bsm, blockindices, !formarginalization), startstats)
-            return func(problem, options, sparsedata, options.iterator(problem, sparsedata), trailingargs...)::NLLSResult
+            return func(problem, options, sparsedata, construct(options.iterator, problem, sparsedata), trailingargs...)::NLLSResult
         end
     end
 
     # Construct the dense MultiVariateLS
     densedata = NLLSInternal(MultiVariateLSdense(blocksizes, blockindices), startstats)
-    return func(problem, options, densedata, options.iterator(problem, densedata), trailingargs...)::NLLSResult
+    return func(problem, options, densedata, construct(options.iterator, problem, densedata), trailingargs...)::NLLSResult
 end
 
 # The meat of an optimization
