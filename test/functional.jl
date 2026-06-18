@@ -63,7 +63,7 @@ Base.eltype(::RosenbrockB) = Float64
 
     # Optimize using Newton
     display(problem)
-    result = optimize!(problem, NLLSOptions(iterator=NLLSsolver.newton), nothing, printoutcallback)
+    result = optimize!(problem, NLLSOptions(iterator=:newton), nothing, printoutcallback)
     display(result)
     @test NLLSsolver.cost(problem) == result.bestcost
     @test isapprox(problem.variables[1], 1.0; rtol=1.e-10)
@@ -89,7 +89,7 @@ Base.eltype(::RosenbrockB) = Float64
     problem.variables[1] = -0.5
     problem.variables[2] = 2.5
     empty!(ct)
-    result = optimize!(problem, NLLSOptions(iterator=NLLSsolver.dogleg), nothing, storecostscallback(ct.costs))
+    result = optimize!(problem, NLLSOptions(iterator=:dogleg), nothing, storecostscallback(ct.costs))
     @test cost(problem) == result.bestcost
     @test isapprox(problem.variables[1], 1.0; rtol=1.e-10)
     @test isapprox(problem.variables[2], 1.0; rtol=1.e-10)

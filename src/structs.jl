@@ -2,26 +2,25 @@ using SparseArrays, Static
 import Printf.@printf
 
 @enum NLLSIterator newton levenbergmarquardt dogleg gradientdescent
-Base.String(iterator::NLLSIterator) = String(getiteratortype(iterator))
 
-struct NLLSOptions{T, N}
+struct NLLSOptions{S, N}
     reldcost::Float64           # Minimum relative reduction in cost required to avoid termination
     absdcost::Float64           # Minimum absolute reduction in cost required to avoid termination
     dstep::Float64              # Minimum L-infinity norm of the update vector required to avoid termination
     maxfails::Int               # Maximum number of consecutive iterations that have a higher cost than the current best before termination
     maxiters::Int               # Maximum number of outer iterations
     maxtime::UInt64             # Maximum optimization time allowed, in nano-seconds (converted from seconds in the constructor)
-    iterator::Type{T}           # Type of the inner iterator (see above for options for iterators)
+    iterator::StaticSymbol{S}   # Static Symbol of the inner iterator (see above for options for iterators)
     numthreads::StaticInt{N}    # Number of threads to use for parallel computations
 
-    function NLLSOptions(reldcost, abscost, dstep, maxfails, maxiters, maxtime, iterator::Type{T}, numthreads::StaticInt{N}) where {T, N}
-        return new{T, N}(reldcost, abscost, dstep, maxfails, maxiters, maxtime, iterator,          numthreads)
+    function NLLSOptions(reldcost, abscost, dstep, maxfails, maxiters, maxtime, iterator::StaticSymbol{S}, numthreads::StaticInt{N}) where {S, N}
+        return new{S, N}(reldcost, abscost, dstep, maxfails, maxiters, maxtime, iterator, numthreads)
     end
 end
-function NLLSOptions(; maxiters=100, reldcost=1.e-15, absdcost=1.e-15, dstep=1.e-15, maxfails=3, maxtime=30.0, iterator::NLLSIterator=levenbergmarquardt, callback=nothing, iteratordata=nothing, numthreads::StaticInt=StaticInt(Threads.nthreads()))
+function NLLSOptions(; maxiters=100, reldcost=1.e-15, absdcost=1.e-15, dstep=1.e-15, maxfails=3, maxtime=30.0, iterator=:levenbergmarquardt, callback=nothing, iteratordata=nothing, numthreads=StaticInt(Threads.nthreads()))
     @assert(isnothing(callback), "Callbacks should be passed directly to optimize!, not to the options struct.")
     @assert(isnothing(iteratordata), "Iteratordata should not be passed to the options struct.")
-    NLLSOptions(reldcost, absdcost, dstep, maxfails, maxiters, UInt64(round(maxtime * 1e9)), getiteratortype(iterator), numthreads)
+    NLLSOptions(reldcost, absdcost, dstep, maxfails, maxiters, UInt64(round(maxtime * 1e9)), static(Symbol(iterator)), static(numthreads))
 end
 
 struct NLLSResult
