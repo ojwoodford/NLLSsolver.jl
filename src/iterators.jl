@@ -2,23 +2,17 @@ using SparseArrays
 
 negate!(x) = @.(x = -x)
 
-# Iterators assume that the linear problem has been constructed
-function getiteratortype(iterator::NLLSIterator)
-    # Call the optimizer with the required iterator struct
-    if iterator === newton
-        # Newton's method
-        return NewtonData
-    elseif iterator === levenbergmarquardt
-        # Levenberg-Marquardt
-        return LevMarData
-    elseif iterator === dogleg
-        # Dogleg
-        return DoglegData
-    elseif iterator === gradientdescent
-        # Gradient descent
-        return GradientDescentData
+function Base.String(iterator::NLLSIterator) 
+    if iterator == newton
+        return "Newton"
+    elseif iterator == levenbergmarquardt
+        return "Levenberg-Marquardt"
+    elseif iterator == dogleg
+        return "Dogleg"
+    elseif iterator == gradientdescent
+        return "Gradient descent"
     else
-        error("Iterator not recognized")
+        return "Unknown iterator"
     end
 end
 
@@ -26,7 +20,7 @@ end
 struct NewtonData
 end
 NewtonData(::NLLSProblem, ::NLLSInternal) = NewtonData()
-Base.String(::Type{NewtonData}) = "Newton"
+construct(::StaticSymbol{:newton}, problem, data) = NewtonData(problem, data)
 reset!(nd::NewtonData, ::NLLSProblem, ::NLLSInternal) = nothing
 
 function iterate!(::NewtonData, data, problem::NLLSProblem, options::NLLSOptions)::Float64
@@ -48,7 +42,7 @@ mutable struct DoglegData{T}
         return new{typeof(getx(data.linsystem))}(0.0, similar(getx(data.linsystem)))
     end
 end
-Base.String(::Type{DoglegData}) = "Dogleg"
+construct(::StaticSymbol{:dogleg}, problem, data) = DoglegData(problem, data)
 reset!(dd::DoglegData, ::NLLSProblem, data::NLLSInternal) = dd.trustradius = 0.0
 
 function iterate!(doglegdata::DoglegData, data, problem::NLLSProblem, options::NLLSOptions)::Float64
@@ -129,7 +123,7 @@ mutable struct LevMarData
         return new(0.0)
     end
 end
-Base.String(::Type{LevMarData}) = "Levenberg-Marquardt"
+construct(::StaticSymbol{:levenbergmarquardt}, problem, data) = LevMarData(problem, data)
 reset!(lmd::LevMarData, ::NLLSProblem, ::NLLSInternal) = lmd.lambda = 0.0
 
 function initlambda(hessian)
@@ -183,7 +177,7 @@ mutable struct GradientDescentData
         return new(1.0)
     end
 end
-Base.String(::Type{GradientDescentData}) = "Gradient descent"
+construct(::StaticSymbol{:gradientdescent}, problem, data) = GradientDescentData(problem, data)
 reset!(gdd::GradientDescentData, ::NLLSProblem, ::NLLSInternal) = gdd.stepsize = 1.0
 
 function iterate!(gddata::GradientDescentData, data, problem::NLLSProblem, options::NLLSOptions)::Float64
