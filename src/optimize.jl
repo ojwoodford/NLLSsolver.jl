@@ -82,7 +82,7 @@ function optimizesingles!(problem::NLLSProblem{VT, CT}, options::NLLSOptions, in
         indices = sort!(indices, lt=(i, j)->nvars(problem.variables[i])<=nvars(problem.variables[j]))
     end
     # Loop over all the variables
-    result = NLLSResult(0.0, 0.0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0)
+    result = NLLSResult(0.0, 0.0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, getiterator(options), 0, 0, 0, 0)
     first = 1
     while first <= length(indices)
         # Compute the run length of the current variable size
@@ -227,7 +227,7 @@ function optimizeinternal!(problem::NLLSProblem, options::NLLSOptions, data, ite
     data.init = Stats()
     converged = optimizeloop!(problem, options, data, iteratedata, callback)
     data.optimize = Stats()
-    return NLLSResult(data, converged)
+    return NLLSResult(data, converged, getiterator(options))
 end
 
 # Optimizing variables one at a time (e.g. in alternation)
@@ -254,7 +254,7 @@ function optimizesinglesinternal!(problem::NLLSProblem, options::NLLSOptions, da
     data.startcost = startcost
     data.bestcost = bestcost
     data.optimize = Stats()
-    result += NLLSResult(data, termination)
+    result += NLLSResult(data, termination, getiterator(options))
     return result
 end
 
