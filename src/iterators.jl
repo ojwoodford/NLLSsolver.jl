@@ -10,9 +10,9 @@ function Base.String(iterator::NLLSIterator)
     elseif iterator == dogleg
         return "Dogleg"
     elseif iterator == gradientdescent
-        return "Gradient descent"
+        return "gradient descent"
     else
-        return "Unknown iterator"
+        return "unknown iterator"
     end
 end
 
