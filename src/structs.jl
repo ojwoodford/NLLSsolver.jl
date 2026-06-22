@@ -87,16 +87,16 @@ Base.:+(a::NLLSResult, b::NLLSResult) = NLLSResult(a.startcost+b.startcost,
 function Base.show(io::IO, x::NLLSResult)
     optimtime = x.timetotal - x.timeinit
     timedoptim = max(x.timecost + x.timegradient + x.timesolver, optimtime)
-    @printf(io, "NLLSsolver optimization using %s took %f seconds and %d iterations to reduce the cost from %e to %e (a %.2f%% reduction), requiring:
-   %f seconds for initialization (%.2f%% of total time, with %d allocations totalling %s), and
-   %f seconds for optimization (%.2f%% of total time, with %d allocations totalling %s), of which:
+    @printf(io, "NLLSsolver optimization using %s took %s and %d iterations to reduce the cost from %e to %e (a %.2f%% reduction), requiring:
+   %s for initialization (%.2f%% of total time, with %d allocations totalling %s), and
+   %s for optimization (%.2f%% of total time, with %d allocations totalling %s), of which:
         %d cost computations accounted for %.2f%% of the time,
         %d gradient computations accounted for %.2f%%, and
         %d linear solver computations accounted for %.2f%%.\n", 
             String(x.iterator),
-            x.timetotal*1e-9, x.niterations, x.startcost, x.bestcost, 100*(1-x.bestcost/x.startcost),
-            x.timeinit*1e-9, 100.0*x.timeinit/x.timetotal, x.initallocations, bytesstring(x.initallocated),
-            optimtime*1e-9, 100.0*optimtime/x.timetotal, x.optimizeallocations, bytesstring(x.optimizeallocated),
+            timestring(x.timetotal), x.niterations, x.startcost, x.bestcost, 100*(1-x.bestcost/x.startcost),
+            timestring(x.timeinit), 100.0*x.timeinit/x.timetotal, x.initallocations, bytesstring(x.initallocated),
+            timestring(optimtime), 100.0*optimtime/x.timetotal, x.optimizeallocations, bytesstring(x.optimizeallocated),
             x.costcomputations, 100.0*x.timecost/timedoptim,
             x.gradientcomputations, 100.0*x.timegradient/timedoptim,
             x.linearsolves, 100.0*x.timesolver/timedoptim)
