@@ -23,7 +23,7 @@ NewtonData(::NLLSProblem, ::NLLSInternal) = NewtonData()
 construct(::StaticSymbol{:newton}, problem, data) = NewtonData(problem, data)
 reset!(nd::NewtonData, ::NLLSProblem, ::NLLSInternal) = nothing
 
-function iterate!(::NewtonData, data, problem::NLLSProblem, options::NLLSOptions)::Float64
+@inline function iterate!(::NewtonData, data, problem::NLLSProblem, options::NLLSOptions)::Float64
     # Compute the step
     gethessian(data.linsystem)
     data.solves += @elapsed_ns negate!(solve!(data.linsystem))
@@ -45,7 +45,7 @@ end
 construct(::StaticSymbol{:dogleg}, problem, data) = DoglegData(problem, data)
 reset!(dd::DoglegData, ::NLLSProblem, data::NLLSInternal) = dd.trustradius = 0.0
 
-function iterate!(doglegdata::DoglegData, data, problem::NLLSProblem, options::NLLSOptions)::Float64
+@inline function iterate!(doglegdata::DoglegData, data, problem::NLLSProblem, options::NLLSOptions)::Float64
     hessian, gradient = gethessgrad(data.linsystem)
     data.solves += @elapsed_ns begin
         # Compute the Cauchy step
@@ -134,7 +134,7 @@ function initlambda(hessian)
     return m * 1e-6
 end
 
-function iterate!(levmardata::LevMarData, data, problem::NLLSProblem, options::NLLSOptions)::Float64
+@inline function iterate!(levmardata::LevMarData, data, problem::NLLSProblem, options::NLLSOptions)::Float64
     @assert levmardata.lambda >= 0.
     hessian, gradient = gethessgrad(data.linsystem)
     if levmardata.lambda == 0
@@ -180,7 +180,7 @@ end
 construct(::StaticSymbol{:gradientdescent}, problem, data) = GradientDescentData(problem, data)
 reset!(gdd::GradientDescentData, ::NLLSProblem, ::NLLSInternal) = gdd.stepsize = 1.0
 
-function iterate!(gddata::GradientDescentData, data, problem::NLLSProblem, options::NLLSOptions)::Float64
+@inline function iterate!(gddata::GradientDescentData, data, problem::NLLSProblem, options::NLLSOptions)::Float64
     gradient = getgrad(data.linsystem)
     # Evaluate the current step size
     getx(data.linsystem) .= -gradient * gddata.stepsize

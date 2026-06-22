@@ -1,8 +1,8 @@
 # Uni-variate optimization (single unfixed variable)
-optimize!(problem::NLLSProblem, options::NLLSOptions, unfixed::Integer, callback=nullcallback) = setupsinglevarls(optimizeinternal!, problem, options, unfixed, Stats(), callback)
+optimize!(problem::NLLSProblem, options::NLLSOptions, unfixed::Integer, callback::F=nullcallback) where F = setupsinglevarls(optimizeinternal!, problem, options, unfixed, Stats(), callback)
 
 # Multi-variate optimization
-function optimize!(problem::NLLSProblem, options::NLLSOptions, unfixed::AbstractVector, callback=nullcallback)::NLLSResult
+function optimize!(problem::NLLSProblem, options::NLLSOptions, unfixed::AbstractVector, callback::F=nullcallback)::NLLSResult where F
     startstats = Stats()
     @assert length(problem.variables) > 0
     # Compute the number of free variables (nblocks)
@@ -63,7 +63,7 @@ set to the optimal values found. Other pertinent information, such as the start 
 costs, iteration count, high level timings and reasons for termination, is returned in an 
 [`NLLSResult`](@ref) object.
 """
-optimize!(problem::NLLSProblem, options::NLLSOptions=NLLSOptions(), unfixed=nothing, callback=nullcallback) = optimize!(problem, options, convertunfixed(unfixed, problem), callback)
+optimize!(problem::NLLSProblem, options::NLLSOptions=NLLSOptions(), unfixed=nothing, callback::F=nullcallback) where F = optimize!(problem, options, convertunfixed(unfixed, problem), callback)
 
 # Optimize one variable at a time
 function optimizesingles!(problem::NLLSProblem{VT, CT}, options::NLLSOptions, type::DataType)::NLLSResult where {VT, CT}
@@ -92,7 +92,7 @@ function optimizesingles!(problem::NLLSProblem{VT, CT}, options::NLLSOptions, in
             last += 1
         end
         # Optimize all variables of the same size at once
-        result = setupsinglevarls(optimizesinglesinternal!, problem, options, indices[first], startstats, allcosts, costindices, @inbounds(view(indices, first:last-1)), result)
+        result = setupsinglevarls(optimizesinglesinternal!, problem, options, indices[first], startstats, nullcallback, allcosts, costindices, @inbounds(view(indices, first:last-1)), result)
         first = last
         startstats = Stats()
     end
@@ -101,23 +101,29 @@ function optimizesingles!(problem::NLLSProblem{VT, CT}, options::NLLSOptions, in
     return result
 end
 
-function setupsinglevarls(func, problem::NLLSProblem, options::NLLSOptions, unfixed::Integer, startstats, trailingargs...)::NLLSResult
+function setupsinglevarls(func::F1, problem::NLLSProblem, options::NLLSOptions, unfixed::Integer, startstats, callback::F2, trailingargs...) where {F1, F2}
     problem = checkvars!(problem)
     varlen = nvars(problem.variables[unfixed])
     if dynamic(is_static(varlen)) && varlen <= 16
-        return setupstaticvarls(func, problem, options, unfixed, startstats, varlen, trailingargs)::NLLSResult
+        return setupstaticvarls(func, problem, options, unfixed, startstats, varlen, callback, trailingargs)
     else
-        dynamicdata = NLLSInternal(LinearSystem{UniVariateLSdynamic_x, UniVariateLSdynamic_ls}((unfixed, dynamic(varlen)), (dynamic(varlen),)), startstats)
-        return func(problem, options, dynamicdata, construct(options.iterator, problem, dynamicdata), trailingargs...)::NLLSResult
+        lsdynamic = LinearSystem{UniVariateLSdynamic_x, UniVariateLSdynamic_ls}((unfixed, dynamic(varlen)), (dynamic(varlen),))
+        return setupiterator(func, problem, options, lsdynamic, startstats, callback, trailingargs)
     end
 end
 
-function setupstaticvarls(func, problem::NLLSProblem, options::NLLSOptions, unfixed::Integer, startstats, varlen::StaticInt, trailingargs)::NLLSResult
-    staticdata = NLLSInternal(LinearSystem{UniVariateLSstatic_x{dynamic(varlen)}, UniVariateLSstatic_ls{dynamic(varlen), dynamic(varlen*varlen)}}((unfixed,), ()), startstats)
-    return func(problem, options, staticdata, construct(options.iterator, problem, staticdata), trailingargs...)::NLLSResult
+function setupstaticvarls(func::F1, problem::NLLSProblem, options::NLLSOptions, unfixed::Integer, startstats, varlen::StaticInt, callback::F2, trailingargs) where {F1, F2}
+    lsstatic = LinearSystem{UniVariateLSstatic_x{dynamic(varlen)}, UniVariateLSstatic_ls{dynamic(varlen), dynamic(varlen*varlen)}}((unfixed,), ())
+    return setupiterator(func, problem, options, lsstatic, startstats, callback, trailingargs)
 end
 
-function setupsmultivarls(func, problem::NLLSProblem, options::NLLSOptions, unfixed, startstats, nblocks, trailingargs...)::NLLSResult
+function setupiterator(func::F1, problem::NLLSProblem, options::NLLSOptions, ls, startstats, callback::F2, trailingargs) where {F1, F2}
+    internaldata = NLLSInternal(ls, startstats)
+    iteratordata = construct(options.iterator, problem, internaldata)
+    return func(problem, options, internaldata, iteratordata, callback, trailingargs...)
+end
+
+function setupsmultivarls(func::F1, problem::NLLSProblem, options::NLLSOptions, unfixed, startstats, nblocks, callback::F2, trailingargs...) where {F1, F2}
     problem = checkvars!(problem)
     # Multiple variables. Decide whether to have a sparse or a dense system
     blocksizes, blockindices = block_sizes_indices(problem.variables, unfixed, nblocks)
@@ -133,18 +139,18 @@ function setupsmultivarls(func, problem::NLLSProblem, options::NLLSOptions, unfi
             bsm = BlockSparseMatrix{Float64}(sparsity, blocksizes, blocksizes)
 
             # Construct the sparse MultiVariateLS
-            sparsedata = NLLSInternal(MultiVariateLSsparse(bsm, blockindices, !formarginalization), startstats)
-            return func(problem, options, sparsedata, construct(options.iterator, problem, sparsedata), trailingargs...)::NLLSResult
+            lssparse = MultiVariateLSsparse(bsm, blockindices, !formarginalization)
+            return setupiterator(func, problem, options, lssparse, startstats, callback, trailingargs)
         end
     end
 
     # Construct the dense MultiVariateLS
-    densedata = NLLSInternal(MultiVariateLSdense(blocksizes, blockindices), startstats)
-    return func(problem, options, densedata, construct(options.iterator, problem, densedata), trailingargs...)::NLLSResult
+    lsdense = MultiVariateLSdense(blocksizes, blockindices)
+    return setupiterator(func, problem, options, lsdense, startstats, callback, trailingargs)
 end
 
 # The meat of an optimization
-@inline function optimizeloop!(problem::NLLSProblem, options::NLLSOptions, data, iteratedata, callback)
+@inline function optimizeloop!(problem::NLLSProblem, options::NLLSOptions, data, iteratedata, callback::F) where F
     # Initializations
     stoptime = Base.time_ns() + options.maxtime
     fails = 0
@@ -223,7 +229,7 @@ end
     return converged
 end
 
-function optimizeinternal!(problem::NLLSProblem, options::NLLSOptions, data, iteratedata, callback)
+@inline function optimizeinternal!(problem::NLLSProblem, options::NLLSOptions, data, iteratedata, callback::F) where F
     data.init = Stats()
     converged = optimizeloop!(problem, options, data, iteratedata, callback)
     data.optimize = Stats()
@@ -231,7 +237,7 @@ function optimizeinternal!(problem::NLLSProblem, options::NLLSOptions, data, ite
 end
 
 # Optimizing variables one at a time (e.g. in alternation)
-function optimizesinglesinternal!(problem::NLLSProblem, options::NLLSOptions, data::NLLSInternal{LST}, iteratedata, allcosts::CostStruct, costindices, varindices, result) where  LST<:NLLSsolver.UniVariateLS
+@inline function optimizesinglesinternal!(problem::NLLSProblem, options::NLLSOptions, data::NLLSInternal{LST}, iteratedata, callback::F, allcosts::CostStruct, costindices, varindices, result) where  {LST<:NLLSsolver.UniVariateLS, F}
     iternum = 0
     termination = 0
     startcost = 0.0
@@ -244,7 +250,7 @@ function optimizesinglesinternal!(problem::NLLSProblem, options::NLLSOptions, da
         # Reset the iterator data
         reset!(iteratedata, problem, data)
         # Optimize the subproblem
-        termination |= optimizeloop!(problem, options, data, iteratedata, nullcallback)
+        termination |= optimizeloop!(problem, options, data, iteratedata, callback)
         # Increment stats
         startcost += data.startcost
         bestcost += data.bestcost
