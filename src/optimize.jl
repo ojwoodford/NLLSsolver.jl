@@ -101,23 +101,29 @@ function optimizesingles!(problem::NLLSProblem{VT, CT}, options::NLLSOptions, in
     return result
 end
 
-function setupsinglevarls(func::F1, problem::NLLSProblem, options::NLLSOptions, unfixed::Integer, startstats, callback::F2, trailingargs...)::NLLSResult where {F1, F2}
+function setupsinglevarls(func::F1, problem::NLLSProblem, options::NLLSOptions, unfixed::Integer, startstats, callback::F2, trailingargs...) where {F1, F2}
     problem = checkvars!(problem)
     varlen = nvars(problem.variables[unfixed])
     if dynamic(is_static(varlen)) && varlen <= 16
-        return setupstaticvarls(func, problem, options, unfixed, startstats, varlen, callback, trailingargs)::NLLSResult
+        return setupstaticvarls(func, problem, options, unfixed, startstats, varlen, callback, trailingargs)
     else
-        dynamicdata = NLLSInternal(LinearSystem{UniVariateLSdynamic_x, UniVariateLSdynamic_ls}((unfixed, dynamic(varlen)), (dynamic(varlen),)), startstats)
-        return func(problem, options, dynamicdata, construct(options.iterator, problem, dynamicdata), callback, trailingargs...)::NLLSResult
+        lsdynamic = LinearSystem{UniVariateLSdynamic_x, UniVariateLSdynamic_ls}((unfixed, dynamic(varlen)), (dynamic(varlen),))
+        return setupiterator(func, problem, options, lsdynamic, startstats, callback, trailingargs)
     end
 end
 
-function setupstaticvarls(func::F1, problem::NLLSProblem, options::NLLSOptions, unfixed::Integer, startstats, varlen::StaticInt, callback::F2, trailingargs)::NLLSResult where {F1, F2}
-    staticdata = NLLSInternal(LinearSystem{UniVariateLSstatic_x{dynamic(varlen)}, UniVariateLSstatic_ls{dynamic(varlen), dynamic(varlen*varlen)}}((unfixed,), ()), startstats)
-    return func(problem, options, staticdata, construct(options.iterator, problem, staticdata), callback, trailingargs...)::NLLSResult
+function setupstaticvarls(func::F1, problem::NLLSProblem, options::NLLSOptions, unfixed::Integer, startstats, varlen::StaticInt, callback::F2, trailingargs) where {F1, F2}
+    lsstatic = LinearSystem{UniVariateLSstatic_x{dynamic(varlen)}, UniVariateLSstatic_ls{dynamic(varlen), dynamic(varlen*varlen)}}((unfixed,), ())
+    return setupiterator(func, problem, options, lsstatic, startstats, callback, trailingargs)
 end
 
-function setupsmultivarls(func::F1, problem::NLLSProblem, options::NLLSOptions, unfixed, startstats, nblocks, callback::F2, trailingargs...)::NLLSResult where {F1, F2}
+function setupiterator(func::F1, problem::NLLSProblem, options::NLLSOptions, ls, startstats, callback::F2, trailingargs) where {F1, F2}
+    internaldata = NLLSInternal(ls, startstats)
+    iteratordata = construct(options.iterator, problem, internaldata)
+    return @inline func(problem, options, internaldata, iteratordata, callback, trailingargs...)
+end
+
+function setupsmultivarls(func::F1, problem::NLLSProblem, options::NLLSOptions, unfixed, startstats, nblocks, callback::F2, trailingargs...) where {F1, F2}
     problem = checkvars!(problem)
     # Multiple variables. Decide whether to have a sparse or a dense system
     blocksizes, blockindices = block_sizes_indices(problem.variables, unfixed, nblocks)
@@ -133,14 +139,14 @@ function setupsmultivarls(func::F1, problem::NLLSProblem, options::NLLSOptions, 
             bsm = BlockSparseMatrix{Float64}(sparsity, blocksizes, blocksizes)
 
             # Construct the sparse MultiVariateLS
-            sparsedata = NLLSInternal(MultiVariateLSsparse(bsm, blockindices, !formarginalization), startstats)
-            return func(problem, options, sparsedata, construct(options.iterator, problem, sparsedata), callback, trailingargs...)::NLLSResult
+            lssparse = MultiVariateLSsparse(bsm, blockindices, !formarginalization)
+            return setupiterator(func, problem, options, lssparse, startstats, callback, trailingargs)
         end
     end
 
     # Construct the dense MultiVariateLS
-    densedata = NLLSInternal(MultiVariateLSdense(blocksizes, blockindices), startstats)
-    return func(problem, options, densedata, construct(options.iterator, problem, densedata), callback, trailingargs...)::NLLSResult
+    lsdense = MultiVariateLSdense(blocksizes, blockindices)
+    return setupiterator(func, problem, options, lsdense, startstats, callback, trailingargs)
 end
 
 # The meat of an optimization
@@ -161,7 +167,7 @@ end
     while true
         data.iternum += 1
         # Call the per iteration solver
-        cost = iterate!(iteratedata, data, problem, options)
+        cost = @inline iterate!(iteratedata, data, problem, options)
         computegradient = isequal(cost, -Inf)
         if computegradient
             # Construct the linear problem now, in order to compute the correct cost
@@ -171,7 +177,7 @@ end
             end
         end
         # Call the user-defined callback
-        cost, terminate = callback(cost, problem, data, iteratedata)
+        cost, terminate = @inline callback(cost, problem, data, iteratedata)
         # Check for cost increase (only some iterators will do this)
         dcost = data.bestcost - cost
         if dcost >= 0
@@ -183,14 +189,14 @@ end
             if fails == 1
                 # Store the current best variables
                 if length(problem.variables) == length(problem.varbest)
-                    updatetobest!(problem, data)
+                    @inline updatetobest!(problem, data)
                 else
                     problem.varbest = deepcopy(problem.variables)
                 end
             end
         end
         # Update the variables
-        updatefromnext!(problem, data)
+        @inline updatefromnext!(problem, data)
         # Check for termination
         maxstep = maximum(abs, getx(data.linsystem))::Float64
         converged |= isinf(cost)                                     << 0 # Cost is infinite
@@ -218,7 +224,7 @@ end
     end
     if !(data.bestcost >= cost)
         # Update the problem variables to the best ones found
-        updatefrombest!(problem, data)
+        @inline updatefrombest!(problem, data)
     end
     return converged
 end
