@@ -120,7 +120,7 @@ end
 function setupiterator(func::F1, problem::NLLSProblem, options::NLLSOptions, ls, startstats, callback::F2, trailingargs) where {F1, F2}
     internaldata = NLLSInternal(ls, startstats)
     iteratordata = construct(options.iterator, problem, internaldata)
-    return @inline func(problem, options, internaldata, iteratordata, callback, trailingargs...)
+    return func(problem, options, internaldata, iteratordata, callback, trailingargs...)
 end
 
 function setupsmultivarls(func::F1, problem::NLLSProblem, options::NLLSOptions, unfixed, startstats, nblocks, callback::F2, trailingargs...) where {F1, F2}
@@ -167,7 +167,7 @@ end
     while true
         data.iternum += 1
         # Call the per iteration solver
-        cost = @inline iterate!(iteratedata, data, problem, options)
+        cost = iterate!(iteratedata, data, problem, options)
         computegradient = isequal(cost, -Inf)
         if computegradient
             # Construct the linear problem now, in order to compute the correct cost
@@ -177,7 +177,7 @@ end
             end
         end
         # Call the user-defined callback
-        cost, terminate = @inline callback(cost, problem, data, iteratedata)
+        cost, terminate = callback(cost, problem, data, iteratedata)
         # Check for cost increase (only some iterators will do this)
         dcost = data.bestcost - cost
         if dcost >= 0
@@ -189,14 +189,14 @@ end
             if fails == 1
                 # Store the current best variables
                 if length(problem.variables) == length(problem.varbest)
-                    @inline updatetobest!(problem, data)
+                    updatetobest!(problem, data)
                 else
                     problem.varbest = deepcopy(problem.variables)
                 end
             end
         end
         # Update the variables
-        @inline updatefromnext!(problem, data)
+        updatefromnext!(problem, data)
         # Check for termination
         maxstep = maximum(abs, getx(data.linsystem))::Float64
         converged |= isinf(cost)                                     << 0 # Cost is infinite
@@ -224,12 +224,12 @@ end
     end
     if !(data.bestcost >= cost)
         # Update the problem variables to the best ones found
-        @inline updatefrombest!(problem, data)
+        updatefrombest!(problem, data)
     end
     return converged
 end
 
-function optimizeinternal!(problem::NLLSProblem, options::NLLSOptions, data, iteratedata, callback::F) where F
+@inline function optimizeinternal!(problem::NLLSProblem, options::NLLSOptions, data, iteratedata, callback::F) where F
     data.init = Stats()
     converged = optimizeloop!(problem, options, data, iteratedata, callback)
     data.optimize = Stats()
@@ -237,7 +237,7 @@ function optimizeinternal!(problem::NLLSProblem, options::NLLSOptions, data, ite
 end
 
 # Optimizing variables one at a time (e.g. in alternation)
-function optimizesinglesinternal!(problem::NLLSProblem, options::NLLSOptions, data::NLLSInternal{LST}, iteratedata, callback::F, allcosts::CostStruct, costindices, varindices, result) where  {LST<:NLLSsolver.UniVariateLS, F}
+@inline function optimizesinglesinternal!(problem::NLLSProblem, options::NLLSOptions, data::NLLSInternal{LST}, iteratedata, callback::F, allcosts::CostStruct, costindices, varindices, result) where  {LST<:NLLSsolver.UniVariateLS, F}
     iternum = 0
     termination = 0
     startcost = 0.0
