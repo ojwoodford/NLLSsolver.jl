@@ -157,10 +157,7 @@ end
     converged = 0
     data.iternum = 0
     # Initialize the linear problem
-    data.gradients += @elapsed_ns begin
-            zero!(data.linsystem)
-            cost = costgradhess!(data.linsystem, problem.variables, problem.costs)
-        end
+    data.gradients += @elapsed_ns cost = costgradhess!(data.linsystem, problem.variables, problem.costs)
     data.bestcost = cost
     data.startcost = cost
     # Do the iterations
@@ -171,10 +168,7 @@ end
         computegradient = isequal(cost, -Inf)
         if computegradient
             # Construct the linear problem now, in order to compute the correct cost
-            data.gradients += @elapsed_ns begin
-                zero!(data.linsystem)
-                cost = costgradhess!(data.linsystem, problem.varnext, problem.costs)
-            end
+            data.gradients += @elapsed_ns cost = costgradhess!(data.linsystem, problem.varnext, problem.costs)
         end
         # Call the user-defined callback
         cost, terminate = callback(cost, problem, data, iteratedata)
@@ -215,10 +209,7 @@ end
         end
         if !computegradient
             # Construct the linear problem
-            data.gradients += @elapsed_ns begin
-                zero!(data.linsystem)
-                cost_ = costgradhess!(data.linsystem, problem.variables, problem.costs)
-            end
+            data.gradients += @elapsed_ns cost_ = costgradhess!(data.linsystem, problem.variables, problem.costs)
             converged |= !isapprox(cost_, cost)                      << 10 # Cost computations don't agree
         end
     end
