@@ -56,7 +56,7 @@ function costgradhess!(linsystem, vars::Vector, cost::AbstractCost)
 end
 
 function costgradhess!(linsystem::LinearSystem, vars::Vector, costs::CostStruct)::Float64
-    zero!(LinearSystem)
+    zero!(linsystem)
     return sum(bindleadingargs(costgradhess!, linsystem, vars), costs; init=0.0)
 end
 # costgradhess!(linsystem, vars::Vector, costs::CostStruct, subsetfun)::Float64 = sumsubset(bindleadingargs(costgradhess!, linsystem, vars), subsetfun, costs; init=0.0)
