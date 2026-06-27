@@ -118,9 +118,8 @@ function setupstaticvarls(func::F1, problem::NLLSProblem, options::NLLSOptions, 
 end
 
 function setupiterator(func::F1, problem::NLLSProblem, options::NLLSOptions, ls, startstats, callback::F2, trailingargs) where {F1, F2}
-    internaldata = NLLSInternal(ls, startstats)
-    iteratordata = construct(options.iterator, problem, internaldata)
-    return func(problem, options, internaldata, iteratordata, callback, trailingargs...)
+    iteratordata = construct(options.iterator, problem, ls)
+    return func(problem, options, NLLSInternal(ls, startstats), iteratordata, callback, trailingargs...)
 end
 
 function setupsmultivarls(func::F1, problem::NLLSProblem, options::NLLSOptions, unfixed, startstats, nblocks, callback::F2, trailingargs...) where {F1, F2}
@@ -221,6 +220,7 @@ end
 end
 
 @inline function optimizeinternal!(problem::NLLSProblem, options::NLLSOptions, data, iteratedata, callback::F) where F
+    # Create
     data.init = Stats()
     converged = optimizeloop!(problem, options, data, iteratedata, callback)
     data.optimize = Stats()
@@ -239,7 +239,7 @@ end
         # Construct the subset of residuals that depend on this variable
         selectcosts!(problem.costs, allcosts, @inbounds(view(costindices.rowval, costindices.colptr[ind]:costindices.colptr[ind+1]-1)))
         # Reset the iterator data
-        reset!(iteratedata, problem, data)
+        reset!(iteratedata)
         # Optimize the subproblem
         termination |= optimizeloop!(problem, options, data, iteratedata, callback)
         # Increment stats

@@ -19,9 +19,8 @@ end
 # Newton optimization (undamped-Hessian form)
 struct NewtonData
 end
-NewtonData(::NLLSProblem, ::NLLSInternal) = NewtonData()
-construct(::StaticSymbol{:newton}, problem, data) = NewtonData(problem, data)
-reset!(nd::NewtonData, ::NLLSProblem, ::NLLSInternal) = nothing
+construct(::StaticSymbol{:newton}, problem, ls) = NewtonData()
+reset!(nd::NewtonData) = nothing
 
 @inline function iterate!(::NewtonData, data, problem::NLLSProblem, options::NLLSOptions)::Float64
     # Compute the step
@@ -38,12 +37,12 @@ mutable struct DoglegData{T}
     trustradius::Float64
     cauchy::T
 
-    function DoglegData(::NLLSProblem, data::NLLSInternal)
-        return new{typeof(getx(data.linsystem))}(0.0, similar(getx(data.linsystem)))
+    function DoglegData(::NLLSProblem, ls)
+        return new{typeof(getx(ls))}(0.0, similar(getx(ls)))
     end
 end
 construct(::StaticSymbol{:dogleg}, problem, data) = DoglegData(problem, data)
-reset!(dd::DoglegData, ::NLLSProblem, data::NLLSInternal) = dd.trustradius = 0.0
+reset!(dd::DoglegData) = dd.trustradius = 0.0
 
 @inline function iterate!(doglegdata::DoglegData, data, problem::NLLSProblem, options::NLLSOptions)::Float64
     hessian, gradient = gethessgrad(data.linsystem)
@@ -118,13 +117,9 @@ printoutcallback(cost, problem, data, iteratedata::DoglegData) = printoutcallbac
 # Levenberg-Marquardt optimization
 mutable struct LevMarData
     lambda::Float64
-
-    function LevMarData(::NLLSProblem, ::NLLSInternal)
-        return new(0.0)
-    end
 end
-construct(::StaticSymbol{:levenbergmarquardt}, problem, data) = LevMarData(problem, data)
-reset!(lmd::LevMarData, ::NLLSProblem, ::NLLSInternal) = lmd.lambda = 0.0
+construct(::StaticSymbol{:levenbergmarquardt}, problem, ls) = LevMarData(0.0)
+reset!(lmd::LevMarData) = lmd.lambda = 0.0
 
 function initlambda(hessian)
     m = zero(eltype(hessian))
@@ -172,13 +167,9 @@ printoutcallback(cost, problem, data, iteratedata::LevMarData) = printoutcallbac
 # Gradient descent optimization
 mutable struct GradientDescentData
     stepsize::Float64
-
-    function GradientDescentData(::NLLSProblem, ::NLLSInternal)
-        return new(1.0)
-    end
 end
-construct(::StaticSymbol{:gradientdescent}, problem, data) = GradientDescentData(problem, data)
-reset!(gdd::GradientDescentData, ::NLLSProblem, ::NLLSInternal) = gdd.stepsize = 1.0
+construct(::StaticSymbol{:gradientdescent}, problem, data) = GradientDescentData(1.0)
+reset!(gdd::GradientDescentData) = gdd.stepsize = 1.0
 
 @inline function iterate!(gddata::GradientDescentData, data, problem::NLLSProblem, options::NLLSOptions)::Float64
     gradient = getgrad(data.linsystem)
