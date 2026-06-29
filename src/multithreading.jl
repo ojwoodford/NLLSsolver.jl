@@ -16,13 +16,18 @@ function Base.sum(fun::Bind{typeof(computecost), Tuple{StaticInt{N}, Vector{VT}}
     return tmapreduce(fun, +, vec; scheduler=StaticScheduler(ntasks=N), kw...)
 end
 
+function ithchunk(N, taskid, vec)
+    c = index_chunks(vec; n=N)
+    return view(vec, taskid <= length(c) ? c[taskid] : 1:0)
+end
+
 function costgradhesschunk!(linsystem::LinearSystemShared{F, V, N}, vars::Vector, costs::CostStruct, taskid, tasks::Vector{Task})::Nothing where {F, V, N}
     # Construct the task local values
     subsetfun = (v) -> chunks(v, N)[taskid]
     ls = LinearSystem(linsystem, taskid)
     zero!(ls) # Zero the local data buffer
     # Sum over the subsets
-    ls.ls.cost = sumsubset(bindleadingargs(costgradhess!, linsystem, vars), costs, subsetfun; init=0.0)
+    ls.ls.cost = sumsubset(bindleadingargs(costgradhess!, linsystem, vars), costs, bindleadingargs(ithchunk, N, taskid); init=0.0)
     # Reduce over the local buffers
     n = N
     while n > 1
@@ -42,7 +47,6 @@ function costgradhesschunk!(linsystem::LinearSystemShared{F, V, N}, vars::Vector
     return nothing
 end
 
-# Overload sum to use multithreading for large vectors
 function costgradhess!(linsystem::LinearSystemShared{F, V, N}, vars::Vector, costs::CostStruct)::Float64 where {F, V, N}
     tasks = sizehint!(Vector{Task}(), N-1)
     for taskid in 2:N
