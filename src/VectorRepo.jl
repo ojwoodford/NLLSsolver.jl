@@ -56,8 +56,8 @@ vrsum(fun, vr::VectorRepo, kw, T::Union) = vrsum(fun, vr, kw, T.a) + vrsum(fun, 
 vrsum(fun, vr::VectorRepo, kw, T::DataType) = vrsum(fun, kw, get(vr, T))
 
 # Sum reduction over a subset of the elements
-# sumsubset(fun, vr::VectorRepo{Any}, subsetfun; init=0.0) = sum(bindleadingargs(sumsubsetvec, fun, subsetfun, init), values(vr.data); init=init)
-# sumsubset(fun, vr::VectorRepo{T}, subsetfun; init=0.0) where T = vrsumsubset(fun, subsetfun, vr, init,T)
-# vrsumsubset(fun, subsetfun, vr, init, T::Union) = vrsumsubset(fun, subsetfun, vr, init, T.a) + vrsumsubset(fun, subsetfun, vr, init, T.b)
-# vrsumsubset(fun, subsetfun, vr, init, T::DataType)= sumsubsetvec(args, subsetfun, init, get(vr, T))
-# sumsubsetvec(fun, subsetfun, init, vector) = sum(fun, view(vector, subsetfun(vector)); init=init)
+sumsubset(fun, vr::VectorRepo{Any}, subsetfun; init=0.0) = sum(bindleadingargs(sumsubsetvec, fun, subsetfun, init), values(vr.data); init=init)
+sumsubset(fun, vr::VectorRepo{T}, subsetfun; init=0.0) where T = vrsumsubset(fun, subsetfun, vr, init,T)
+vrsumsubset(fun, subsetfun, vr, init, T::Union) = vrsumsubset(fun, subsetfun, vr, init, T.a) + vrsumsubset(fun, subsetfun, vr, init, T.b)
+vrsumsubset(fun, subsetfun, vr, init, T::DataType) = sumsubsetvec(fun, subsetfun, init, get(vr, T))
+sumsubsetvec(fun, subsetfun, init, vector) = sum(fun, subsetfun(vector); init=init)

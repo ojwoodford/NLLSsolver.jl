@@ -10,5 +10,6 @@ using Test
     include("dynamicvars.jl")
     include("nonsquaredcost.jl")
     include("adaptivecost.jl")
+    include("multithreading.jl")
     include("utils.jl")
 end

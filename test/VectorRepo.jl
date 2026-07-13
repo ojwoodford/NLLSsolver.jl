@@ -21,11 +21,11 @@ end
     floats = rand(10) * 100
     ints = convert(Vector{Int}, ceil.(floats))
     total = sum(floats) + sum(ints)
-    # halftotal = sum(floats[1:5]) + sum(ints[1:5])
-    # rangefun(::Vector{T}) where T = T <: Char ? (1:0) : (1:5)
-    # indicesfun(::Vector{T}) where T = T <: Char ? Int[] : [1, 2, 3, 4, 5]
-    # bitvecfun(::Vector{T}) where T = T <: Char ? BitVector() : 1:11 .<= 5
-    # boolvecfun(::Vector{T}) where T = T <: Char ? Bool[] : map(x->x<=5, 1:11)
+    halftotal = sum(floats[1:5]) + sum(ints[1:5])
+    rangefun(v::Vector{T}) where T = T <: Char ? T[] : view(v, 1:5)
+    indicesfun(v::Vector{T}) where T = T <: Char ? T[] : view(v, [1, 2, 3, 4, 5])
+    bitvecfun(v::Vector{T}) where T = T <: Char ? T[] : view(v, 1:11 .<= 5)
+    boolvecfun(v::Vector{T}) where T = T <: Char ? T[] : view(v, map(x->x<=5, 1:11))
 
     # Construct repos and test the sum reduction
     # Any container
@@ -37,10 +37,10 @@ end
     @test length(vec) == 2 && any(Base.Fix2(isa, Vector{Float64}), vec) && any(Base.Fix2(isa, Vector{Int}), vec)
 
     # Test subset reductions
-    # @test NLLSsolver.sumsubset(Float64, rangefun, vr1) == halftotal
-    # @test NLLSsolver.sumsubset(Float64, indicesfun, vr1) == halftotal
-    # @test NLLSsolver.sumsubset(Float64, bitvecfun, vr1) == halftotal
-    # @test NLLSsolver.sumsubset(Float64, boolvecfun, vr1) ≈ halftotal
+    @test NLLSsolver.sumsubset(Float64, vr1, rangefun) == halftotal
+    @test NLLSsolver.sumsubset(Float64, vr1, indicesfun) == halftotal
+    @test NLLSsolver.sumsubset(Float64, vr1, bitvecfun) == halftotal
+    @test NLLSsolver.sumsubset(Float64, vr1, boolvecfun) ≈ halftotal
 
     # Union container
     vr2 = NLLSsolver.VectorRepo{Union{Float64, Int, Char}}()
@@ -55,8 +55,8 @@ end
     @test any(Base.Fix2(isa, Vector{Float64}), valuetup) && any(Base.Fix2(isa, Vector{Int}), valuetup) && any(Base.Fix2(isa, Vector{Char}), valuetup)
 
     # Test subset reductions
-    # @test NLLSsolver.sumsubset(Float64, rangefun, vr2) == halftotal
-    # @test NLLSsolver.sumsubset(Float64, indicesfun, vr2) == halftotal
-    # @test NLLSsolver.sumsubset(Float64, bitvecfun, vr2) == halftotal
-    # @test NLLSsolver.sumsubset(Float64, boolvecfun, vr2) ≈ halftotal
+    @test NLLSsolver.sumsubset(Float64, vr2, rangefun) == halftotal
+    @test NLLSsolver.sumsubset(Float64, vr2, indicesfun) == halftotal
+    @test NLLSsolver.sumsubset(Float64, vr2, bitvecfun) == halftotal
+    @test NLLSsolver.sumsubset(Float64, vr2, boolvecfun) ≈ halftotal
 end
