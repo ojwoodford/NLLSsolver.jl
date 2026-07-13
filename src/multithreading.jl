@@ -16,9 +16,9 @@ function Base.sum(fun::Bind{typeof(computecost), Tuple{StaticInt{N}, Vector{VT}}
     return tmapreduce(fun, +, vec; scheduler=StaticScheduler(ntasks=N), kw...)
 end
 
-function ithchunk(N, taskid, vec)
-    c = index_chunks(vec; n=N)
-    return view(vec, taskid <= length(c) ? c[taskid] : 1:0)
+function ithchunk(N, taskid, collection)
+    c = index_chunks(collection; n=N)
+    return view(collection, taskid <= length(c) ? c[taskid] : 1:0)
 end
 
 function costgradhesschunk!(linsystem::LinearSystemShared{F, V, N}, vars::Vector, costs::CostStruct, taskid, tasks::Vector{Task})::Nothing where {F, V, N}
@@ -27,7 +27,7 @@ function costgradhesschunk!(linsystem::LinearSystemShared{F, V, N}, vars::Vector
     ls = LinearSystem(linsystem, taskid)
     zero!(ls) # Zero the local data buffer
     # Sum over the subsets
-    ls.ls.cost = sumsubset(bindleadingargs(costgradhess!, linsystem, vars), costs, bindleadingargs(ithchunk, N, taskid); init=0.0)
+    ls.ls.cost = sumsubset(bindleadingargs(costgradhess!, ls, vars), costs, bindleadingargs(ithchunk, N, taskid); init=0.0)
     # Reduce over the local buffers
     n = N
     while n > 1
@@ -50,9 +50,9 @@ end
 function costgradhess!(linsystem::LinearSystemShared{F, V, N}, vars::Vector, costs::CostStruct)::Float64 where {F, V, N}
     tasks = sizehint!(Vector{Task}(), N-1)
     for taskid in 2:N
-        push!(tasks, @task costgradhesschunk!(linsystem, vars, cost, taskid, tasks))
+        push!(tasks, @task costgradhesschunk!(linsystem, vars, costs, taskid, tasks))
     end
     foreach(scheduleunsticky, tasks)
-    costgradhesschunk!(linsystem, vars, cost, 1, tasks)
+    costgradhesschunk!(linsystem, vars, costs, 1, tasks)
     return linsystem.ls[1].cost
 end
