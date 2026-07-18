@@ -14,7 +14,7 @@ function usestatic(varflags::StaticInt, vars)::Bool
             totalnumvars += nvi
         end
     end
-    return dynamic(totalnumvars <= MAX_STATIC_VAR)
+    return totalnumvars <= MAX_STATIC_VAR ? true : false
 end
 usestatic(varflags, vars) = false
 
