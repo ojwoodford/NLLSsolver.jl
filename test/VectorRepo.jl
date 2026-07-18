@@ -59,4 +59,10 @@ end
     # @test NLLSsolver.sumsubset(Float64, indicesfun, vr2) == halftotal
     # @test NLLSsolver.sumsubset(Float64, bitvecfun, vr2) == halftotal
     # @test NLLSsolver.sumsubset(Float64, boolvecfun, vr2) ≈ halftotal
+
+    # Initialize from single vector
+    vr3 = NLLSsolver.VectorRepo([1, 2])
+    @test sum(i->i, vr3) == 3
+    keytup = keys(vr3)
+    @test isa(keytup, Tuple) && length(keytup) == 1 && keytup[1] == Int
 end

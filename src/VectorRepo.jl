@@ -9,6 +9,11 @@ struct VectorRepo{T}
         foreach(t -> vr.data[t] = Vector{t}(), uniontotuple(T))
         return vr
     end
+    function VectorRepo(v::Vector{T}) where T
+        vr = new{T}(Dict{DataType, Vector}())
+        vr.data[T] = v
+        return vr
+    end
 end
 VectorRepo() = VectorRepo{Any}()
 

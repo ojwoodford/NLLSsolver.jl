@@ -2,7 +2,7 @@ import ForwardDiff, DiffResults
 using Static, StaticArrays
 
 # Decision on whether to use static-sized autodiff - compile-time decision where possible
-function usestatic(varflags::StaticInt, vars)
+function usestatic(varflags::StaticInt, vars)::Bool
     N = length(vars)
     totalnumvars = static(0)
     @unroll for i in 1:MAX_ARGS
@@ -14,10 +14,7 @@ function usestatic(varflags::StaticInt, vars)
             totalnumvars += nvi
         end
     end
-    if totalnumvars > MAX_STATIC_VAR
-        return false
-    end
-    return true
+    return totalnumvars <= MAX_STATIC_VAR ? true : false
 end
 usestatic(varflags, vars) = false
 
@@ -98,10 +95,10 @@ function computeresjacdynamic(varflags, residual::AbstractResidual, vars)
     @assert eltype(residual)!=Any "Define Base.eltype() for your residual type"
 
     # Compute the number of free variables
-    totalnumvars = computetotalnumvars(varflags, vars)
+    totalnumvars = dynamic(computetotalnumvars(varflags, vars))
 
     # Use the ForwardDiff API to compute the jacobian
-    M = nres(residual)
+    M = dynamic(nres(residual))
     if M == 1
         # Scalar residual
         x = zeros(eltype(residual), totalnumvars)
@@ -114,8 +111,8 @@ function computeresjacdynamic(varflags, residual::AbstractResidual, vars)
     # Vector residual
     resultlength = (totalnumvars + 1) * M
     resultstorage = zeros(eltype(residual), resultlength)
-    result = DiffResults.DiffResult(view(resultstorage, 1:dynamic(M)), (reshape(view(resultstorage, M+1:resultlength), dynamic(M), totalnumvars),))
-    result = ForwardDiff.jacobian!(result, bindleadingargs(computeresjachelper, varflags, residual, vars), view(resultstorage, 1:totalnumvars))
+    result = DiffResults.DiffResult(view(resultstorage, 1:M), (reshape(view(resultstorage, M+1:resultlength), M, totalnumvars),))
+    result = ForwardDiff.jacobian!(result, bindleadingargs(computeresjachelper, varflags, residual, vars), zeros(eltype(residual), totalnumvars))
     # Return the residual and jacobian
     return DiffResults.value(result), DiffResults.jacobian(result)
 end
