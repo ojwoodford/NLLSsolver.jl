@@ -22,6 +22,7 @@ function NLLSOptions(; maxiters=100, reldcost=1.e-15, absdcost=1.e-15, dstep=1.e
     @assert(isnothing(iteratordata), "Iteratordata should not be passed to the options struct.")
     NLLSOptions(reldcost, absdcost, dstep, maxfails, maxiters, UInt64(round(maxtime * 1e9)), static(Symbol(iterator)), static(numthreads))
 end
+getiterator(options) = eval(dynamic(options.iterator))::NLLSIterator
 
 struct NLLSResult
     # Costs
@@ -37,22 +38,34 @@ struct NLLSResult
     niterations::Int                       # Number of outer optimization iterations performed
     costcomputations::Int                  # Number of cost computations performed
     gradientcomputations::Int              # Number of residual gradient computations performed
-    linearsolvers::Int                     # Number of linear solves performed
+    linearsolves::Int                      # Number of linear solves performed
     # Termination reason
     termination::Int                       # Set of flags indicating which termination criteria were met - the value should not be relied upon
+    # Iterator type
+    iterator::NLLSIterator                 # The iterator that was used in the optimization
+    # Allocations
+    initallocations::Int                   # Number of seperate allocations during problem initialization
+    initallocated::Int                     # Total number of bytes allocated during problem initialization
+    optimizeallocations::Int               # Number of seperate allocations during problem optimization
+    optimizeallocated::Int                 # Number of seperate allocations during problem optimization
 end
-NLLSResult(data, termination) = NLLSResult(data.startcost, 
-                                           data.bestcost, 
-                                           data.optimize.time_ns-data.start.time_ns, 
-                                           data.init.time_ns-data.start.time_ns, 
-                                           data.costs.time_ns, 
-                                           data.gradients.time_ns, 
-                                           data.solves.time_ns, 
-                                           data.iternum, 
-                                           data.costs.count, 
-                                           data.gradients.count, 
-                                           data.solves.count, 
-                                           termination)
+NLLSResult(data, termination, iterator) = NLLSResult(data.startcost, 
+                                                     data.bestcost, 
+                                                     data.optimize.time_ns-data.start.time_ns, 
+                                                     data.init.time_ns-data.start.time_ns, 
+                                                     data.costs.time_ns, 
+                                                     data.gradients.time_ns, 
+                                                     data.solves.time_ns, 
+                                                     data.iternum, 
+                                                     data.costs.count, 
+                                                     data.gradients.count, 
+                                                     data.solves.count, 
+                                                     termination,
+                                                     iterator,
+                                                     data.init.num_allocs-data.start.num_allocs, 
+                                                     data.init.bytes_allocd-data.start.bytes_allocd, 
+                                                     data.optimize.num_allocs-data.init.num_allocs, 
+                                                     data.optimize.bytes_allocd-data.init.bytes_allocd)
 Base.:+(a::NLLSResult, b::NLLSResult) = NLLSResult(a.startcost+b.startcost, 
                                                    a.bestcost+b.bestcost, 
                                                    a.timetotal+b.timetotal, 
@@ -63,24 +76,30 @@ Base.:+(a::NLLSResult, b::NLLSResult) = NLLSResult(a.startcost+b.startcost,
                                                    a.niterations+b.niterations, 
                                                    a.costcomputations+b.costcomputations, 
                                                    a.gradientcomputations+b.gradientcomputations, 
-                                                   a.linearsolvers+b.linearsolvers, 
-                                                   a.termination|b.termination)
+                                                   a.linearsolves+b.linearsolves, 
+                                                   a.termination|b.termination,
+                                                   a.iterator, 
+                                                   a.initallocations+b.initallocations, 
+                                                   a.initallocated+b.initallocated, 
+                                                   a.optimizeallocations+b.optimizeallocations, 
+                                                   a.optimizeallocated+b.optimizeallocated)
 
 function Base.show(io::IO, x::NLLSResult)
     optimtime = x.timetotal - x.timeinit
     timedoptim = max(x.timecost + x.timegradient + x.timesolver, optimtime)
-    @printf(io, "NLLSsolver optimization took %f seconds and %d iterations to reduce the cost from %e to %e (a %.2f%% reduction), using:
-   %f seconds for initialization (%.2f%% of total time), and
-   %f seconds for optimization (%.2f%% of total time), of which:
+    @printf(io, "NLLSsolver optimization using %s took %s and %d iterations to reduce the cost from %e to %e (a %.2f%% reduction), requiring:
+   %s for initialization (%.2f%% of total time, with %d allocations totalling %s), and
+   %s for optimization (%.2f%% of total time, with %d allocations totalling %s), of which:
         %d cost computations accounted for %.2f%% of the time,
         %d gradient computations accounted for %.2f%%, and
         %d linear solver computations accounted for %.2f%%.\n", 
-            x.timetotal*1e-9, x.niterations, x.startcost, x.bestcost, 100*(1-x.bestcost/x.startcost),
-            x.timeinit*1e-9, 100.0*x.timeinit/x.timetotal,
-            optimtime*1e-9, 100.0*optimtime/x.timetotal,
+            String(x.iterator),
+            timestring(x.timetotal), x.niterations, x.startcost, x.bestcost, 100*(1-x.bestcost/x.startcost),
+            timestring(x.timeinit), 100.0*x.timeinit/x.timetotal, x.initallocations, bytesstring(x.initallocated),
+            timestring(optimtime), 100.0*optimtime/x.timetotal, x.optimizeallocations, bytesstring(x.optimizeallocated),
             x.costcomputations, 100.0*x.timecost/timedoptim,
             x.gradientcomputations, 100.0*x.timegradient/timedoptim,
-            x.linearsolvers, 100.0*x.timesolver/timedoptim)
+            x.linearsolves, 100.0*x.timesolver/timedoptim)
     if 0 != x.termination           ; println(io,  "Reason(s) for termination:"); end
     if 0 != x.termination & (1 << 0); println(io,  "   Cost is infinite."); end
     if 0 != x.termination & (1 << 1); println(io,  "   Cost is NaN."); end

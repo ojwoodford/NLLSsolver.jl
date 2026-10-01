@@ -82,7 +82,7 @@ function optimizesingles!(problem::NLLSProblem{VT, CT}, options::NLLSOptions, in
         indices = sort!(indices, lt=(i, j)->nvars(problem.variables[i])<=nvars(problem.variables[j]))
     end
     # Loop over all the variables
-    result = NLLSResult(0.0, 0.0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0)
+    result = NLLSResult(0.0, 0.0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, getiterator(options), 0, 0, 0, 0)
     first = 1
     while first <= length(indices)
         # Compute the run length of the current variable size
@@ -118,9 +118,8 @@ function setupstaticvarls(func::F1, problem::NLLSProblem, options::NLLSOptions, 
 end
 
 function setupiterator(func::F1, problem::NLLSProblem, options::NLLSOptions, ls, startstats, callback::F2, trailingargs) where {F1, F2}
-    internaldata = NLLSInternal(ls, startstats)
-    iteratordata = construct(options.iterator, problem, internaldata)
-    return func(problem, options, internaldata, iteratordata, callback, trailingargs...)
+    iteratordata = construct(options.iterator, problem, ls)
+    return func(problem, options, NLLSInternal(ls, startstats), iteratordata, callback, trailingargs...)
 end
 
 function setupsmultivarls(func::F1, problem::NLLSProblem, options::NLLSOptions, unfixed, startstats, nblocks, callback::F2, trailingargs...) where {F1, F2}
@@ -157,10 +156,7 @@ end
     converged = 0
     data.iternum = 0
     # Initialize the linear problem
-    data.gradients += @elapsed_ns begin
-            zero!(data.linsystem)
-            cost = costgradhess!(data.linsystem, problem.variables, problem.costs)
-        end
+    data.gradients += @elapsed_ns cost = costgradhess!(data.linsystem, problem.variables, problem.costs)
     data.bestcost = cost
     data.startcost = cost
     # Do the iterations
@@ -171,10 +167,7 @@ end
         computegradient = isequal(cost, -Inf)
         if computegradient
             # Construct the linear problem now, in order to compute the correct cost
-            data.gradients += @elapsed_ns begin
-                zero!(data.linsystem)
-                cost = costgradhess!(data.linsystem, problem.varnext, problem.costs)
-            end
+            data.gradients += @elapsed_ns cost = costgradhess!(data.linsystem, problem.varnext, problem.costs)
         end
         # Call the user-defined callback
         cost, terminate = callback(cost, problem, data, iteratedata)
@@ -215,10 +208,7 @@ end
         end
         if !computegradient
             # Construct the linear problem
-            data.gradients += @elapsed_ns begin
-                zero!(data.linsystem)
-                cost_ = costgradhess!(data.linsystem, problem.variables, problem.costs)
-            end
+            data.gradients += @elapsed_ns cost_ = costgradhess!(data.linsystem, problem.variables, problem.costs)
             converged |= !isapprox(cost_, cost)                      << 10 # Cost computations don't agree
         end
     end
@@ -230,10 +220,11 @@ end
 end
 
 @inline function optimizeinternal!(problem::NLLSProblem, options::NLLSOptions, data, iteratedata, callback::F) where F
+    # Create
     data.init = Stats()
     converged = optimizeloop!(problem, options, data, iteratedata, callback)
     data.optimize = Stats()
-    return NLLSResult(data, converged)
+    return NLLSResult(data, converged, getiterator(options))
 end
 
 # Optimizing variables one at a time (e.g. in alternation)
@@ -248,7 +239,7 @@ end
         # Construct the subset of residuals that depend on this variable
         selectcosts!(problem.costs, allcosts, @inbounds(view(costindices.rowval, costindices.colptr[ind]:costindices.colptr[ind+1]-1)))
         # Reset the iterator data
-        reset!(iteratedata, problem, data)
+        reset!(iteratedata)
         # Optimize the subproblem
         termination |= optimizeloop!(problem, options, data, iteratedata, callback)
         # Increment stats
@@ -260,7 +251,7 @@ end
     data.startcost = startcost
     data.bestcost = bestcost
     data.optimize = Stats()
-    result += NLLSResult(data, termination)
+    result += NLLSResult(data, termination, getiterator(options))
     return result
 end
 

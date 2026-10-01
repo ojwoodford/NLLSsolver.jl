@@ -112,6 +112,18 @@ function bytesstring(nb)
     return @sprintf("%d%s", nb, bytessuffix[suffix])
 end
 
+function timestring(ns)
+    timesuffix = ("ns", "ms", "s", " minutes", " hours")
+    timeperiod = (1000.0, 1000.0, 1000.0, 60.0, 60.0)
+    ns = Float64(ns)
+    suffix = 1
+    while ns >= timeperiod[suffix] && suffix <= length(timesuffix)
+        ns /= timeperiod[suffix]
+        suffix += 1
+    end
+    return @sprintf("%g%s", ns, timesuffix[suffix])
+end
+
 function Base.cumsum!(A::AbstractVector)
     total = zero(eltype(A))
     @inbounds for ind in eachindex(A)
