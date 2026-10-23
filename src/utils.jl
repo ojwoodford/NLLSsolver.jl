@@ -88,7 +88,7 @@ end
 Stats(init) = Stats(init, init, init)
 function Stats()
     gc_data = Base.gc_num()
-    return Stats(gc_data.malloc + gc_data.realloc + gc_data.poolalloc + gc_data.bigalloc, gc_data.allocd, Base.time_ns())
+    return Stats(gc_data.malloc + gc_data.realloc + gc_data.poolalloc + gc_data.bigalloc, Base.gc_total_bytes(gc_data), Base.time_ns())
 end
 Base.:+(x::StatsCounter, u::Stats) = StatsCounter(x.num_allocs + u.num_allocs, x.bytes_allocd + u.bytes_allocd, x.time_ns + u.time_ns, x.count + 1)
 
@@ -105,7 +105,7 @@ end
 function bytesstring(nb)
     bytessuffix = (" bytes", "KB", "MB", "GB", "TB")
     suffix = 1
-    while nb >= 1024 && suffix <= length(bytessuffix)
+    while nb >= 1024 && suffix < length(bytessuffix)
         nb /= 1024
         suffix += 1
     end
@@ -113,11 +113,11 @@ function bytesstring(nb)
 end
 
 function timestring(ns)
-    timesuffix = ("ns", "ms", "s", " minutes", " hours")
+    timesuffix = ("ns", "μs", "ms", "s", " minutes", " hours")
     timeperiod = (1000.0, 1000.0, 1000.0, 60.0, 60.0)
     ns = Float64(ns)
     suffix = 1
-    while ns >= timeperiod[suffix] && suffix <= length(timesuffix)
+    while suffix <= length(timeperiod) && ns >= timeperiod[suffix]
         ns /= timeperiod[suffix]
         suffix += 1
     end
