@@ -108,13 +108,13 @@ function setupsinglevarls(func::F1, problem::NLLSProblem, options::NLLSOptions, 
         return setupstaticvarls(func, problem, options, unfixed, startstats, varlen, callback, trailingargs)
     else
         lsdynamic = LinearSystem{UniVariateLSdynamic_x, UniVariateLSdynamic_ls}((unfixed, dynamic(varlen)), (dynamic(varlen),))
-        return setupiterator(func, problem, options, lsdynamic, startstats, callback, trailingargs)
+        return setupiterator(func, problem, options, sharedlinearsystem(lsdynamic, problem, options), startstats, callback, trailingargs)
     end
 end
 
 function setupstaticvarls(func::F1, problem::NLLSProblem, options::NLLSOptions, unfixed::Integer, startstats, varlen::StaticInt, callback::F2, trailingargs) where {F1, F2}
     lsstatic = LinearSystem{UniVariateLSstatic_x{dynamic(varlen)}, UniVariateLSstatic_ls{dynamic(varlen), dynamic(varlen*varlen)}}((unfixed,), ())
-    return setupiterator(func, problem, options, lsstatic, startstats, callback, trailingargs)
+    return setupiterator(func, problem, options, sharedlinearsystem(lsstatic, problem, options), startstats, callback, trailingargs)
 end
 
 function setupiterator(func::F1, problem::NLLSProblem, options::NLLSOptions, ls, startstats, callback::F2, trailingargs) where {F1, F2}
@@ -139,13 +139,13 @@ function setupsmultivarls(func::F1, problem::NLLSProblem, options::NLLSOptions, 
 
             # Construct the sparse MultiVariateLS
             lssparse = MultiVariateLSsparse(bsm, blockindices, !formarginalization)
-            return setupiterator(func, problem, options, lssparse, startstats, callback, trailingargs)
+            return setupiterator(func, problem, options, sharedlinearsystem(lssparse, problem, options), startstats, callback, trailingargs)
         end
     end
 
     # Construct the dense MultiVariateLS
     lsdense = MultiVariateLSdense(blocksizes, blockindices)
-    return setupiterator(func, problem, options, lsdense, startstats, callback, trailingargs)
+    return setupiterator(func, problem, options, sharedlinearsystem(lsdense, problem, options), startstats, callback, trailingargs)
 end
 
 # The meat of an optimization
@@ -220,7 +220,6 @@ end
 end
 
 @inline function optimizeinternal!(problem::NLLSProblem, options::NLLSOptions, data, iteratedata, callback::F) where F
-    # Create
     data.init = Stats()
     converged = optimizeloop!(problem, options, data, iteratedata, callback)
     data.optimize = Stats()

@@ -22,16 +22,14 @@ function ithchunk(N, taskid, collection)
 end
 
 function costgradhesschunk!(linsystem::LinearSystemShared{F, V, N}, vars::Vector, costs::CostStruct, taskid, tasks::Vector{Task})::Nothing where {F, V, N}
-    # Construct the task local values
-    subsetfun = (v) -> chunks(v, N)[taskid]
     ls = LinearSystem(linsystem, taskid)
-    zero!(ls) # Zero the local data buffer
-    # Sum over the subsets
-    ls.ls.cost = sumsubset(bindleadingargs(costgradhess!, ls, vars), costs, bindleadingargs(ithchunk, N, taskid); init=0.0)
-    # Reduce over the local buffers
+    zero!(ls)
+    linsystem.costs[taskid] = sumsubset(bindleadingargs(costgradhess!, ls, vars), costs, bindleadingargs(ithchunk, N, taskid); init=0.0)
+
+    # Parallel tree reduction over the local buffers
     n = N
     while n > 1
-        n_ = (n + 1) / 2
+        n_ = (n + 1) >> 1
         i = taskid + n_
         if i > n
             break
@@ -40,19 +38,24 @@ function costgradhesschunk!(linsystem::LinearSystemShared{F, V, N}, vars::Vector
         # Wait for task i to finish
         wait(tasks[i-1])
         # Reduce data
-        ls.ls.A += linsystem.ls[i].A
-        ls.ls.b += linsystem.ls[i].b
-        ls.ls.cost += linsystem.ls[i].cost
+        add!(linsystem.ls[taskid], linsystem.ls[i])
+        linsystem.costs[taskid] += linsystem.costs[i]
     end
     return nothing
 end
 
 function costgradhess!(linsystem::LinearSystemShared{F, V, N}, vars::Vector, costs::CostStruct)::Float64 where {F, V, N}
+    if N == 1
+        ls = LinearSystem(linsystem, 1)
+        zero!(ls)
+        linsystem.costs[1] = sumsubset(bindleadingargs(costgradhess!, ls, vars), costs, bindleadingargs(ithchunk, 1, 1); init=0.0)
+        return linsystem.costs[1]
+    end
     tasks = sizehint!(Vector{Task}(), N-1)
     for taskid in 2:N
         push!(tasks, @task costgradhesschunk!(linsystem, vars, costs, taskid, tasks))
     end
     foreach(scheduleunsticky, tasks)
     costgradhesschunk!(linsystem, vars, costs, 1, tasks)
-    return linsystem.ls[1].cost
+    return linsystem.costs[1]
 end

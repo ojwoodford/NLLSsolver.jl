@@ -25,9 +25,9 @@ function try_cholesky!(x, A, b)
     return ldiv!(x, qr(A), b)
 end
 
-solve!(ls) = solve!(ls.x.x, getA(ls), getb(ls))
-solve!(ls::MultiVariateLSsparse) = ldiv!(ls.x, ldl_factorize!(ls.hessian, ls.ldlfac), ls.b)
-solve!(ls::MultiVariateLSdense) = solve!(ls.x, ls.A.data, ls.b)
+solve!(ls) = solve!(getx(ls), getA(ls), getb(ls))
+solve!(ls::MultiVariateLSsparse) = ldiv!(getx(ls), ldl_factorize!(ls.x.hessian, ls.x.ldlfac), getb(ls))
+solve!(x, A::BlockDenseMatrix, b) = solve!(x, A.data, b)
 solve!(x, A, b) = try_cholesky!(x, A, b)
 solve!(x, A::SparseMatrixCSC, b) = ldiv!(x, ldl(A), b)
 

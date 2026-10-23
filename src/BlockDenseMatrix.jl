@@ -6,7 +6,13 @@ struct BlockDenseMatrix{T}
     function BlockDenseMatrix{T}(rowblockoffsets, columnblockoffsets=rowblockoffsets) where T
         return new{T}(zeros(T, rowblockoffsets[end]-1, columnblockoffsets[end]-1), rowblockoffsets, columnblockoffsets)
     end
+
+    function BlockDenseMatrix{T}(data::Matrix{T}, rowblockoffsets, columnblockoffsets=rowblockoffsets) where T
+        return new{T}(data, rowblockoffsets, columnblockoffsets)
+    end
 end
+
+copy_structure(bdm::BlockDenseMatrix{T}) where T = BlockDenseMatrix{T}(zeros(T, size(bdm.data)), bdm.rowblockoffsets, bdm.columnblockoffsets)
 
 uniformscaling!(bdm::BlockDenseMatrix, k) = uniformscaling!(bdm.data, k)
 

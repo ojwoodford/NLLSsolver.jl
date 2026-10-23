@@ -49,7 +49,13 @@ struct BlockSparseMatrix{T}
     function BlockSparseMatrix{T}(bsm::BlockSparseMatrix{T}, m::Int, n::Int=m) where T
         return new(bsm.data, bsm.indices, bsm.indicestransposed, bsm.rowblocksizes, bsm.columnblocksizes, m, n)
     end
+
+    function BlockSparseMatrix{T}(data::Vector{T}, indices, indicestransposed, rowblocksizes, colblocksizes, m, n) where T
+        return new(data, indices, indicestransposed, rowblocksizes, colblocksizes, m, n)
+    end
 end
+
+copy_structure(bsm::BlockSparseMatrix{T}) where T = BlockSparseMatrix{T}(zeros(T, length(bsm.data)), bsm.indices, bsm.indicestransposed, bsm.rowblocksizes, bsm.columnblocksizes, bsm.m, bsm.n)
 
 function clearindicescache(bsm)
     resize!(bsm.indices.nzval, 0)

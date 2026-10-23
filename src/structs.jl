@@ -138,5 +138,5 @@ mutable struct NLLSInternal{LSType}
     end
 end
 
-NLLSInternalMultiVar = Union{NLLSInternal{MultiVariateLSdense}, NLLSInternal{MultiVariateLSsparse}}
-NLLSInternalSingleVar = NLLSInternal{UniVariateLS}
+NLLSInternalMultiVar = NLLSInternal{<:MultiVariateLS}
+NLLSInternalSingleVar = NLLSInternal{<:UniVariateLS}
