@@ -1,8 +1,8 @@
 using Test, Static, StaticArrays, SparseArrays, LinearAlgebra, NLLSsolver
 
 myfun(x) = x * x * x
-NLLSsolver.computecost(::StaticInt, ::Vector{Int}, x::Float64) = myfun(x)
-NLLSsolver.computecost(::Vector{Int}, x::Float64) = myfun(x)
+NLLSsolver.computecost(::StaticInt, ::AbstractVector, x::Float64) = myfun(x)
+NLLSsolver.computecost(::AbstractVector, x::Float64) = myfun(x)
 
 struct MTTestScalarRes <: NLLSsolver.AbstractResidual
     val::Float64
@@ -11,7 +11,7 @@ end
 NLLSsolver.ndeps(::MTTestScalarRes) = static(1)
 NLLSsolver.nres(::MTTestScalarRes) = 1
 NLLSsolver.varindices(res::MTTestScalarRes) = res.ind
-NLLSsolver.getvars(res::MTTestScalarRes, vars::Vector) = (vars[res.ind]::Float64,)
+NLLSsolver.getvars(res::MTTestScalarRes, vars::AbstractVector) = (vars[res.ind]::Float64,)
 NLLSsolver.computeresidual(res::MTTestScalarRes, x) = x - res.val
 Base.eltype(::MTTestScalarRes) = Float64
 
@@ -23,7 +23,7 @@ end
 NLLSsolver.ndeps(::MTTestPairRes) = static(2)
 NLLSsolver.nres(::MTTestPairRes) = static(1)
 NLLSsolver.varindices(res::MTTestPairRes) = SVector(res.i, res.j)
-NLLSsolver.getvars(res::MTTestPairRes, vars::Vector) = (vars[res.i]::Float64, vars[res.j]::Float64)
+NLLSsolver.getvars(res::MTTestPairRes, vars::AbstractVector) = (vars[res.i]::Float64, vars[res.j]::Float64)
 NLLSsolver.computeresidual(res::MTTestPairRes, x, y) = SVector(x - y - res.val)
 Base.eltype(::MTTestPairRes) = Float64
 
@@ -34,7 +34,7 @@ end
 NLLSsolver.ndeps(::MTTestDynamicRes) = static(1)
 NLLSsolver.nres(::MTTestDynamicRes) = static(1)
 NLLSsolver.varindices(::MTTestDynamicRes) = 1
-NLLSsolver.getvars(::MTTestDynamicRes, vars::Vector) = (vars[1]::NLLSsolver.DynamicVector{Float64},)
+NLLSsolver.getvars(::MTTestDynamicRes, vars::AbstractVector) = (vars[1]::NLLSsolver.DynamicVector{Float64},)
 NLLSsolver.computeresidual(res::MTTestDynamicRes, w) = dot(res.X, w) - res.y
 Base.eltype(::MTTestDynamicRes) = Float64
 

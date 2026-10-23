@@ -15,10 +15,9 @@ docs/site/
 # environment.
 /Manifest.toml
 
-# IDE files
+# IDE and AI agent files
 .vscode
-
-# AI agent files
+.continue
 .claude
 CLAUDE.md
 .gemini
