@@ -1,25 +1,5 @@
 using Polyester
 
-# Overload sum to use multithreading for large vectors
-function Base.sum(fun::Bind{typeof(computecost), <:Tuple{StaticInt{N}, Any}}, collection::AbstractVector; kw...)::Float64 where {N}
-    if N == 1 || length(collection) < Int(1e4)
-        # Single threaded version
-        vars = fun.args[2]
-        tot = 0.0
-        @inbounds for item in collection
-            tot += computecost(vars, item)
-        end
-        return tot
-    end
-    # Multithreaded version with Polyester
-    vars = fun.args[2]
-    tot = 0.0
-    @batch reduction=((+, tot),) for item in collection
-        tot += computecost(vars, item)
-    end
-    return tot
-end
-
 @inline function chunk_indices(len::Integer, nchunks::Integer, chunkid::Integer)
     chunkid > nchunks && return 1:0
     q, r = divrem(len, nchunks)
@@ -30,6 +10,17 @@ end
 
 @inline function ithchunk(N, taskid, collection)
     return view(collection, chunk_indices(length(collection), N, taskid))
+end
+
+function cost(vars::AbstractVector, costs::CostStruct, ::StaticInt{N})::Float64 where {N}
+    if N == 1 || countcosts(costnum, costs) < 10000
+        return cost(vars, costs)
+    end
+    costsvec = MVector{N, Float64}(undef)
+    @batch for taskid in 1:N
+        costsvec[taskid] = sumsubset(bindleadingargs(computecost, vars), costs, bindleadingargs(ithchunk, N, taskid); init=0.0)
+    end
+    return sum(costsvec)
 end
 
 function costgradhess!(linsystem::LinearSystemShared{F, V, N}, vars::AbstractVector, costs::CostStruct)::Float64 where {F, V, N}

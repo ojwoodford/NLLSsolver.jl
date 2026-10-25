@@ -61,6 +61,10 @@ Base.eltype(::MTTestDynamicRes) = Float64
     @test c_s ≈ c_m
     @test NLLSsolver.getgrad(ls_static_single) ≈ NLLSsolver.getgrad(ls_static_shared)
     @test NLLSsolver.gethessian(ls_static_single) ≈ NLLSsolver.gethessian(ls_static_shared)
+    c_cost_s = NLLSsolver.cost(prob_static.variables, prob_static.costs, static(1))
+    c_cost_m = NLLSsolver.cost(prob_static.variables, prob_static.costs, static(4))
+    @test c_cost_s ≈ c_cost_m
+    @test c_cost_s ≈ c_s
 
     # Verify ephemeral stack wrapper construction has 0 allocations
     ls_ephemeral = NLLSsolver.LinearSystem(ls_static_shared, 1)
