@@ -7,6 +7,8 @@ function Base.String(iterator::NLLSIterator)
         return "Newton"
     elseif iterator == levenbergmarquardt
         return "Levenberg-Marquardt"
+    elseif iterator == levenbergmarquardt_dtd
+        return "Levenberg-Marquardt (D'D scaling)"
     elseif iterator == dogleg
         return "Dogleg"
     elseif iterator == gradientdescent
@@ -116,15 +118,49 @@ end
 printoutcallback(cost, problem, data, iteratedata::DoglegData) = printoutcallback(cost, data, iteratedata.trustradius)
 
 # Levenberg-Marquardt optimization
+# :levenbergmarquardt damps the Hessian with lambda * I.
+# :levenbergmarquardt_dtd damps it with lambda * D'D (Marquardt scaling), where D'D is the running maximum of diag(J'J)
+# over the iterations so far, floored at 1e-8 times its largest entry (Transtrum & Sethna, arXiv:1201.5885).
 mutable struct LevMarData
     lambda::Float64
+    dtd::Bool
+    scaling::Vector{Float64} # D'D (dtd only)
+    hdiag::Vector{Float64}   # Undamped diagonal of the current Hessian (dtd only)
 
-    function LevMarData(::NLLSProblem, ::NLLSInternal)
-        return new(0.0)
+    function LevMarData(::NLLSProblem, ::NLLSInternal, dtd::Bool=false)
+        return new(0.0, dtd, Float64[], Float64[])
     end
 end
 construct(::StaticSymbol{:levenbergmarquardt}, problem, data) = LevMarData(problem, data)
-reset!(lmd::LevMarData, ::NLLSProblem, ::NLLSInternal) = lmd.lambda = 0.0
+construct(::StaticSymbol{:levenbergmarquardt_dtd}, problem, data) = LevMarData(problem, data, true)
+reset!(lmd::LevMarData, ::NLLSProblem, ::NLLSInternal) = (empty!(lmd.scaling); lmd.lambda = 0.0)
+
+# Store the undamped diagonal of the Hessian, and update the running maximum D'D
+function updatescaling!(lmd::LevMarData, hessian)
+    n = size(hessian, 1)
+    if length(lmd.scaling) != n
+        lmd.scaling = zeros(n)
+        lmd.hdiag = zeros(n)
+    end
+    m = 0.0
+    for i in 1:n
+        @inbounds h = hessian[i,i]
+        @inbounds lmd.hdiag[i] = h
+        @inbounds d = lmd.scaling[i] = max(lmd.scaling[i], abs(h))
+        m = max(m, d)
+    end
+    m *= 1e-8
+    for i in 1:n
+        @inbounds lmd.scaling[i] = max(lmd.scaling[i], m)
+    end
+end
+
+# Set the Hessian diagonal to hdiag + lambda * scaling (lambda = 0 restores the undamped Hessian exactly)
+function dampdiagonal!(hessian, lmd::LevMarData, lambda)
+    for i in 1:size(hessian, 1)
+        @inbounds hessian[i,i] = lmd.hdiag[i] + lambda * lmd.scaling[i]
+    end
+end
 
 function initlambda(hessian)
     m = zero(eltype(hessian))
@@ -137,14 +173,23 @@ end
 @inline function iterate!(levmardata::LevMarData, data, problem::NLLSProblem, options::NLLSOptions)::Float64
     @assert levmardata.lambda >= 0.
     hessian, gradient = gethessgrad(data.linsystem)
-    if levmardata.lambda == 0
+    if levmardata.dtd
+        updatescaling!(levmardata, hessian)
+        if levmardata.lambda == 0
+            levmardata.lambda = 1e-6
+        end
+    elseif levmardata.lambda == 0
         levmardata.lambda = initlambda(hessian)
     end
     lastlambda = 0.
     mu = 2.
     while true
         # Dampen the Hessian
-        uniformscaling!(hessian, levmardata.lambda - lastlambda)
+        if levmardata.dtd
+            dampdiagonal!(hessian, levmardata, levmardata.lambda)
+        else
+            uniformscaling!(hessian, levmardata.lambda - lastlambda)
+        end
         lastlambda = levmardata.lambda
         # Solve the linear system
         data.solves += @elapsed_ns negate!(solve!(data.linsystem))
@@ -155,7 +200,11 @@ end
         # Check for exit
         if !(cost_ > data.bestcost) || maximum(abs, getx(data.linsystem))::Float64 < options.dstep
             # Success (or convergence) - update lambda
-            uniformscaling!(hessian, -lastlambda)
+            if levmardata.dtd
+                dampdiagonal!(hessian, levmardata, 0.0)
+            else
+                uniformscaling!(hessian, -lastlambda)
+            end
             stepquality = (cost_ - data.bestcost) / (0.5 * fast_bAb(hessian, getx(data.linsystem)) + dot(gradient, getx(data.linsystem)))
             levmardata.lambda *= stepquality < 0.983 ? 1 - (2 * stepquality - 1) ^ 3 : 0.1
             # Return the cost
