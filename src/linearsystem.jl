@@ -221,7 +221,7 @@ function update!(to::Vector, from::Vector, linsystem::MultiVariateLS, step=linsy
     end
 end
 
-function update!(to::Vector, from::Vector, linsystem::UniVariateLS, step=linsystem.x.x)
+@inline function update!(to::Vector, from::Vector, linsystem::UniVariateLS, step=getx(linsystem))
     # Update one variable
     @inbounds to[linsystem.x.varindex] = update(from[linsystem.x.varindex], step)
 end

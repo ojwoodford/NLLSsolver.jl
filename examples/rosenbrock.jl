@@ -33,7 +33,7 @@ function computeCostGrid(costs, X, Y)
     for (b, y) in enumerate(Y)
         for (a, x) in enumerate(X)
             vars[1] = SVector(x, y)
-            grid[a,b] = NLLSsolver.cost(vars, costs)
+            grid[a,b] = NLLSsolver.cost(vars, costs, static(1))
         end
     end
     return grid
