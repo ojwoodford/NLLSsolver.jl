@@ -85,6 +85,16 @@ Base.eltype(::RosenbrockB) = Float64
     @test all(diff(ct.times_ns) .>= 0.0) # Check costs increase
     @test all(x -> length(x) == 2, ct.trajectory) # Check the trajectory lengths
 
+    # Optimize using Levenberg-Marquardt with D'D (running-max Marquardt) scaling
+    problem.variables[1] = -0.5
+    problem.variables[2] = 2.5
+    empty!(ct)
+    result = optimize!(problem, NLLSOptions(iterator=NLLSsolver.levenbergmarquardt_dtd), nothing, storecostscallback(ct.costs))
+    @test cost(problem) == result.bestcost
+    @test isapprox(problem.variables[1], 1.0; rtol=1.e-10)
+    @test isapprox(problem.variables[2], 1.0; rtol=1.e-10)
+    @test all(diff(ct.costs) .<= 0.0) # Check costs decrease
+
     # Optimize using dogleg
     problem.variables[1] = -0.5
     problem.variables[2] = 2.5

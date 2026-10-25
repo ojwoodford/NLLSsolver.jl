@@ -100,4 +100,19 @@ end
     problem = perturb_ba_problem(problem, 0.001, 0.001)
     result = optimize!(problem, options)
     @test result.optimizeallocated == 0
+
+    # The same with D'D damping: dense, single-variable (static) and sparse linear systems
+    dtdoptions = NLLSOptions(numthreads = static(1), iterator = :levenbergmarquardt_dtd)
+    problem = perturb_ba_problem(create_ba_problem(3, 5, 1.0), 0.001, 0.001)
+    result = optimize!(problem, dtdoptions)
+    @test NLLSsolver.cost(problem) == result.bestcost
+    @test result.bestcost < 1.e-15
+    problem = perturb_ba_problem(problem, 0.003, 0.0)
+    result = NLLSsolver.optimizesingles!(problem, dtdoptions, EuclideanVector{3, Float64})
+    @test NLLSsolver.cost(problem) < 1.e-15
+    problem = perturb_ba_problem(create_ba_problem(10, 50, 0.3), 0.001, 0.001)
+    result = optimize!(problem, dtdoptions)
+    @test NLLSsolver.cost(problem) == result.bestcost
+    @test result.bestcost < 1.e-15
+    @test result.optimizeallocated == 0
 end

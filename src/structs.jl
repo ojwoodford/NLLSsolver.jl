@@ -1,7 +1,7 @@
 using SparseArrays, Static
 import Printf.@printf
 
-@enum NLLSIterator newton levenbergmarquardt dogleg gradientdescent
+@enum NLLSIterator newton levenbergmarquardt dogleg gradientdescent levenbergmarquardt_dtd
 
 struct NLLSOptions{S, N}
     reldcost::Float64           # Minimum relative reduction in cost required to avoid termination
