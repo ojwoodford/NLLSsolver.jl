@@ -9,7 +9,7 @@ SimpleError2{V1, V2}(meas::SVector{N, T}, vi1, vi2) where {N, T, V1, V2} = Simpl
 ndeps(::SimpleError2) = static(2) # Residual depends on 2 variables
 nres(::SimpleError2{N, T, V1, V2}) where {N, T, V1, V2} = static(N) # Residual vector has length N
 varindices(res::SimpleError2) = res.varind
-getvars(res::SimpleError2{N, T, V1, V2}, vars::Vector) where {N, T, V1, V2} = vars[@inbounds(res.varind[1])]::V1, vars[@inbounds(res.varind[2])]::V2
+getvars(res::SimpleError2{N, T, V1, V2}, vars::AbstractVector) where {N, T, V1, V2} = vars[@inbounds(res.varind[1])]::V1, vars[@inbounds(res.varind[2])]::V2
 computeresidual(res::SimpleError2, arg1, arg2) = generatemeasurement(arg1, arg2) - res.measurement
 Base.eltype(::SimpleError2{N, T, V1, V2}) where {N, T, V1, V2} = T
 
@@ -21,7 +21,7 @@ SimpleError3{V1, V2, V3}(meas::SVector{N, T}, vi1, vi2, vi3) where {N, T, V1, V2
 ndeps(::SimpleError3) = static(3) # Residual depends on 3 variables
 nres(::SimpleError3{N, T, V1, V2, V3}) where {N, T, V1, V2, V3} = static(N) # Residual vector has length N
 varindices(res::SimpleError3) = res.varind
-getvars(res::SimpleError3{N, T, V1, V2, V3}, vars::Vector) where {N, T, V1, V2, V3} = vars[@inbounds(res.varind[1])]::V1, vars[@inbounds(res.varind[2])]::V2, vars[@inbounds(res.varind[3])]::V3
+getvars(res::SimpleError3{N, T, V1, V2, V3}, vars::AbstractVector) where {N, T, V1, V2, V3} = vars[@inbounds(res.varind[1])]::V1, vars[@inbounds(res.varind[2])]::V2, vars[@inbounds(res.varind[3])]::V3
 computeresidual(res::SimpleError3, arg1, arg2, arg3) = generatemeasurement(arg1, arg2, arg3) - res.measurement
 Base.eltype(::SimpleError3{N, T, V1, V2, V3}) where {N, T, V1, V2, V3} = T
 
@@ -33,7 +33,7 @@ SimpleError4{V1, V2, V3, V4}(meas::SVector{N, T}, vi1, vi2, vi3, vi4) where {N, 
 ndeps(::SimpleError4) = static(4) # Residual depends on 4 variables
 nres(::SimpleError4{N, T, V1, V2, V3, V4}) where {N, T, V1, V2, V3, V4} = static(N) # Residual vector has length N
 varindices(res::SimpleError4) = res.varind
-getvars(res::SimpleError4{N, T, V1, V2, V3, V4}, vars::Vector) where {N, T, V1, V2, V3, V4} = vars[@inbounds(res.varind[1])]::V1, vars[@inbounds(res.varind[2])]::V2, vars[@inbounds(res.varind[3])]::V3, vars[@inbounds(res.varind[4])]::V4
+getvars(res::SimpleError4{N, T, V1, V2, V3, V4}, vars::AbstractVector) where {N, T, V1, V2, V3, V4} = vars[@inbounds(res.varind[1])]::V1, vars[@inbounds(res.varind[2])]::V2, vars[@inbounds(res.varind[3])]::V3, vars[@inbounds(res.varind[4])]::V4
 computeresidual(res::SimpleError4, arg1, arg2, arg3, arg4) = generatemeasurement(arg1, arg2, arg3, arg4) - res.measurement
 Base.eltype(::SimpleError4{N, T, V1, V2, V3, V4}) where {N, T, V1, V2, V3, V4} = T
 

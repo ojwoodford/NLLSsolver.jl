@@ -12,18 +12,17 @@ function Base.String(iterator::NLLSIterator)
     elseif iterator == dogleg
         return "Dogleg"
     elseif iterator == gradientdescent
-        return "Gradient descent"
+        return "gradient descent"
     else
-        return "Unknown iterator"
+        return "unknown iterator"
     end
 end
 
 # Newton optimization (undamped-Hessian form)
 struct NewtonData
 end
-NewtonData(::NLLSProblem, ::NLLSInternal) = NewtonData()
-construct(::StaticSymbol{:newton}, problem, data) = NewtonData(problem, data)
-reset!(nd::NewtonData, ::NLLSProblem, ::NLLSInternal) = nothing
+construct(::StaticSymbol{:newton}, problem, ls) = NewtonData()
+reset!(nd::NewtonData) = nothing
 
 @inline function iterate!(::NewtonData, data, problem::NLLSProblem, options::NLLSOptions)::Float64
     # Compute the step
@@ -40,12 +39,12 @@ mutable struct DoglegData{T}
     trustradius::Float64
     cauchy::T
 
-    function DoglegData(::NLLSProblem, data::NLLSInternal)
-        return new{typeof(getx(data.linsystem))}(0.0, similar(getx(data.linsystem)))
+    function DoglegData(::NLLSProblem, ls)
+        return new{typeof(getx(ls))}(0.0, similar(getx(ls)))
     end
 end
 construct(::StaticSymbol{:dogleg}, problem, data) = DoglegData(problem, data)
-reset!(dd::DoglegData, ::NLLSProblem, data::NLLSInternal) = dd.trustradius = 0.0
+reset!(dd::DoglegData) = dd.trustradius = 0.0
 
 @inline function iterate!(doglegdata::DoglegData, data, problem::NLLSProblem, options::NLLSOptions)::Float64
     hessian, gradient = gethessgrad(data.linsystem)
@@ -121,75 +120,61 @@ printoutcallback(cost, problem, data, iteratedata::DoglegData) = printoutcallbac
 # :levenbergmarquardt damps the Hessian with lambda * I.
 # :levenbergmarquardt_dtd damps it with lambda * D'D (Marquardt scaling), where D'D is the running maximum of diag(J'J)
 # over the iterations so far, floored at 1e-8 times its largest entry (Transtrum & Sethna, arXiv:1201.5885).
-mutable struct LevMarData
-    lambda::Float64
-    dtd::Bool
-    scaling::Vector{Float64} # D'D (dtd only)
-    hdiag::Vector{Float64}   # Undamped diagonal of the current Hessian (dtd only)
+abstract type LevMarData end
 
-    function LevMarData(::NLLSProblem, ::NLLSInternal, dtd::Bool=false)
-        return new(0.0, dtd, Float64[], Float64[])
+mutable struct LevenbergData <: LevMarData
+    lambda::Float64
+end
+construct(::StaticSymbol{:levenbergmarquardt}, problem, ls) = LevenbergData(0.0)
+reset!(lmd::LevenbergData) = lmd.lambda = 0.0
+
+function updatescaling!(lmd::LevenbergData, hessian)
+    if lmd.lambda == 0
+        m = zero(eltype(hessian))
+        for i in axes(hessian, 1)
+            @inbounds m = max(m, abs(hessian[i,i]))
+        end
+        lmd.lambda = m * 1e-6
     end
 end
-construct(::StaticSymbol{:levenbergmarquardt}, problem, data) = LevMarData(problem, data)
-construct(::StaticSymbol{:levenbergmarquardt_dtd}, problem, data) = LevMarData(problem, data, true)
-reset!(lmd::LevMarData, ::NLLSProblem, ::NLLSInternal) = (empty!(lmd.scaling); lmd.lambda = 0.0)
 
-# Store the undamped diagonal of the Hessian, and update the running maximum D'D
-function updatescaling!(lmd::LevMarData, hessian)
-    n = size(hessian, 1)
-    if length(lmd.scaling) != n
-        lmd.scaling = zeros(n)
-        lmd.hdiag = zeros(n)
+dampenhessian!(hessian, ::LevenbergData, dlambda) = uniformscaling!(hessian, dlambda)
+
+mutable struct MarquardtData{T} <: LevMarData
+    lambda::Float64
+    scaling::T
+end
+construct(::StaticSymbol{:levenbergmarquardt_dtd}, problem, ls) = MarquardtData(0.0, zero(getx(ls)))
+reset!(lmd::MarquardtData) = (fill!(lmd.scaling, 0.0); lmd.lambda = 0.0)
+
+# Update the running maximum D'D of the Hessian diagonal
+function updatescaling!(lmd::MarquardtData, hessian)
+    if lmd.lambda == 0
+        lmd.lambda = 1e-6
     end
-    m = 0.0
-    for i in 1:n
-        @inbounds h = hessian[i,i]
-        @inbounds lmd.hdiag[i] = h
-        @inbounds d = lmd.scaling[i] = max(lmd.scaling[i], abs(h))
+    m = zero(eltype(hessian))
+    for i in axes(hessian, 1)
+        @inbounds d = lmd.scaling[i] = max(lmd.scaling[i], abs(hessian[i,i]))
         m = max(m, d)
     end
-    m *= 1e-8
-    for i in 1:n
-        @inbounds lmd.scaling[i] = max(lmd.scaling[i], m)
-    end
+    lmd.scaling .= max.(lmd.scaling, m * 1e-8)
 end
 
-# Set the Hessian diagonal to hdiag + lambda * scaling (lambda = 0 restores the undamped Hessian exactly)
-function dampdiagonal!(hessian, lmd::LevMarData, lambda)
-    for i in 1:size(hessian, 1)
-        @inbounds hessian[i,i] = lmd.hdiag[i] + lambda * lmd.scaling[i]
+function dampenhessian!(hessian, lmd::MarquardtData, dlambda)
+    for i in axes(hessian, 1)
+        @inbounds hessian[i,i] += dlambda * lmd.scaling[i]
     end
-end
-
-function initlambda(hessian)
-    m = zero(eltype(hessian))
-    for i in indices(hessian, 1)
-        @inbounds m = max(m, abs(hessian[i,i]))
-    end
-    return m * 1e-6
 end
 
 @inline function iterate!(levmardata::LevMarData, data, problem::NLLSProblem, options::NLLSOptions)::Float64
     @assert levmardata.lambda >= 0.
     hessian, gradient = gethessgrad(data.linsystem)
-    if levmardata.dtd
-        updatescaling!(levmardata, hessian)
-        if levmardata.lambda == 0
-            levmardata.lambda = 1e-6
-        end
-    elseif levmardata.lambda == 0
-        levmardata.lambda = initlambda(hessian)
-    end
+    updatescaling!(levmardata, hessian)
     lastlambda = 0.
     mu = 2.
     while true
         # Dampen the Hessian
-        if levmardata.dtd
-            dampdiagonal!(hessian, levmardata, levmardata.lambda)
-        else
-            uniformscaling!(hessian, levmardata.lambda - lastlambda)
-        end
+        dampenhessian!(hessian, levmardata, levmardata.lambda - lastlambda)
         lastlambda = levmardata.lambda
         # Solve the linear system
         data.solves += @elapsed_ns negate!(solve!(data.linsystem))
@@ -200,11 +185,7 @@ end
         # Check for exit
         if !(cost_ > data.bestcost) || maximum(abs, getx(data.linsystem))::Float64 < options.dstep
             # Success (or convergence) - update lambda
-            if levmardata.dtd
-                dampdiagonal!(hessian, levmardata, 0.0)
-            else
-                uniformscaling!(hessian, -lastlambda)
-            end
+            dampenhessian!(hessian, levmardata, -lastlambda)
             stepquality = (cost_ - data.bestcost) / (0.5 * fast_bAb(hessian, getx(data.linsystem)) + dot(gradient, getx(data.linsystem)))
             levmardata.lambda *= stepquality < 0.983 ? 1 - (2 * stepquality - 1) ^ 3 : 0.1
             # Return the cost
@@ -221,13 +202,9 @@ printoutcallback(cost, problem, data, iteratedata::LevMarData) = printoutcallbac
 # Gradient descent optimization
 mutable struct GradientDescentData
     stepsize::Float64
-
-    function GradientDescentData(::NLLSProblem, ::NLLSInternal)
-        return new(1.0)
-    end
 end
-construct(::StaticSymbol{:gradientdescent}, problem, data) = GradientDescentData(problem, data)
-reset!(gdd::GradientDescentData, ::NLLSProblem, ::NLLSInternal) = gdd.stepsize = 1.0
+construct(::StaticSymbol{:gradientdescent}, problem, data) = GradientDescentData(1.0)
+reset!(gdd::GradientDescentData) = gdd.stepsize = 1.0
 
 @inline function iterate!(gddata::GradientDescentData, data, problem::NLLSProblem, options::NLLSOptions)::Float64
     gradient = getgrad(data.linsystem)
