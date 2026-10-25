@@ -6,11 +6,12 @@ import ForwardDiff
 
 Compute and return the scalar cost defined by `problem`.
 """
-cost(problem::NLLSProblem, numthreads::StaticInt=StaticInt(Threads.nthreads())) = cost(problem.variables, problem.costs, numthreads)
-cost(vars::Vector, costs::CostStruct, numthreads::StaticInt)::Float64 = sum(bindleadingargs(computecost, numthreads, vars), costs; init=0.0)
-# cost(vars::Vector, costs::CostStruct, subsetfun)::Float64 = sumsubset(bindleadingargs(computecost, vars), subsetfun, costs; init=0.0)
-computecost(vars::Vector, cost::AbstractCost)::Float64 = computecost(cost, getvars(cost, vars)...)
-computecost(::StaticInt, vars::Vector, cost::AbstractCost) = computecost(vars, cost)
+cost(problem::NLLSProblem, numthreads=StaticInt(Threads.nthreads())) = cost(problem.variables, problem.costs, numthreads)
+cost(problem::NLLSProblem, numthreads::Integer) = cost(problem, static(numthreads))
+cost(vars::AbstractVector, costs::CostStruct)::Float64 = sum(bindleadingargs(computecost, vars), costs; init=0.0)
+cost(vars::AbstractVector, costs::CostStruct, ::StaticInt)::Float64 = cost(vars, costs)
+cost(vars::AbstractVector, costs::CostStruct, numthreads::Integer)::Float64 = cost(vars, costs, static(numthreads))
+computecost(vars::AbstractVector, cost::AbstractCost)::Float64 = computecost(cost, getvars(cost, vars)...)
 
 function gradhesshelper!(linsystem, cost::AbstractCost, vars, blockind, varflags::StaticInt)::Float64
     # Compute the residual
@@ -47,7 +48,7 @@ end
 # Compute the variable flags indicating which variables are unfixed (i.e. to be optimized)
 computevarflags(blockind) = mapreduce((ind, val) -> (val != 0) << ind, |, SR(0, length(blockind)-1), blockind)
 
-function costgradhess!(linsystem, vars::Vector, cost::AbstractCost)
+function costgradhess!(linsystem, vars::AbstractVector, cost::AbstractCost)
     # Determine which variables are free
     blockind = getoffsets(cost, linsystem)
     varflags = computevarflags(blockind)
@@ -55,5 +56,8 @@ function costgradhess!(linsystem, vars::Vector, cost::AbstractCost)
     return gradhesshelper!(linsystem, cost, getvars(cost, vars), blockind, varflags)
 end
 
-costgradhess!(linsystem, vars::Vector, costs::CostStruct)::Float64 = sum(bindleadingargs(costgradhess!, linsystem, vars), costs; init=0.0)
+function costgradhess!(linsystem, vars::AbstractVector, costs::CostStruct)::Float64
+    zero!(linsystem)
+    return sum(bindleadingargs(costgradhess!, linsystem, vars), costs; init=0.0)
+end
 # costgradhess!(linsystem, vars::Vector, costs::CostStruct, subsetfun)::Float64 = sumsubset(bindleadingargs(costgradhess!, linsystem, vars), subsetfun, costs; init=0.0)
