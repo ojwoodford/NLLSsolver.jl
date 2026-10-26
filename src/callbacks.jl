@@ -44,7 +44,7 @@ function printoutcallback(cost, problem, data, trailingargs...)
         println("iter      cost      cost_change    |step|")
         @printf("% 4d % 8e  % 4.3e   % 3.2e\n", 0, prevcost, 0, 0)
     end
-    @printf("% 4d % 8e  % 4.3e   % 3.2e\n", data.iternum, cost, prevcost-cost, norm(getx(data.linsystem)))
+    @printf("% 4d % 8e  % 4.3e   % 3.2e\n", data.iternum, cost, prevcost-cost, fast_norm(getx(data.linsystem)))
     return cost, 0
 end
 function printoutcallback(cost, data, trradius::Float64)
@@ -55,7 +55,7 @@ function printoutcallback(cost, data, trradius::Float64)
         println("iter      cost      cost_change    |step|    tr_radius")
         @printf("% 4d % 8e  % 4.3e   % 3.2e   % 2.1e\n", 0, prevcost, 0, 0, trradius)
     end
-    @printf("% 4d % 8e  % 4.3e   % 3.2e   % 2.1e\n", data.iternum, cost, prevcost-cost, norm(getx(data.linsystem)), trradius)
+    @printf("% 4d % 8e  % 4.3e   % 3.2e   % 2.1e\n", data.iternum, cost, prevcost-cost, fast_norm(getx(data.linsystem)), trradius)
     return cost, 0
 end
 

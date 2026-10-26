@@ -39,6 +39,54 @@ NLLSsolver.computeresidual(res::MTTestDynamicRes, w) = dot(res.X, w) - res.y
 Base.eltype(::MTTestDynamicRes) = Float64
 
 @testset "multithreading.jl" begin
+    # chunk_indices: chunks are contiguous, cover 1:len exactly, and differ in size by at most 1
+    for len in (0, 1, 5, 16, 17, 1001), nchunks in (1, 2, 3, 4, 7, 20)
+        chunks = [NLLSsolver.chunk_indices(len, nchunks, id) for id in 1:nchunks]
+        @test reduce(vcat, collect.(chunks); init=Int[]) == collect(1:len)
+        @test maximum(length, chunks) - minimum(length, chunks) <= 1
+        @test isempty(NLLSsolver.chunk_indices(len, nchunks, nchunks + 1))
+    end
+    @test NLLSsolver.chunk_indices(10, 3, 1) == 1:4
+    @test NLLSsolver.chunk_indices(10, 3, 2) == 5:7
+    @test NLLSsolver.chunk_indices(10, 3, 3) == 8:10
+
+    # ithchunk
+    coll = collect(11:20)
+    @test NLLSsolver.ithchunk(3, 2, coll) == [15, 16, 17]
+    @test NLLSsolver.ithchunk(3, 2, coll) isa SubArray
+    @test isempty(NLLSsolver.ithchunk(3, 4, coll))
+
+    # cost_range
+    vars_cr = [2.0]
+    costs_cr = [MTTestScalarRes(k * 0.1, 1) for k in 1:100]
+    serial = sum(c -> NLLSsolver.computecost(vars_cr, c), costs_cr)
+    @test NLLSsolver.cost_range(vars_cr, costs_cr, 1:100) ≈ serial
+    @test NLLSsolver.cost_range(vars_cr, costs_cr, 1:0) == 0.0
+    @test NLLSsolver.cost_range(vars_cr, costs_cr, 1:50) + NLLSsolver.cost_range(vars_cr, costs_cr, 51:100) ≈ serial
+
+    # Threaded cost matches serial cost for any thread count, above and below the threading threshold,
+    # and for both Union and Any cost repositories
+    for ncosts in (100, 25000)
+        prob_union = NLLSProblem{Float64, Union{MTTestScalarRes, MTTestPairRes}}()
+        prob_any = NLLSProblem(Float64)
+        for p in (prob_union, prob_any)
+            addvariable!(p, 1.5)
+            addvariable!(p, -0.5)
+            for k in 1:ncosts
+                addcost!(p, MTTestScalarRes(k * 1.e-4, 1))
+                addcost!(p, MTTestPairRes(k * 1.e-4, 1, 2))
+            end
+        end
+        ref = NLLSsolver.cost(prob_union.variables, prob_union.costs, static(1))
+        @test ref ≈ sum(c -> NLLSsolver.computecost(prob_union.variables, c), get(prob_union.costs, MTTestScalarRes)) +
+                    sum(c -> NLLSsolver.computecost(prob_union.variables, c), get(prob_union.costs, MTTestPairRes))
+        for n in (1, 2, 3, 4, 7, Threads.nthreads() + 1)
+            @test NLLSsolver.cost(prob_union.variables, prob_union.costs, static(n)) ≈ ref
+            @test NLLSsolver.cost(prob_any.variables, prob_any.costs, static(n)) ≈ ref
+            @test NLLSsolver.cost(prob_union, n) ≈ ref
+        end
+    end
+
     # Cost sums
     v = rand(Int(1e6))
     s1 = sum(myfun, v)

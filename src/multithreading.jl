@@ -13,12 +13,13 @@ end
 end
 
 function cost_vec(vars, costlist::Vector, ::StaticInt{N})::Float64 where {N}
-    if length(costlist) < 10000
+    len = length(costlist)
+    if len < 10000
         return cost_vec(vars, costlist, static(1))
     end
     tot = 0.0
-    @batch reduction=((+, tot),) for i in eachindex(costlist)
-        tot += computecost(vars, costlist[i])
+    @batch reduction=((+, tot),) for taskid in 1:N
+        tot += cost_range(vars, costlist, chunk_indices(len, N, taskid))
     end
     return tot
 end

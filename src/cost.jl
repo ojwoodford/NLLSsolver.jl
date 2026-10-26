@@ -18,10 +18,12 @@ cost_repo_type(vars, costs, T::Union, numthreads) = cost_repo_type(vars, costs, 
 cost_repo_type(vars, costs, T::DataType, numthreads) = cost_vec(vars, get(costs, T), numthreads)
 cost_repo(vars, costs::CostStruct{Any}, numthreads::StaticInt) = sum(c -> cost_vec(vars, c, numthreads), values(costs.data))
 
-function cost_vec(vars, costlist::Vector, ::StaticInt{1})::Float64
+cost_vec(vars, costlist::Vector, ::StaticInt{1})::Float64 = cost_range(vars, costlist, eachindex(costlist))
+
+function cost_range(vars, costlist::AbstractVector, rng::AbstractUnitRange)::Float64
     tot = 0.0
-    @inbounds for c in costlist
-        tot += computecost(vars, c)
+    @inbounds for i in rng
+        tot += computecost(vars, costlist[i])
     end
     return tot
 end

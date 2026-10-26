@@ -62,7 +62,7 @@ reset!(dd::DoglegData) = dd.trustradius = 0.0
         if alpha < doglegdata.trustradius
             # Compute the Newton step
             negate!(solve!(data.linsystem))
-            beta = norm(getx(data.linsystem))
+            beta = fast_norm(getx(data.linsystem))
         end
     end
     cost_ = data.bestcost
@@ -102,7 +102,7 @@ reset!(dd::DoglegData) = dd.trustradius = 0.0
         # Update trust region radius
         mu = (data.bestcost - cost_) / linear_approx
         if mu > 0.375
-            doglegdata.trustradius = max(doglegdata.trustradius, 3 * norm(getx(data.linsystem)))
+            doglegdata.trustradius = max(doglegdata.trustradius, 3 * fast_norm(getx(data.linsystem)))
         elseif mu < 0.125
             doglegdata.trustradius *= 0.5
         end
@@ -186,7 +186,7 @@ end
         if !(cost_ > data.bestcost) || maximum(abs, getx(data.linsystem))::Float64 < options.dstep
             # Success (or convergence) - update lambda
             dampenhessian!(hessian, levmardata, -lastlambda)
-            stepquality = (cost_ - data.bestcost) / (0.5 * fast_bAb(hessian, getx(data.linsystem)) + dot(gradient, getx(data.linsystem)))
+            stepquality = (cost_ - data.bestcost) / (0.5 * fast_bAb(hessian, getx(data.linsystem)) + fast_dot(gradient, getx(data.linsystem)))
             levmardata.lambda *= stepquality < 0.983 ? 1 - (2 * stepquality - 1) ^ 3 : 0.1
             # Return the cost
             return cost_

@@ -1,4 +1,4 @@
-using NLLSsolver, Test, SparseArrays, StaticArrays, LinearAlgebra
+using NLLSsolver, Test, SparseArrays, StaticArrays, LinearAlgebra, Static
 
 test_fast_bAb(A, b) = @test NLLSsolver.fast_bAb(A, b) ≈ dot(b, A, b)
 
@@ -29,6 +29,101 @@ test_fast_bAb(A, b) = @test NLLSsolver.fast_bAb(A, b) ≈ dot(b, A, b)
     @test NLLSsolver.bytesstring(1073741824 * 3) == "3GB"
     @test NLLSsolver.bytesstring(1099511627776 * 4) == "4TB"
     @test NLLSsolver.bytesstring(1099511627776 * 4000) == "4000TB"
+
+    # valuedispatch: converts a runtime Int into the matching StaticInt
+    for v in 0:7
+        @test NLLSsolver.valuedispatch(static(0), static(7), v, identity) === static(v)
+    end
+    @test NLLSsolver.valuedispatch(static(3), static(3), 3, x -> x + static(1)) === static(4)
+
+    # bindleadingargs
+    f = NLLSsolver.bindleadingargs(-, 10)
+    @test f(3) == 7
+    @test NLLSsolver.bindleadingargs(+, 1, 2)(3, 4) == 10
+    @test NLLSsolver.bindleadingargs(() -> 5)() == 5
+
+    # SR
+    r = NLLSsolver.SR(2, 5)
+    @test r isa StaticArrays.SUnitRange
+    @test collect(r) == [2, 3, 4, 5]
+    @test length(NLLSsolver.SR(static(0), static(2))) == 3
+
+    # bitiset (function, static and dynamic) and @bitiset
+    flags = 0b1010
+    for bit in 1:4
+        expected = isodd(flags >> (bit - 1))
+        @test NLLSsolver.bitiset(flags, bit) == expected
+        @test NLLSsolver.@bitiset(flags, bit) == expected
+        @test dynamic(NLLSsolver.bitiset(static(flags), bit)) == expected
+    end
+
+    # uniontotuple
+    @test NLLSsolver.uniontotuple(Float64) == (Float64,)
+    @test Set(NLLSsolver.uniontotuple(Union{Int, Float64, String})) == Set([Int, Float64, String])
+
+    # sqnorm, fast_norm, fast_dot
+    a = randn(1001)
+    b = randn(1001)
+    @test NLLSsolver.sqnorm(-3.0) == 9.0
+    @test NLLSsolver.sqnorm(a) ≈ dot(a, a)
+    @test NLLSsolver.sqnorm(Float64[]) == 0.0
+    @test NLLSsolver.sqnorm(SVector(3.0, 4.0)) == 25.0
+    @test NLLSsolver.fast_norm(a) ≈ norm(a)
+    @test NLLSsolver.fast_norm(SVector(3.0, 4.0)) == 5.0
+    @test NLLSsolver.fast_dot(a, b) ≈ dot(a, b)
+    @test NLLSsolver.fast_dot(Float64[], Float64[]) == 0.0
+    @test NLLSsolver.fast_dot([1, 2, 3], [0.5, 0.5, 0.5]) == 3.0
+    @test NLLSsolver.fast_dot([1, 2, 3], [0.5, 0.5, 0.5]) isa Float64
+    @test NLLSsolver.fast_dot(view(a, 2:2:1000), view(b, 1:2:999)) ≈ dot(view(a, 2:2:1000), view(b, 1:2:999))
+    @test NLLSsolver.fast_dot(SVector(1.0, 2.0), SVector(3.0, 4.0)) == 11.0
+
+    # TimeCounter and @elapsed_ns
+    tc = NLLSsolver.TimeCounter()
+    @test tc.time_ns == 0 && tc.count == 0
+    tc += UInt64(100)
+    tc += UInt64(50)
+    @test tc.time_ns == 150 && tc.count == 2
+    y = 0
+    t = NLLSsolver.@elapsed_ns y = sum(1:10)
+    @test t isa UInt64
+    @test y == 55
+
+    # StatsCounter, Stats and @stats
+    sc = NLLSsolver.StatsCounter()
+    @test (sc.num_allocs, sc.bytes_allocd, sc.time_ns, sc.count) == (0, 0, 0, 0)
+    sc += NLLSsolver.Stats(1)
+    sc += NLLSsolver.Stats(2, 3, UInt64(4))
+    @test (sc.num_allocs, sc.bytes_allocd, sc.time_ns, sc.count) == (3, 4, 5, 2)
+    z = nothing
+    st = NLLSsolver.@stats z = zeros(1000)
+    @test length(z) == 1000
+    @test st.num_allocs >= 1
+    @test st.bytes_allocd >= 8000
+    @test st.time_ns > 0
+
+    # sparse_dense_decision: sparse iff nnz * 64 < 25 * ndims * (ndims - 40)
+    @test NLLSsolver.sparse_dense_decision(100, 2343)
+    @test !NLLSsolver.sparse_dense_decision(100, 2344)
+    @test !NLLSsolver.sparse_dense_decision(40, 0)
+    @test !NLLSsolver.sparse_dense_decision(10, 0)
+
+    # block_sparse_nnz: upper triangular block sparsity, blocks of size 2 and 3
+    sparsity = sparse([true true; false true])
+    @test NLLSsolver.block_sparse_nnz(sparsity, [2, 3]) == 2 * 2 + 2 * 3 + 3 * 3
+    @test NLLSsolver.block_sparse_nnz(sparse([true false; false true]), [2, 3]) == 2 * 2 + 3 * 3
+    @test NLLSsolver.sparse_dense_decision(5, sparsity, [2, 3]) == NLLSsolver.sparse_dense_decision(5, 19)
+
+    # block_sizes_indices: only unfixed variables get blocks
+    vars = Any[1.0, EuclideanVector(1.0, 2.0, 3.0), 2.0, EuclideanVector(1.0, 2.0)]
+    bsizes, bindices = NLLSsolver.block_sizes_indices(vars, [true, true, false, true], 3)
+    @test bsizes == [1, 3, 2]
+    @test bindices == [1, 2, 0, 3]
+
+    # computevarflags: bit i-1 set iff variable i is unfixed (non-zero offset)
+    @test NLLSsolver.computevarflags(SVector(5, 0, 3)) == 0b101
+    @test NLLSsolver.computevarflags(SVector(0, 0)) == 0
+    @test NLLSsolver.computevarflags(SVector(1, 2, 3, 4)) == 0b1111
+    @test NLLSsolver.computevarflags((7,)) == 1
 
     s1 = NLLSsolver.Stats()
     x = zeros(1000)

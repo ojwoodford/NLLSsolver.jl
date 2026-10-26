@@ -34,10 +34,21 @@ uniontotuple(T::Union) = (uniontotuple(T.a)..., uniontotuple(T.b)...)
 uniontotuple(T::DataType) = (T,)
 
 sqnorm(x::Number) = @fastmath x * x
+# Note: @turbo implies @inbounds and @fastmath, and cannot parse those macros inside its loop body
 function sqnorm(vec::AbstractVector)
     total = zero(eltype(vec))
     @turbo for i in eachindex(vec)
         total += vec[i] * vec[i]
+    end
+    return total
+end
+
+# Native dot and norm, to avoid calling (and waking up) multi-threaded BLAS for these trivial operations
+fast_norm(vec::AbstractVector) = sqrt(sqnorm(vec))
+function fast_dot(a::AbstractVector, b::AbstractVector)
+    total = zero(promote_type(eltype(a), eltype(b)))
+    @turbo for i in eachindex(a, b)
+        total += a[i] * b[i]
     end
     return total
 end
