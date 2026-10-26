@@ -74,7 +74,7 @@ function runoptimizers!(results, problem, start, iterators)
     end
 end
 
-function optimize2DProblem(problem, start, xrange, yrange; iterators=[NLLSsolver.newton, NLLSsolver.levenbergmarquardt, NLLSsolver.dogleg, NLLSsolver.gradientdescent])
+function optimize2DProblem(problem, start, xrange, yrange; iterators=[NLLSsolver.newton, NLLSsolver.levenbergmarquardt, NLLSsolver.levenbergmarquardt_dtd, NLLSsolver.dogleg, NLLSsolver.gradientdescent])
     # Compute the results 
     results = [OptimResult() for i in range(1, length(iterators))]
     runoptimizers!(results, problem, start, iterators)
@@ -93,7 +93,7 @@ function optimize2DProblem(problem, start, xrange, yrange; iterators=[NLLSsolver
     contour!(ax1, xrange, yrange, grid, linewidth=2, color=:white, levels=10)
 
     # Plot the trajectory and costs
-    colors = [:black, :red, :navy, :green]
+    colors = [:black, :red, :navy, :green, :purple]
     for (ind, iter) in enumerate(iterators)
         color = colors[mod(ind-1, length(colors)) + 1]
         scatterlines!(ax1, results[ind].trajectory, color=color, linewidth=2.5)
