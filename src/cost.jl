@@ -8,10 +8,25 @@ Compute and return the scalar cost defined by `problem`.
 """
 cost(problem::NLLSProblem, numthreads=StaticInt(Threads.nthreads())) = cost(problem.variables, problem.costs, numthreads)
 cost(problem::NLLSProblem, numthreads::Integer) = cost(problem, static(numthreads))
-cost(vars::AbstractVector, costs::CostStruct)::Float64 = sum(bindleadingargs(computecost, vars), costs; init=0.0)
-cost(vars::AbstractVector, costs::CostStruct, ::StaticInt{1})::Float64 = cost(vars, costs)
+cost(vars::AbstractVector, costs::CostStruct)::Float64 = cost(vars, costs, static(1))
+cost(vars::AbstractVector, costs::CostStruct, ::StaticInt{1})::Float64 = cost_repo(vars, costs, static(1))
 cost(vars::AbstractVector, costs::CostStruct, numthreads::Integer)::Float64 = cost(vars, costs, static(numthreads))
-computecost(vars::AbstractVector, cost::AbstractCost)::Float64 = computecost(cost, getvars(cost, vars)...)
+cost(vars::AbstractVector, costs::CostStruct, numthreads::StaticInt)::Float64 = cost_repo(vars, costs, numthreads)
+
+cost_repo(vars, costs::CostStruct{T}, numthreads::StaticInt) where T = cost_repo_type(vars, costs, T, numthreads)
+cost_repo_type(vars, costs, T::Union, numthreads) = cost_repo_type(vars, costs, T.a, numthreads) + cost_repo_type(vars, costs, T.b, numthreads)
+cost_repo_type(vars, costs, T::DataType, numthreads) = cost_vec(vars, get(costs, T), numthreads)
+cost_repo(vars, costs::CostStruct{Any}, numthreads::StaticInt) = sum(c -> cost_vec(vars, c, numthreads), values(costs.data))
+
+function cost_vec(vars, costlist::Vector, ::StaticInt{1})::Float64
+    tot = 0.0
+    @inbounds for c in costlist
+        tot += computecost(vars, c)
+    end
+    return tot
+end
+
+@inline computecost(vars::AbstractVector, cost::AbstractCost)::Float64 = computecost(cost, getvars(cost, vars)...)
 
 function gradhesshelper!(linsystem, cost::AbstractCost, vars, blockind, varflags::StaticInt)::Float64
     # Compute the residual
@@ -60,4 +75,3 @@ function costgradhess!(linsystem, vars::AbstractVector, costs::CostStruct)::Floa
     zero!(linsystem)
     return sum(bindleadingargs(costgradhess!, linsystem, vars), costs; init=0.0)
 end
-# costgradhess!(linsystem, vars::Vector, costs::CostStruct, subsetfun)::Float64 = sumsubset(bindleadingargs(costgradhess!, linsystem, vars), subsetfun, costs; init=0.0)

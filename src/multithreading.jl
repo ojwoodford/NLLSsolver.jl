@@ -12,22 +12,43 @@ end
     return view(collection, chunk_indices(length(collection), N, taskid))
 end
 
-function cost(vars::AbstractVector, costs::CostStruct, ::StaticInt{N})::Float64 where {N}
-    if N == 1 || countcosts(costnum, costs) < 10000
-        return cost(vars, costs)
+function cost_vec(vars, costlist::Vector, ::StaticInt{N})::Float64 where {N}
+    if length(costlist) < 10000
+        return cost_vec(vars, costlist, static(1))
     end
-    costsvec = MVector{N, Float64}(undef)
-    @batch for taskid in 1:N
-        costsvec[taskid] = sumsubset(bindleadingargs(computecost, vars), costs, bindleadingargs(ithchunk, N, taskid); init=0.0)
+    tot = 0.0
+    @batch reduction=((+, tot),) for i in eachindex(costlist)
+        tot += computecost(vars, costlist[i])
     end
-    return sum(costsvec)
+    return tot
+end
+
+costgradhess_chunk_repo!(ls, vars, costs::CostStruct{T}, N, taskid) where T = costgradhess_chunk_repo_type!(ls, vars, costs, T, N, taskid)
+costgradhess_chunk_repo_type!(ls, vars, costs, T::Union, N, taskid) = costgradhess_chunk_repo_type!(ls, vars, costs, T.a, N, taskid) + costgradhess_chunk_repo_type!(ls, vars, costs, T.b, N, taskid)
+function costgradhess_chunk_repo_type!(ls, vars, costs, T::DataType, N, taskid)
+    costlist = get(costs, T)
+    rng = chunk_indices(length(costlist), N, taskid)
+    return costgradhess_chunk_vec!(ls, vars, costlist, rng)
+end
+costgradhess_chunk_repo!(ls, vars, costs::CostStruct{Any}, N, taskid) = sum(c -> begin
+    rng = chunk_indices(length(c), N, taskid)
+    costgradhess_chunk_vec!(ls, vars, c, rng)
+end, values(costs.data))
+
+function costgradhess_chunk_vec!(ls, vars, costlist::Vector, rng::UnitRange{Int})::Float64
+    tot = 0.0
+    sub = @inbounds view(costlist, rng)
+    @inbounds for c in sub
+        tot += costgradhess!(ls, vars, c)
+    end
+    return tot
 end
 
 function costgradhess!(linsystem::LinearSystemShared{F, V, N}, vars::AbstractVector, costs::CostStruct)::Float64 where {F, V, N}
     if N == 1
         ls = LinearSystem(linsystem, 1)
         zero!(ls)
-        linsystem.costs[1] = sumsubset(bindleadingargs(costgradhess!, ls, vars), costs, bindleadingargs(ithchunk, 1, 1); init=0.0)
+        linsystem.costs[1] = costgradhess!(ls, vars, costs)
         return linsystem.costs[1]
     end
 
@@ -35,7 +56,7 @@ function costgradhess!(linsystem::LinearSystemShared{F, V, N}, vars::AbstractVec
     @batch for taskid in 1:N
         ls = LinearSystem(linsystem, taskid)
         zero!(ls)
-        linsystem.costs[taskid] = sumsubset(bindleadingargs(costgradhess!, ls, vars), costs, bindleadingargs(ithchunk, N, taskid); init=0.0)
+        linsystem.costs[taskid] = costgradhess_chunk_repo!(ls, vars, costs, N, taskid)
     end
 
     # Phase 2: Parallel tree reduction across the N buffers
