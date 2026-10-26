@@ -55,14 +55,16 @@ end
     @test any(Base.Fix2(isa, Vector{Float64}), valuetup) && any(Base.Fix2(isa, Vector{Int}), valuetup) && any(Base.Fix2(isa, Vector{Char}), valuetup)
 
     # Test subset reductions
-    # @test NLLSsolver.sumsubset(Float64, rangefun, vr2) == halftotal
-    # @test NLLSsolver.sumsubset(Float64, indicesfun, vr2) == halftotal
-    # @test NLLSsolver.sumsubset(Float64, bitvecfun, vr2) == halftotal
-    # @test NLLSsolver.sumsubset(Float64, boolvecfun, vr2) ≈ halftotal
+    @test NLLSsolver.sumsubset(Float64, vr2, rangefun) == halftotal
+    @test NLLSsolver.sumsubset(Float64, vr2, indicesfun) == halftotal
+    @test NLLSsolver.sumsubset(Float64, vr2, bitvecfun) == halftotal
+    @test NLLSsolver.sumsubset(Float64, vr2, boolvecfun) ≈ halftotal
+    @test keys(vr1) == keys(vr1.data)
 
     # Initialize from single vector
     vr3 = NLLSsolver.VectorRepo([1, 2])
     @test sum(i->i, vr3) == 3
+    @test NLLSsolver.sumsubset(Float64, vr3, v -> view(v, 1:1)) == 1.0
     keytup = keys(vr3)
     @test isa(keytup, Tuple) && length(keytup) == 1 && keytup[1] == Int
 end

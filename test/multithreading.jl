@@ -38,6 +38,8 @@ NLLSsolver.getvars(::MTTestDynamicRes, vars::AbstractVector) = (vars[1]::NLLSsol
 NLLSsolver.computeresidual(res::MTTestDynamicRes, w) = dot(res.X, w) - res.y
 Base.eltype(::MTTestDynamicRes) = Float64
 
+alloc_ephemeral(ls, ind) = @allocated NLLSsolver.LinearSystem(ls, ind)
+
 @testset "multithreading.jl" begin
     # chunk_indices: chunks are contiguous, cover 1:len exactly, and differ in size by at most 1
     for len in (0, 1, 5, 16, 17, 1001), nchunks in (1, 2, 3, 4, 7, 20)
@@ -113,12 +115,54 @@ Base.eltype(::MTTestDynamicRes) = Float64
     c_cost_m = NLLSsolver.cost(prob_static.variables, prob_static.costs, static(4))
     @test c_cost_s ≈ c_cost_m
     @test c_cost_s ≈ c_s
+    @test NLLSsolver.cost(prob_static.variables, prob_static.costs) ≈ c_cost_s
+    @test NLLSsolver.cost(prob_static.variables, prob_static.costs, 2) ≈ c_cost_s
+
+    # LinearSystemShared with N == 1
+    ls_static_shared_1 = NLLSsolver.LinearSystemShared(ls_static_single.x, SVector{1}(ls_static_single.ls), MVector{1, Float64}(undef))
+    @test NLLSsolver.costgradhess!(ls_static_shared_1, prob_static.variables, prob_static.costs) ≈ c_s
+
+    # Threaded costgradhess! with concrete DataType and Union cost repos
+    prob_static_typed = NLLSProblem{Float64, MTTestScalarRes}()
+    addvariable!(prob_static_typed, 2.0)
+    for k in 1:120
+        addcost!(prob_static_typed, MTTestScalarRes(k * 0.1, 1))
+    end
+    c_st = NLLSsolver.costgradhess!(ls_static_single, prob_static_typed.variables, prob_static_typed.costs)
+    c_mt = NLLSsolver.costgradhess!(ls_static_shared, prob_static_typed.variables, prob_static_typed.costs)
+    @test c_st ≈ c_mt
+
+    prob_static_union = NLLSProblem{Float64, Union{MTTestScalarRes, MTTestPairRes}}()
+    addvariable!(prob_static_union, 2.0)
+    addvariable!(prob_static_union, 1.0)
+    for k in 1:60
+        addcost!(prob_static_union, MTTestScalarRes(k * 0.1, 1))
+        addcost!(prob_static_union, MTTestPairRes(k * 0.1, 1, 2))
+    end
+    c_su = NLLSsolver.costgradhess!(ls_static_single, prob_static_union.variables, prob_static_union.costs)
+    c_mu = NLLSsolver.costgradhess!(ls_static_shared, prob_static_union.variables, prob_static_union.costs)
+    @test c_su ≈ c_mu
 
     # Verify ephemeral stack wrapper construction has 0 allocations
     ls_ephemeral = NLLSsolver.LinearSystem(ls_static_shared, 1)
     @test isa(ls_ephemeral, NLLSsolver.LinearSystem)
-    allocs = @allocated NLLSsolver.LinearSystem(ls_static_shared, 1)
+    allocs = alloc_ephemeral(ls_static_shared, 1)
     @test allocs == 0
+
+    # Additional linearsystem coverage
+    @test NLLSsolver.copy_structure(ls_static_single) isa NLLSsolver.LinearSystem
+    @test NLLSsolver.sharedlinearsystem(ls_static_shared, static(4)) === ls_static_shared
+    @test NLLSsolver.sharedlinearsystem(ls_static_single, 4) isa NLLSsolver.LinearSystemShared
+    ls_ep2 = NLLSsolver.LinearSystem(ls_static_shared, 2)
+    NLLSsolver.add!(ls_ephemeral, ls_ep2)
+    @test NLLSsolver.getgrad(ls_static_single.ls) === ls_static_single.ls.b
+    @test NLLSsolver.gethessian(ls_static_single.ls) === ls_static_single.ls.A
+    @test NLLSsolver.getA(ls_static_single.ls) === ls_static_single.ls.A
+    @test NLLSsolver.getb(ls_static_single.ls) === ls_static_single.ls.b
+    @test NLLSsolver.getx(ls_static_single.x) === ls_static_single.x.x
+    lss_direct = NLLSsolver.LinearSystemShared{NLLSsolver.UniVariateLSstatic_x{1}, NLLSsolver.UniVariateLSstatic_ls{1, 1}, 2}((1,), ())
+    @test lss_direct isa NLLSsolver.LinearSystemShared
+    @test NLLSsolver.updateunfixed(ls_static_shared, 1) isa NLLSsolver.LinearSystemShared
 
     # 2. UniVariateLSdynamic
     dim = 20
@@ -151,6 +195,8 @@ Base.eltype(::MTTestDynamicRes) = Float64
     @test c_dens_s ≈ c_dens_m
     @test NLLSsolver.getgrad(ls_dense_single) ≈ NLLSsolver.getgrad(ls_dense_shared)
     @test NLLSsolver.gethessian(ls_dense_single) ≈ NLLSsolver.gethessian(ls_dense_shared)
+    ls_dense_reconstructed = NLLSsolver.MultiVariateLSdense(ls_dense_single.ls.A, ls_dense_single.ls.b, ls_dense_single.x.x, ls_dense_single.x.blockindices, ls_dense_single.x.boffsets)
+    @test ls_dense_reconstructed isa NLLSsolver.LinearSystem
 
     # 4. MultiVariateLSsparse
     prob_sparse = NLLSProblem(Float64)
@@ -171,6 +217,10 @@ Base.eltype(::MTTestDynamicRes) = Float64
     @test c_sp_s ≈ c_sp_m
     @test NLLSsolver.getgrad(ls_sparse_single) ≈ NLLSsolver.getgrad(ls_sparse_shared)
     @test NLLSsolver.gethessian(ls_sparse_single) ≈ NLLSsolver.gethessian(ls_sparse_shared)
+    ls_sparse_reconstructed = NLLSsolver.MultiVariateLSsparse(ls_sparse_single.ls.A, ls_sparse_single.ls.b, ls_sparse_single.x.x, ls_sparse_single.x.blockindices, ls_sparse_single.x.boffsets, ls_sparse_single.x.hessian, ls_sparse_single.x.sparseindices, ls_sparse_single.x.ldlfac)
+    @test ls_sparse_reconstructed isa NLLSsolver.LinearSystem
+    ls_sparse_noh = NLLSsolver.MultiVariateLSsparse(bsm, b_indices, false)
+    @test ls_sparse_noh isa NLLSsolver.LinearSystem
 
     # Full optimize! end-to-end tests
     opt_single = NLLSOptions(; numthreads=static(1))

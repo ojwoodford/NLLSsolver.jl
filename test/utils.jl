@@ -131,4 +131,60 @@ test_fast_bAb(A, b) = @test NLLSsolver.fast_bAb(A, b) ≈ dot(b, A, b)
     @test s2.bytes_allocd >= s1.bytes_allocd
     @test s2.time_ns >= s1.time_ns
     @test s2.num_allocs >= s1.num_allocs
+
+    # Variable nvars
+    @test NLLSsolver.nvars(NLLSsolver.ZeroToInfScalar(1.0)) == 1
+    @test NLLSsolver.nvars(NLLSsolver.ZeroToOneScalar(0.5)) == 1
+
+    # Iterator strings and resets
+    @test String(NLLSsolver.newton) == "Newton"
+    @test String(NLLSsolver.levenbergmarquardt) == "Levenberg-Marquardt"
+    @test String(NLLSsolver.levenbergmarquardt_dtd) == "Levenberg-Marquardt (D'D scaling)"
+    @test String(NLLSsolver.dogleg) == "Dogleg"
+    @test String(NLLSsolver.gradientdescent) == "gradient descent"
+    @test String(reinterpret(NLLSsolver.NLLSIterator, Int32(99))) == "unknown iterator"
+    @test NLLSsolver.reset!(NLLSsolver.NewtonData()) === nothing
+
+    # Linear solver utilities
+    @test NLLSsolver.invsym([2.0 0.5; 0.5 2.0]) ≈ inv([2.0 0.5; 0.5 2.0])
+    @test NLLSsolver.invsym(SMatrix{2, 2}(2.0, 0.5, 0.5, 2.0)) ≈ inv([2.0 0.5; 0.5 2.0])
+
+    # BlockDenseMatrix utilities
+    bdm = NLLSsolver.BlockDenseMatrix{Float64}([1, 3, 5])
+    @test NLLSsolver.validblock(bdm, 1, 1) == true
+    @test size(bdm) == (4, 4)
+    @test size(bdm, 1) == 4
+    @test length(bdm) == 16
+    @test eltype(bdm) == Float64
+    NLLSsolver.uniformscaling!(bdm, 1.0)
+    @test bdm.data[1, 1] == 1.0
+    @test NLLSsolver.block(bdm, 1, 1) isa AbstractMatrix
+    @test NLLSsolver.block(bdm, 1, 1, static(2), 2) isa AbstractMatrix
+
+    # Problem construction and counting
+    p_vec = NLLSsolver.NLLSProblem([1.0, 2.0])
+    @test p_vec isa NLLSsolver.NLLSProblem
+    p_vec_cost = NLLSsolver.NLLSProblem([1.0, 2.0], NLLSsolver.VectorRepo())
+    @test p_vec_cost isa NLLSsolver.NLLSProblem
+    @test NLLSsolver.convertunfixed(Float64, p_vec) == [true, true]
+    @test NLLSsolver.convertunfixed([true, false], p_vec) == [true, false]
+
+    # Robust cost evaluation
+    @test NLLSsolver.robustifydcost(NLLSsolver.HuberKernel(1.0), 0.5) isa Tuple
+    @test NLLSsolver.robustifydcost(NLLSsolver.Scaled(NLLSsolver.NoRobust(), 2.0), 0.5) == (1.0, 2.0, 0.0)
+
+    # Residuals: SimpleError3 and SimpleError4
+    se3 = NLLSsolver.SimpleError3{Float64, Float64, Float64}(SVector(1.0), 1, 2, 3)
+    @test NLLSsolver.ndeps(se3) == 3
+    @test NLLSsolver.nres(se3) == 1
+    @test NLLSsolver.varindices(se3) == SVector(1, 2, 3)
+    @test NLLSsolver.getvars(se3, [1.0, 2.0, 3.0]) == (1.0, 2.0, 3.0)
+    @test eltype(se3) == Float64
+    se4 = NLLSsolver.SimpleError4{Float64, Float64, Float64, Float64}(SVector(1.0), 1, 2, 3, 4)
+    @test NLLSsolver.ndeps(se4) == 4
+    @test NLLSsolver.nres(se4) == 1
+    @test NLLSsolver.varindices(se4) == SVector(1, 2, 3, 4)
+    @test NLLSsolver.getvars(se4, [1.0, 2.0, 3.0, 4.0]) == (1.0, 2.0, 3.0, 4.0)
+    @test eltype(se4) == Float64
+    @test NLLSsolver.generatemeasurement() === nothing
 end
