@@ -74,3 +74,46 @@ function costgradhess!(linsystem::LinearSystemShared{F, V, N}, vars::AbstractVec
 
     return linsystem.costs[1]
 end
+
+@inline function optimizesinglesinternal!(problem::NLLSProblem{VT, CT}, options::NLLSOptions{S, N}, data::NLLSInternal{LST}, iteratedata, callback::F, allcosts::CostStruct, costindices, varinds, result) where {VT, CT, S, N, LST<:UniVariateLS, F}
+    if length(varinds) <= 1 || N == 1
+        data.init = Stats()
+        termination = optimizesingles_worker!(problem, singlethreaded(options), data, iteratedata, callback, allcosts, costindices, varinds)
+        data.optimize = Stats()
+        result += NLLSResult(data, termination, getiterator(options))
+        return result
+    end
+
+    nactive = min(N, length(varinds))
+    singleoptions = singlethreaded(options)
+
+    if length(problem.variables) != length(problem.varbest)
+        problem.varbest = deepcopy(problem.variables)
+    end
+
+    costs_vec = [CostStruct{CT}() for _ in 1:nactive]
+    probs = [i == 1 ? problem : NLLSProblem{VT, CT}(problem.variables, costs_vec[i], problem.varnext, problem.varbest) for i in 1:nactive]
+    data_vec = [i == 1 ? data : NLLSInternal(copy_structure(data.linsystem), data.start) for i in 1:nactive]
+    iterdata_vec = [i == 1 ? iteratedata : construct(options.iterator, probs[i], data_vec[i].linsystem) for i in 1:nactive]
+    terminations = zeros(Int, nactive)
+
+    data.init = Stats()
+
+    @batch for taskid in 1:nactive
+        chunk = ithchunk(nactive, taskid, varinds)
+        terminations[taskid] = optimizesingles_worker!(probs[taskid], singleoptions, data_vec[taskid], iterdata_vec[taskid], callback, allcosts, costindices, chunk)
+    end
+
+    stop_stats = Stats()
+    data.optimize = stop_stats
+    for taskid in 2:nactive
+        data_vec[taskid].start = stop_stats
+        data_vec[taskid].init = stop_stats
+        data_vec[taskid].optimize = stop_stats
+    end
+
+    for taskid in 1:nactive
+        result += NLLSResult(data_vec[taskid], terminations[taskid], getiterator(options))
+    end
+    return result
+end
