@@ -103,11 +103,11 @@ reset!(dd::DoglegData) = dd.trustradius = 0.0
         mu = (data.bestcost - cost_) / linear_approx
         if mu > 0.375
             doglegdata.trustradius = max(doglegdata.trustradius, 3 * fast_norm(getx(data.linsystem)))
-        elseif mu < 0.125
+        elseif !(mu >= 0.125) # a NaN cost (mu NaN) shrinks the region like a poor step
             doglegdata.trustradius *= 0.5
         end
         # Check for exit
-        if !(cost_ > data.bestcost) || (maximum(abs, getx(data.linsystem))::Float64 < options.dstep)
+        if cost_ <= data.bestcost || (maximum(abs, getx(data.linsystem))::Float64 < options.dstep)
             # Return the cost
             return cost_
         end
@@ -183,7 +183,9 @@ end
         # Compute the cost
         data.costs += @elapsed_ns cost_ = cost(problem.varnext, problem.costs, options.numthreads)
         # Check for exit
-        if !(cost_ > data.bestcost) || maximum(abs, getx(data.linsystem))::Float64 < options.dstep
+        # Accept only a cost that is not greater than the best: a NaN cost (a step past the domain of the
+        # residual) is a failed step, like a higher one
+        if cost_ <= data.bestcost || maximum(abs, getx(data.linsystem))::Float64 < options.dstep
             # Success (or convergence) - update lambda
             dampenhessian!(hessian, levmardata, -lastlambda)
             stepquality = (cost_ - data.bestcost) / (0.5 * fast_bAb(hessian, getx(data.linsystem)) + fast_dot(gradient, getx(data.linsystem)))
@@ -213,12 +215,17 @@ reset!(gdd::GradientDescentData) = gdd.stepsize = 1.0
     update!(problem.varnext, problem.variables, data.linsystem)
     data.costs += @elapsed_ns costc = cost(problem.varnext, problem.costs, options.numthreads)
     # Iterate until we find a lower cost
-    while costc > data.bestcost
-        # Compute the expected cost
-        coststep = getx(data.linsystem)' * gradient
-        costdiff = data.bestcost + coststep - costc
-        # Compute the optimal step size assuming quadratic fit
-        gddata.stepsize *= 0.5 * coststep / costdiff
+    while !(costc <= data.bestcost)
+        if isfinite(costc)
+            # Compute the expected cost
+            coststep = getx(data.linsystem)' * gradient
+            costdiff = data.bestcost + coststep - costc
+            # Compute the optimal step size assuming quadratic fit
+            gddata.stepsize *= 0.5 * coststep / costdiff
+        else
+            # A non-finite cost (a step past the domain of the residual): halve the step
+            gddata.stepsize *= 0.5
+        end
         # Evaluate the new step size
         getx(data.linsystem) .= -gradient * gddata.stepsize
         update!(problem.varnext, problem.variables, data.linsystem)
