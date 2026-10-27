@@ -14,4 +14,5 @@ using Test
     include("utils.jl")
     include("nantrial.jl")
     include("copyvars.jl")
+    include("optimizecache.jl")
 end

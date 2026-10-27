@@ -138,5 +138,19 @@ mutable struct NLLSInternal{LSType}
     end
 end
 
+# Reset the costs, statistics and counts, for a new optimization with the same linear system
+function reset!(data::NLLSInternal, startstats)
+    data.startcost = 0.
+    data.bestcost = 0.
+    data.start = startstats
+    data.init = Stats(0)
+    data.optimize = Stats(0)
+    data.costs = TimeCounter()
+    data.gradients = TimeCounter()
+    data.solves = TimeCounter()
+    data.iternum = 0
+    return data
+end
+
 NLLSInternalMultiVar = NLLSInternal{<:MultiVariateLS}
 NLLSInternalSingleVar = NLLSInternal{<:UniVariateLS}
