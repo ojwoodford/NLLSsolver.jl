@@ -94,3 +94,54 @@ startvalues(n, seed, unfixed) = startvalues(n, seed)
     empty!(cache)
     @test isempty(cache)
 end
+
+# A cache built for its problem (`OptimizeCache(problem, options, unfixed)`) is concretely typed: the same
+# results as an untyped cache and as no cache, and a repeated optimization on a one-variable problem with a
+# static variable allocates nothing for the cache (an untyped one allocates a few small objects per call)
+struct Offset3 <: AbstractResidual
+    y::SVector{3, Float64}
+end
+NLLSsolver.ndeps(::Offset3) = static(1)
+NLLSsolver.nres(::Offset3) = static(3)
+NLLSsolver.varindices(::Offset3) = SVector(1)
+NLLSsolver.getvars(::Offset3, vars::Vector) = (vars[1]::SVector{3, Float64},)
+NLLSsolver.computeresidual(r::Offset3, a) = a + 0.1 * sin.(a) - r.y
+Base.eltype(::Offset3) = Float64
+function offsetproblem()
+    problem = NLLSProblem(SVector{3, Float64}, Offset3)
+    addvariable!(problem, SVector(0.0, 0.0, 0.0))
+    for k in 1:5
+        addcost!(problem, Offset3(SVector(1.0 + k / 10, -0.5, 2.0 - k / 7)))
+    end
+    return problem
+end
+typedrun!(problem, options, cache) = (problem.variables[1] = SVector(0.0, 0.0, 0.0); optimize!(problem, options, 1, nullcallback, cache))
+
+@testset "optimizecache.jl: a typed cache" begin
+    options = NLLSOptions(iterator=:levenbergmarquardt_dtd, numthreads=static(1))
+    for (makeproblem, unfixed) in ((offsetproblem, 1), (() -> chainproblem(20), nothing))
+        reference = makeproblem()
+        refresult = optimize!(reference, options, unfixed)
+        problem = makeproblem()
+        cache = OptimizeCache(problem, options, unfixed)
+        @test !isempty(cache) && isconcretetype(typeof(cache).parameters[2])
+        result = optimize!(problem, options, unfixed, nullcallback, cache)
+        @test problem.variables == reference.variables && result.bestcost == refresult.bestcost
+        @test result.niterations == refresult.niterations
+        # a structure change rebuilds the data, as for an untyped cache (the multi-variable problem: adding a
+        # variable changes its unfixed set)
+        if unfixed === nothing
+            data = cache.data[1]
+            addvariable!(problem, problem.variables[1])
+            optimize!(problem, options, unfixed, nullcallback, cache)
+            @test cache.data[1] !== data && length(cache.data[1].linsystem.x.blockindices) == 21
+        end
+    end
+    problem = offsetproblem()
+    cache = OptimizeCache(problem, options, 1)
+    untyped = OptimizeCache()
+    typedrun!(problem, options, cache); typedrun!(problem, options, cache)
+    typedrun!(problem, options, untyped); typedrun!(problem, options, untyped)
+    @test (@allocations typedrun!(problem, options, cache)) < (@allocations typedrun!(problem, options, untyped))
+    @test (@allocations typedrun!(problem, options, cache)) == 0
+end

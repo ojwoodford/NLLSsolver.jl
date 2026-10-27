@@ -5,7 +5,7 @@ optimize!(problem::NLLSProblem, options::NLLSOptions, unfixed::Integer, callback
 optimize!(problem::NLLSProblem, options::NLLSOptions, unfixed::AbstractVector, callback::F=nullcallback) where F = optimizewith(optimizeinternal!, problem, options, unfixed, Stats(), callback)
 
 optimizewith(func::F1, problem::NLLSProblem, options::NLLSOptions, unfixed::Integer, startstats, callback::F2) where {F1, F2} = setupsinglevarls(func, problem, options, unfixed, startstats, callback)
-function optimizewith(func::F1, problem::NLLSProblem, options::NLLSOptions, unfixed::AbstractVector, startstats, callback::F2)::NLLSResult where {F1, F2}
+function optimizewith(func::F1, problem::NLLSProblem, options::NLLSOptions, unfixed::AbstractVector, startstats, callback::F2) where {F1, F2}
     @assert length(problem.variables) > 0
     # Compute the number of free variables (nblocks)
     nblocks = sum(unfixed)
@@ -40,11 +40,32 @@ threads, or when variables or costs have been added to the problem (with `addvar
 changing the problem in any other way that alters its structure (e.g. editing `problem.costs` directly, or
 changing the size of a dynamically sized variable), call `empty!(cache)`.
 """
-mutable struct OptimizeCache
-    key::Any
-    data::Any
+mutable struct OptimizeCache{K, D}
+    key::Union{Nothing, K}
+    data::Union{Nothing, D}
 end
-OptimizeCache() = OptimizeCache(nothing, nothing)
+OptimizeCache() = OptimizeCache{Any, Any}(nothing, nothing)
+
+"""
+    NLLSsolver.OptimizeCache(problem::NLLSProblem, options::NLLSOptions, unfixed=nothing)
+
+An [`OptimizeCache`](@ref) built for `problem`, `options` and `unfixed`: the internal data are constructed now
+(nothing is optimized), and the cache is concretely typed by them, so a later
+`optimize!(problem, options, unfixed, callback, cache)` is type-stable and allocates nothing for the cache
+(an `OptimizeCache()` holds its data untyped: each reuse dispatches dynamically and allocates a few small
+objects). When the problem's structure changes, the data are rebuilt as for an untyped cache; if the rebuilt
+data have another type, that call optimizes without storing them.
+"""
+function OptimizeCache(problem::NLLSProblem, options::NLLSOptions, unfixed=nothing)
+    unfixed = convertunfixed(unfixed, problem)
+    data = optimizewith(BuildOnly(), problem, options, unfixed, Stats(), nullcallback)
+    key = cachekey(problem, options, unfixed)
+    return OptimizeCache{typeof(key), typeof(data)}(key, data)
+end
+# Construct the internal data, without optimizing
+struct BuildOnly end
+(::BuildOnly)(problem, options, data, iteratedata, callback) = (data, iteratedata)
+
 Base.empty!(cache::OptimizeCache) = (cache.key = nothing; cache.data = nothing; cache)
 Base.isempty(cache::OptimizeCache) = isnothing(cache.data)
 
@@ -80,13 +101,16 @@ function samesizes(sizes::Vector{Int}, variables::Vector, unfixed)
 end
 
 # Store the internal data in the cache, then optimize
-struct StoreInCache
-    cache::OptimizeCache
+struct StoreInCache{C <: OptimizeCache}
+    cache::C
 end
 function (store::StoreInCache)(problem, options, data, iteratedata, callback)
-    store.cache.data = (data, iteratedata)
+    storedata!(store.cache, (data, iteratedata))
     return optimizeinternal!(problem, options, data, iteratedata, callback)
 end
+# A typed cache keeps only data of its type
+storedata!(cache::OptimizeCache{K, D}, d) where {K, D} = (d isa D && (cache.data = d); cache)
+storekey!(cache::OptimizeCache{K, D}, key) where {K, D} = (!isnothing(cache.data) && key isa K && (cache.key = key); cache)
 
 """
     NLLSsolver.optimize!(problem::NLLSProblem, options::NLLSOptions, unfixed, callback, cache::OptimizeCache)
@@ -100,10 +124,10 @@ function optimize!(problem::NLLSProblem, options::NLLSOptions, unfixed, callback
     if !cachevalid(cache, problem, options, unfixed)
         empty!(cache)
         result = optimizewith(StoreInCache(cache), problem, options, unfixed, startstats, callback)
-        cache.key = cachekey(problem, options, unfixed)
+        storekey!(cache, cachekey(problem, options, unfixed))
         return result
     end
-    data, iteratedata = cache.data
+    data, iteratedata = something(cache.data)
     return optimizecached!(problem, options, data, iteratedata, callback, startstats)
 end
 
