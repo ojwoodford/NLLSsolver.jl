@@ -46,6 +46,11 @@ end
     @test !NLLSsolver.isbitsvartype(Vector{Float64})
     @test !NLLSsolver.isbitsvartype(Union{SVector{3, Float64}, Vector{Float64}})
     @test !NLLSsolver.isbitsvartype(Any)
+    @test !NLLSsolver.isbitsvartype(SVector{3}) # a UnionAll: elements are boxed, so deepcopy
+    @test !NLLSsolver.isbitsvartype(Complex)
+    unionallvars = SVector{3}[SVector(1.0, 2.0, 3.0), SVector(1, 2, 3)]
+    unionallcopy = NLLSsolver.copyvars(unionallvars)
+    @test unionallcopy == unionallvars && unionallcopy !== unionallvars
     vars = linesproblem(100).variables
     varscopy = NLLSsolver.copyvars(vars)
     @test varscopy == vars && varscopy !== vars
