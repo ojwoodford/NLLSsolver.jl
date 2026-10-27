@@ -13,4 +13,5 @@ using Test
     include("multithreading.jl")
     include("utils.jl")
     include("nantrial.jl")
+    include("copyvars.jl")
 end
