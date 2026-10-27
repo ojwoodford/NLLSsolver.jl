@@ -21,11 +21,18 @@ convertunfixed(::Nothing, problem) = trues(length(problem.variables))
 convertunfixed(unfixed::DataType, problem) = isa.(problem.variables, unfixed)
 convertunfixed(unfixed, problem) = unfixed
 
+# A copy of the variables. Variables of an isbits type (or a union of such types) are values stored inline in
+# the vector, so a shallow copy suffices; deepcopy would copy them element by element through an IdDict
+copyvars(vars::Vector{T}) where T = isbitsvartype(T) ? copy(vars) : deepcopy(vars)
+isbitsvartype(T::DataType) = isbitstype(T)
+isbitsvartype(T::Union) = isbitsvartype(T.a) && isbitsvartype(T.b)
+isbitsvartype(T) = false
+
 # Helper to ensure the NLLSProblem struct has the right variable storage (e.g. varnext) for optimization
 function checkvars!(problem::NLLSProblem)::NLLSProblem
     # Copy the variables, if need be
     if length(problem.variables) != length(problem.varnext)
-        problem.varnext = deepcopy(problem.variables)
+        problem.varnext = copyvars(problem.variables)
     end
     return problem
 end
@@ -184,7 +191,7 @@ end
                 if length(problem.variables) == length(problem.varbest)
                     updatetobest!(problem, data)
                 else
-                    problem.varbest = deepcopy(problem.variables)
+                    problem.varbest = copyvars(problem.variables)
                 end
             end
         end

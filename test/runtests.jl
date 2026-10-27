@@ -12,4 +12,5 @@ using Test
     include("adaptivecost.jl")
     include("multithreading.jl")
     include("utils.jl")
+    include("copyvars.jl")
 end
