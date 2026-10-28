@@ -177,8 +177,9 @@ end
 dampingnorm(::LevenbergData, x) = fast_dot(x, x)
 function dampingnorm(lmd::MarquardtData, x)
     total = 0.0
-    @inbounds for i in eachindex(x)
-        total += lmd.scaling[i] * x[i] * x[i]
+    scaling = lmd.scaling
+    @turbo for i in eachindex(x)
+        total += scaling[i] * x[i] * x[i]
     end
     return total
 end
