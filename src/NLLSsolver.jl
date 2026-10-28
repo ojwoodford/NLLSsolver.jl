@@ -59,5 +59,6 @@ include("linearsolver.jl")
 include("callbacks.jl")
 include("iterators.jl")
 include("optimize.jl")
+include("OptimizeCache.jl")
 include("multithreading.jl")
 end

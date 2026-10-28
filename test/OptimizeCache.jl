@@ -144,9 +144,5 @@ typedrun!(problem, options, cache) = (problem.variables[1] = SVector(0.0, 0.0, 0
     typedrun!(problem, options, untyped); typedrun!(problem, options, untyped)
     @test (@allocations typedrun!(problem, options, cache)) < (@allocations typedrun!(problem, options, untyped))
     # Julia 1.10 cannot prove the typed path allocation-free (10 allocations remain there); 1.11+ can
-    if VERSION >= v"1.11"
-        @test (@allocations typedrun!(problem, options, cache)) == 0
-    else
-        @test (@allocations typedrun!(problem, options, cache)) <= 16
-    end
+    @test (@allocations typedrun!(problem, options, cache)) <= (VERSION >= v"1.11" ? 0 : 16)
 end
