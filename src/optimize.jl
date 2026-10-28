@@ -166,7 +166,6 @@ end
     data.gradients += @elapsed_ns cost = costgradhess!(data.linsystem, problem.variables, problem.costs)
     data.bestcost = cost
     data.startcost = cost
-    bestfromtrial = false
     # Do the iterations
     while true
         data.iternum += 1
@@ -178,15 +177,11 @@ end
             data.gradients += @elapsed_ns cost = costgradhess!(data.linsystem, problem.varnext, problem.costs)
         end
         # Call the user-defined callback
-        itercost = cost
         cost, terminate = callback(cost, problem, data, iteratedata)
-        # Whether the iterator constructed the linear problem at the new variables (valid if the callback kept the cost)
-        usetrial = hastrial(iteratedata) && isequal(cost, itercost)
         # Check for cost increase (only some iterators will do this)
         dcost = data.bestcost - cost
         if dcost >= 0
             data.bestcost = cost
-            bestfromtrial = usetrial
             fails = 0
         else
             dcost = cost
@@ -218,12 +213,9 @@ end
         if converged != 0
             break
         end
-        if usetrial
-            # The iterator constructed the linear problem at the new variables: use it
-            data.linsystem = swaptrial!(iteratedata, data.linsystem)
-        elseif !computegradient
-            # Construct the linear problem
-            data.gradients += @elapsed_ns cost_ = costgradhess!(data.linsystem, problem.variables, problem.costs)
+        if !computegradient
+            # Construct the linear problem (the iterator may already hold it)
+            cost_ = linearize!(iteratedata, data, problem)
             converged |= !isapprox(cost_, cost)                      << 10 # Cost computations don't agree
         end
     end
@@ -231,10 +223,7 @@ end
         # Update the problem variables to the best ones found
         updatefrombest!(problem, data)
     end
-    if bestfromtrial
-        # The best cost came from the linearization; report the one cost() computes
-        data.costs += @elapsed_ns data.bestcost = NLLSsolver.cost(problem, options) # Qualified: cost is a local
-    end
+    finalize!(iteratedata, data, problem, options)
     return converged
 end
 

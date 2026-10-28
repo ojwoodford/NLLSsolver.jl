@@ -124,14 +124,15 @@ abstract type LevMarData end
 
 # Both hold a second linear system, trial, into which the first trial step of an iteration computes the cost,
 # gradient and Hessian, rather than the cost alone. When the step is accepted, the optimizer swaps it in
-# (swaptrial!) rather than recomputing every residual at the new point.
+# (in linearize!) rather than recomputing every residual at the new point.
 mutable struct LevenbergData{L} <: LevMarData
     lambda::Float64
     trial::L
     trialready::Bool # Whether trial holds the linear system at the point last returned by iterate!
+    trialcost::Float64 # The cost at that point (the last one computed with the gradient, until reset!)
 end
-construct(::StaticSymbol{:levenbergmarquardt}, problem, ls) = LevenbergData(0.0, copy_structure(ls), false)
-reset!(lmd::LevenbergData) = (lmd.trialready = false; lmd.lambda = 0.0)
+construct(::StaticSymbol{:levenbergmarquardt}, problem, ls) = LevenbergData(0.0, copy_structure(ls), false, NaN)
+reset!(lmd::LevenbergData) = (lmd.trialready = false; lmd.trialcost = NaN; lmd.lambda = 0.0)
 
 function updatescaling!(lmd::LevenbergData, hessian)
     if lmd.lambda == 0
@@ -150,9 +151,10 @@ mutable struct MarquardtData{T, L} <: LevMarData
     scaling::T
     trial::L
     trialready::Bool
+    trialcost::Float64
 end
-construct(::StaticSymbol{:levenbergmarquardt_dtd}, problem, ls) = MarquardtData(0.0, zero(getx(ls)), copy_structure(ls), false)
-reset!(lmd::MarquardtData) = (fill!(lmd.scaling, 0.0); lmd.trialready = false; lmd.lambda = 0.0)
+construct(::StaticSymbol{:levenbergmarquardt_dtd}, problem, ls) = MarquardtData(0.0, zero(getx(ls)), copy_structure(ls), false, NaN)
+reset!(lmd::MarquardtData) = (fill!(lmd.scaling, 0.0); lmd.trialready = false; lmd.trialcost = NaN; lmd.lambda = 0.0)
 
 # Update the running maximum D'D of the Hessian diagonal
 function updatescaling!(lmd::MarquardtData, hessian)
@@ -184,16 +186,33 @@ function dampingnorm(lmd::MarquardtData, x)
     return total
 end
 
-# The trial linear system, if iterate! left it holding the linear system at the point it returned
-hastrial(iteratedata) = false
-hastrial(lmd::LevMarData) = lmd.trialready
-
-# Make the trial linear system the current one, keeping the current one's blocks for the next trial
-function swaptrial!(lmd::LevMarData, linsystem)
-    trial = sharex(lmd.trial, linsystem)
-    lmd.trial = linsystem
+# Construct the linear problem at the variables the last iterate! returned, updating data.linsystem, and
+# return the cost there. The default computes it; the Levenberg-Marquardt iterators may already hold it.
+function computelinearization!(data, problem)
+    data.gradients += @elapsed_ns cost_ = costgradhess!(data.linsystem, problem.variables, problem.costs)
+    return cost_
+end
+linearize!(iteratedata, data, problem) = computelinearization!(data, problem)
+function linearize!(lmd::LevMarData, data, problem)
+    if !lmd.trialready
+        return computelinearization!(data, problem)
+    end
+    # Make the trial linear system the current one, keeping the current one's blocks for the next trial
     lmd.trialready = false
-    return trial
+    trial = sharex(lmd.trial, data.linsystem)
+    lmd.trial = data.linsystem
+    data.linsystem = trial
+    return lmd.trialcost
+end
+
+# Called when the optimization ends, after the variables are set to the best found. A best cost that came from
+# the trial linearization is replaced by the one cost() computes, so that cost(problem) == result.bestcost
+# (with autodiff the two can differ in the last bits).
+finalize!(iteratedata, data, problem, options) = nothing
+function finalize!(lmd::LevMarData, data, problem, options)
+    if data.bestcost == lmd.trialcost
+        data.costs += @elapsed_ns data.bestcost = cost(problem, options)
+    end
 end
 
 @inline function iterate!(levmardata::LevMarData, data, problem::NLLSProblem, options::NLLSOptions)::Float64
@@ -220,6 +239,7 @@ end
             levmardata.trial = sharex(levmardata.trial, data.linsystem)
             data.gradients += @elapsed_ns cost_ = costgradhess!(levmardata.trial, problem.varnext, problem.costs)
             levmardata.trialready = true
+            levmardata.trialcost = cost_
         else
             data.costs += @elapsed_ns cost_ = cost(problem.varnext, problem.costs, options.numthreads)
         end
