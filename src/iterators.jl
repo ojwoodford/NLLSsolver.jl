@@ -18,21 +18,29 @@ function Base.String(iterator::NLLSIterator)
     end
 end
 
-# Newton optimization (undamped-Hessian form)
-struct NewtonData
-end
-construct(::StaticSymbol{:newton}, problem, ls) = NewtonData()
-reset!(nd::NewtonData) = nothing
+# Construct the linear problem at the variables the last iterate! returned, updating data.linsystem, and
+# return the cost there. 
+linearize!(iteratedata, data, problem) = computelinearization!(data, problem)
 
-@inline function iterate!(::NewtonData, data, problem::NLLSProblem, options::NLLSOptions)::Float64
+# Newton optimization (undamped-Hessian form)
+mutable struct NewtonData
+    cost::Float64
+end
+construct(::StaticSymbol{:newton}, problem, ls) = NewtonData(0.)
+reset!(::NewtonData) = nothing
+
+@inline function iterate!(nd::NewtonData, data, problem::NLLSProblem, options::NLLSOptions)::Float64
     # Compute the step
     gethessian(data.linsystem)
     data.solves += @elapsed_ns negate!(solve!(data.linsystem))
     # Update the new variables
     update!(problem.varnext, problem.variables, data.linsystem)
-    # Return -Inf to signal the cost wasn't computed
-    return -Inf
+    # Relinearize now, in order to compute the cost
+    data.gradients += @elapsed_ns nd.cost = costgradhess!(data.linsystem, problem.varnext, problem.costs)
+    return nd.cost
 end
+
+linearize!(nd::NewtonData, data, problem) = nd.cost
 
 # Dogleg optimization
 mutable struct DoglegData{T}
@@ -128,10 +136,10 @@ abstract type LevMarData end
 mutable struct LevenbergData{L} <: LevMarData
     lambda::Float64
     trial::L
-    trialready::Bool # Whether trial holds the linear system at the point last returned by iterate!
     trialcost::Float64 # The cost at that point (the last one computed with the gradient, until reset!)
+    trialready::Bool # Whether trial holds the linear system at the point last returned by iterate!
 end
-construct(::StaticSymbol{:levenbergmarquardt}, problem, ls) = LevenbergData(0.0, copy_structure(ls), false, NaN)
+construct(::StaticSymbol{:levenbergmarquardt}, problem, ls) = LevenbergData(0.0, copy_structure(ls), NaN, false)
 reset!(lmd::LevenbergData) = (lmd.trialready = false; lmd.trialcost = NaN; lmd.lambda = 0.0)
 
 function updatescaling!(lmd::LevenbergData, hessian)
@@ -150,10 +158,10 @@ mutable struct MarquardtData{T, L} <: LevMarData
     lambda::Float64
     scaling::T
     trial::L
-    trialready::Bool
     trialcost::Float64
+    trialready::Bool
 end
-construct(::StaticSymbol{:levenbergmarquardt_dtd}, problem, ls) = MarquardtData(0.0, zero(getx(ls)), copy_structure(ls), false, NaN)
+construct(::StaticSymbol{:levenbergmarquardt_dtd}, problem, ls) = MarquardtData(0.0, zero(getx(ls)), copy_structure(ls), NaN, false)
 reset!(lmd::MarquardtData) = (fill!(lmd.scaling, 0.0); lmd.trialready = false; lmd.trialcost = NaN; lmd.lambda = 0.0)
 
 # Update the running maximum D'D of the Hessian diagonal
@@ -186,13 +194,7 @@ function dampingnorm(lmd::MarquardtData, x)
     return total
 end
 
-# Construct the linear problem at the variables the last iterate! returned, updating data.linsystem, and
-# return the cost there. The default computes it; the Levenberg-Marquardt iterators may already hold it.
-function computelinearization!(data, problem)
-    data.gradients += @elapsed_ns cost_ = costgradhess!(data.linsystem, problem.variables, problem.costs)
-    return cost_
-end
-linearize!(iteratedata, data, problem) = computelinearization!(data, problem)
+# Levenberg-Marquardt iterators may already hold the current linearization.
 function linearize!(lmd::LevMarData, data, problem)
     if !lmd.trialready
         return computelinearization!(data, problem)
@@ -203,16 +205,6 @@ function linearize!(lmd::LevMarData, data, problem)
     lmd.trial = data.linsystem
     data.linsystem = trial
     return lmd.trialcost
-end
-
-# Called when the optimization ends, after the variables are set to the best found. A best cost that came from
-# the trial linearization is replaced by the one cost() computes, so that cost(problem) == result.bestcost
-# (with autodiff the two can differ in the last bits).
-finalize!(iteratedata, data, problem, options) = nothing
-function finalize!(lmd::LevMarData, data, problem, options)
-    if data.bestcost == lmd.trialcost
-        data.costs += @elapsed_ns data.bestcost = cost(problem, options)
-    end
 end
 
 @inline function iterate!(levmardata::LevMarData, data, problem::NLLSProblem, options::NLLSOptions)::Float64
