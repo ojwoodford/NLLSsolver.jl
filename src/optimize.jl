@@ -155,8 +155,6 @@ function setupsmultivarls(func::F1, problem::NLLSProblem, options::NLLSOptions, 
     return setupiterator(func, problem, options, sharedlinearsystem(lsdense, problem, options), startstats, callback, trailingargs)
 end
 
-problemcost(problem, options) = cost(problem.variables, problem.costs, options.numthreads)
-
 # The meat of an optimization
 @inline function optimizeloop!(problem::NLLSProblem, options::NLLSOptions, data, iteratedata, callback::F) where F
     # Initializations
@@ -235,7 +233,7 @@ problemcost(problem, options) = cost(problem.variables, problem.costs, options.n
     end
     if bestfromtrial
         # The best cost came from the linearization; report the one cost() computes
-        data.costs += @elapsed_ns data.bestcost = problemcost(problem, options)
+        data.costs += @elapsed_ns data.bestcost = NLLSsolver.cost(problem, options) # Qualified: cost is a local
     end
     return converged
 end
