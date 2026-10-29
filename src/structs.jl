@@ -3,7 +3,7 @@ import Printf.@printf
 
 @enum NLLSIterator newton levenbergmarquardt dogleg gradientdescent levenbergmarquardt_dtd
 
-struct NLLSOptions{S, N}
+struct NLLSOptions{S, N, B <: StaticBool}
     reldcost::Float64           # Minimum relative reduction in cost required to avoid termination
     absdcost::Float64           # Minimum absolute reduction in cost required to avoid termination
     dstep::Float64              # Minimum L-infinity norm of the update vector required to avoid termination
@@ -12,17 +12,21 @@ struct NLLSOptions{S, N}
     maxtime::UInt64             # Maximum optimization time allowed, in nano-seconds (converted from seconds in the constructor)
     iterator::StaticSymbol{S}   # Static Symbol of the inner iterator (see above for options for iterators)
     numthreads::StaticInt{N}    # Number of threads to use for parallel computations
+    callbackchangesstate::B     # True if the callback can potentially change the state of the problem
 
-    function NLLSOptions(reldcost, abscost, dstep, maxfails, maxiters, maxtime, iterator::StaticSymbol{S}, numthreads::StaticInt{N}) where {S, N}
-        return new{S, N}(reldcost, abscost, dstep, maxfails, maxiters, maxtime, iterator, numthreads)
+    function NLLSOptions(reldcost, abscost, dstep, maxfails, maxiters, maxtime, iterator::StaticSymbol{S}, numthreads::StaticInt{N}, callbackchangesstate::B) where {S, N, B <: StaticBool}
+        return new{S, N, B}(reldcost, abscost, dstep, maxfails, maxiters, maxtime, iterator, numthreads, callbackchangesstate)
     end
 end
-function NLLSOptions(; maxiters=100, reldcost=1.e-15, absdcost=1.e-15, dstep=1.e-15, maxfails=3, maxtime=30.0, iterator=:levenbergmarquardt, callback=nothing, iteratordata=nothing, numthreads=StaticInt(Threads.nthreads()))
+makestaticbool(x::Union{Bool, StaticBool}) = static(x)
+makestaticbool(::Type{True}) = True()
+makestaticbool(::Type{False}) = False()
+function NLLSOptions(; maxiters=100, reldcost=1.e-15, absdcost=1.e-15, dstep=1.e-15, maxfails=3, maxtime=30.0, iterator=:levenbergmarquardt, callback=nothing, iteratordata=nothing, numthreads=StaticInt(Threads.nthreads()), callbackchangesstate=False())
     @assert(isnothing(callback), "Callbacks should be passed directly to optimize!, not to the options struct.")
     @assert(isnothing(iteratordata), "Iteratordata should not be passed to the options struct.")
-    NLLSOptions(reldcost, absdcost, dstep, maxfails, maxiters, UInt64(round(maxtime * 1e9)), static(Symbol(iterator)), static(numthreads))
+    NLLSOptions(reldcost, absdcost, dstep, maxfails, maxiters, UInt64(round(maxtime * 1e9)), static(Symbol(iterator)), static(numthreads), makestaticbool(callbackchangesstate))
 end
-singlethreaded(options::NLLSOptions) = NLLSOptions(options.reldcost, options.absdcost, options.dstep, options.maxfails, options.maxiters, options.maxtime, options.iterator, static(1))
+singlethreaded(options::NLLSOptions) = NLLSOptions(options.reldcost, options.absdcost, options.dstep, options.maxfails, options.maxiters, options.maxtime, options.iterator, static(1), options.callbackchangesstate)
 getiterator(options) = eval(dynamic(options.iterator))::NLLSIterator
 
 struct NLLSResult
@@ -137,6 +141,20 @@ mutable struct NLLSInternal{LSType}
     function NLLSInternal(linsystem::LSType, startstats) where LSType
         return new{LSType}(0., 0., startstats, Stats(0), Stats(0), TimeCounter(), TimeCounter(), TimeCounter(), 0, linsystem)
     end
+end
+
+# Reset the costs, statistics and counts, for a new optimization with the same linear system
+function reset!(data::NLLSInternal, startstats)
+    data.startcost = 0.
+    data.bestcost = 0.
+    data.start = startstats
+    data.init = Stats(0)
+    data.optimize = Stats(0)
+    data.costs = TimeCounter()
+    data.gradients = TimeCounter()
+    data.solves = TimeCounter()
+    data.iternum = 0
+    return data
 end
 
 NLLSInternalMultiVar = NLLSInternal{<:MultiVariateLS}

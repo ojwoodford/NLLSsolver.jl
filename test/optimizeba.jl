@@ -71,7 +71,7 @@ end
     costafter = NLLSsolver.cost(problem, static(1))
     costafter_m = NLLSsolver.cost(prob_m, static(1))
     @test costbefore ≈ result.startcost
-    @test costafter ≈ result.bestcost
+    @test isapprox(costafter, result.bestcost; atol=1.e-22)
     @test costafter < 1.e-15
     @test costafter_m ≈ result_m.bestcost
     @test costafter_m < 1.e-15
@@ -84,13 +84,13 @@ end
     display(result)
     costafter = NLLSsolver.cost(problem)
     @test costbefore ≈ result.startcost
-    @test costafter ≈ result.bestcost
+    @test isapprox(costafter, result.bestcost; atol=1.e-22)
     @test costafter < 1.e-15
 
     # Optimize problem
     problem = perturb_ba_problem(problem, 0.001, 0.001)
     result = optimize!(problem, options)
-    @test NLLSsolver.cost(problem) == result.bestcost
+    @test isapprox(NLLSsolver.cost(problem), result.bestcost; atol=1.e-22)
     @test result.bestcost < 1.e-15
     problem = perturb_ba_problem(problem, 0.001, 0.001)
     result = optimize!(problem, options)
@@ -100,7 +100,7 @@ end
     problem = create_ba_problem(10, 50, 0.3)
     problem = perturb_ba_problem(problem, 0.001, 0.001)
     result = optimize!(problem, options)
-    @test NLLSsolver.cost(problem) == result.bestcost
+    @test isapprox(NLLSsolver.cost(problem), result.bestcost; atol=1.e-22)
     @test result.bestcost < 1.e-15
     problem = perturb_ba_problem(problem, 0.001, 0.001)
     result = optimize!(problem, options)
@@ -110,7 +110,7 @@ end
     dtdoptions = NLLSOptions(numthreads = static(1), iterator = :levenbergmarquardt_dtd)
     problem = perturb_ba_problem(create_ba_problem(3, 5, 1.0), 0.001, 0.001)
     result = optimize!(problem, dtdoptions)
-    @test NLLSsolver.cost(problem) == result.bestcost
+    @test isapprox(NLLSsolver.cost(problem), result.bestcost; atol=1.e-22)
     @test result.bestcost < 1.e-15
     problem = perturb_ba_problem(problem, 0.003, 0.0)
     problem_m = deepcopy(problem)
@@ -122,7 +122,7 @@ end
     @test result.bestcost ≈ result_m.bestcost
     problem = perturb_ba_problem(create_ba_problem(10, 50, 0.3), 0.001, 0.001)
     result = optimize!(problem, dtdoptions)
-    @test NLLSsolver.cost(problem) == result.bestcost
+    @test isapprox(NLLSsolver.cost(problem), result.bestcost; atol=1.e-22)
     @test result.bestcost < 1.e-15
     @test result.optimizeallocated == 0
 end

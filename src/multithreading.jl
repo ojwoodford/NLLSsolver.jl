@@ -88,13 +88,13 @@ end
     singleoptions = singlethreaded(options)
 
     if length(problem.variables) != length(problem.varbest)
-        problem.varbest = deepcopy(problem.variables)
+        problem.varbest = copyvars(problem.variables)
     end
 
     costs_vec = [CostStruct{CT}() for _ in 1:nactive]
     probs = [i == 1 ? problem : NLLSProblem{VT, CT}(problem.variables, costs_vec[i], problem.varnext, problem.varbest) for i in 1:nactive]
     data_vec = [i == 1 ? data : NLLSInternal(copy_structure(data.linsystem), data.start) for i in 1:nactive]
-    iterdata_vec = [i == 1 ? iteratedata : construct(options.iterator, probs[i], data_vec[i].linsystem) for i in 1:nactive]
+    iterdata_vec = [i == 1 ? iteratedata : construct(options.iterator, probs[i], data_vec[i].linsystem, options.callbackchangesstate) for i in 1:nactive]
     terminations = zeros(Int, nactive)
 
     data.init = Stats()

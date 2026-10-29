@@ -1,19 +1,45 @@
 # Uni-variate optimization (single unfixed variable)
-optimize!(problem::NLLSProblem, options::NLLSOptions, unfixed::Integer, callback::F=nullcallback) where F = setupsinglevarls(optimizeinternal!, problem, options, unfixed, Stats(), callback)
+optimize!(problem::NLLSProblem, options::NLLSOptions, unfixed::Integer, callback::F=nullcallback) where F = optimizewith(optimizeinternal!, problem, options, unfixed, Stats(), callback)
 
 # Multi-variate optimization
-function optimize!(problem::NLLSProblem, options::NLLSOptions, unfixed::AbstractVector, callback::F=nullcallback)::NLLSResult where F
-    startstats = Stats()
+optimize!(problem::NLLSProblem, options::NLLSOptions, unfixed::AbstractVector, callback::F=nullcallback) where F = optimizewith(optimizeinternal!, problem, options, unfixed, Stats(), callback)
+
+optimizewith(func::F1, problem::NLLSProblem, options::NLLSOptions, unfixed::Integer, startstats, callback::F2) where {F1, F2} = setupsinglevarls(func, problem, options, unfixed, startstats, callback)
+function optimizewith(func::F1, problem::NLLSProblem, options::NLLSOptions, unfixed::AbstractVector, startstats, callback::F2) where {F1, F2}
     @assert length(problem.variables) > 0
     # Compute the number of free variables (nblocks)
     nblocks = sum(unfixed)
     if nblocks == 1
         # One unfixed variable
-        return setupsinglevarls(optimizeinternal!, problem, options, findfirst(unfixed), startstats, callback)
+        return setupsinglevarls(func, problem, options, findfirst(unfixed), startstats, callback)
     else
         # Multiple variables
-        return setupsmultivarls(optimizeinternal!, problem, options, unfixed, startstats, nblocks, callback)
+        return setupsmultivarls(func, problem, options, unfixed, startstats, nblocks, callback)
     end
+end
+
+"""
+    NLLSsolver.optimize!(problem::NLLSProblem, options::NLLSOptions, unfixed, callback, cache::OptimizeCache)
+
+Optimize as `optimize!(problem, options, unfixed, callback)` does, reusing the internal data stored in `cache`
+by an earlier call when it is still valid for this one (see [`OptimizeCache`](@ref)).
+"""
+function optimize!(problem::NLLSProblem, options::NLLSOptions, unfixed, callback::F, cache::OptimizeCache)::NLLSResult where F
+    startstats = Stats()
+    unfixed = convertunfixed(unfixed, problem)
+    if !cachevalid(cache, problem, options, unfixed)
+        empty!(cache)
+        return optimizewith(StoreInCache(cache, unfixed), problem, options, unfixed, startstats, callback)
+    end
+    data, iteratedata = something(cache.data)
+    return optimizecached!(problem, options, data, iteratedata, callback, startstats)
+end
+
+function optimizecached!(problem::NLLSProblem, options::NLLSOptions, data::NLLSInternal, iteratedata, callback::F, startstats) where F
+    checkvars!(problem)
+    reset!(data, startstats)
+    reset!(iteratedata)
+    return optimizeinternal!(problem, options, data, iteratedata, callback)
 end
 
 # Conversions for different types of "unfixed"
@@ -21,11 +47,18 @@ convertunfixed(::Nothing, problem) = trues(length(problem.variables))
 convertunfixed(unfixed::DataType, problem) = isa.(problem.variables, unfixed)
 convertunfixed(unfixed, problem) = unfixed
 
+# A copy of the variables. Variables of an isbits type (or a union of such types) are values stored inline in
+# the vector, so a shallow copy suffices; deepcopy would copy them element by element through an IdDict
+copyvars(vars::Vector{T}) where T = isbitsvartype(T) ? copy(vars) : deepcopy(vars)
+isbitsvartype(T::DataType) = isbitstype(T)
+isbitsvartype(T::Union) = isbitsvartype(T.a) && isbitsvartype(T.b)
+isbitsvartype(T) = false
+
 # Helper to ensure the NLLSProblem struct has the right variable storage (e.g. varnext) for optimization
 function checkvars!(problem::NLLSProblem)::NLLSProblem
     # Copy the variables, if need be
     if length(problem.variables) != length(problem.varnext)
-        problem.varnext = deepcopy(problem.variables)
+        problem.varnext = copyvars(problem.variables)
     end
     return problem
 end
@@ -118,7 +151,7 @@ function setupstaticvarls(func::F1, problem::NLLSProblem, options::NLLSOptions, 
 end
 
 function setupiterator(func::F1, problem::NLLSProblem, options::NLLSOptions, ls, startstats, callback::F2, trailingargs) where {F1, F2}
-    iteratordata = construct(options.iterator, problem, ls)
+    iteratordata = construct(options.iterator, problem, ls, options.callbackchangesstate)
     return func(problem, options, NLLSInternal(ls, startstats), iteratordata, callback, trailingargs...)
 end
 
@@ -148,6 +181,11 @@ function setupsmultivarls(func::F1, problem::NLLSProblem, options::NLLSOptions, 
     return setupiterator(func, problem, options, sharedlinearsystem(lsdense, problem, options), startstats, callback, trailingargs)
 end
 
+function computelinearization!(data, problem)
+    data.gradients += @elapsed_ns cost_ = costgradhess!(data.linsystem, problem.variables, problem.costs)
+    return cost_
+end
+
 # The meat of an optimization
 @inline function optimizeloop!(problem::NLLSProblem, options::NLLSOptions, data, iteratedata, callback::F) where F
     # Initializations
@@ -156,21 +194,17 @@ end
     converged = 0
     data.iternum = 0
     # Initialize the linear problem
-    data.gradients += @elapsed_ns cost = costgradhess!(data.linsystem, problem.variables, problem.costs)
+    cost = computelinearization!(data, problem)
     data.bestcost = cost
     data.startcost = cost
     # Do the iterations
     while true
         data.iternum += 1
         # Call the per iteration solver
-        cost = iterate!(iteratedata, data, problem, options)
-        computegradient = isequal(cost, -Inf)
-        if computegradient
-            # Construct the linear problem now, in order to compute the correct cost
-            data.gradients += @elapsed_ns cost = costgradhess!(data.linsystem, problem.varnext, problem.costs)
-        end
+        cost_ = iterate!(iteratedata, data, problem, options)
         # Call the user-defined callback
-        cost, terminate = callback(cost, problem, data, iteratedata)
+        cost, terminate = callback(cost_, problem, data, iteratedata)
+        @assert(dynamic(options.callbackchangesstate) || cost == cost_, "callback expected to not change the cost")
         # Check for cost increase (only some iterators will do this)
         dcost = data.bestcost - cost
         if dcost >= 0
@@ -184,7 +218,7 @@ end
                 if length(problem.variables) == length(problem.varbest)
                     updatetobest!(problem, data)
                 else
-                    problem.varbest = deepcopy(problem.variables)
+                    problem.varbest = copyvars(problem.variables)
                 end
             end
         end
@@ -206,11 +240,9 @@ end
         if converged != 0
             break
         end
-        if !computegradient
-            # Construct the linear problem
-            data.gradients += @elapsed_ns cost_ = costgradhess!(data.linsystem, problem.variables, problem.costs)
-            converged |= !isapprox(cost_, cost)                      << 10 # Cost computations don't agree
-        end
+        # Construct the new linear problem (the iterator may already hold it)
+        cost_ = linearize!(iteratedata, data, problem)
+        converged |= !isapprox(cost_, cost)                          << 10 # Cost computations don't agree
     end
     if !(data.bestcost >= cost)
         # Update the problem variables to the best ones found

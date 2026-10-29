@@ -181,6 +181,11 @@ copy_structure(x::UniVariateLSdynamic_x) = UniVariateLSdynamic_x(x.varindex, len
 copy_structure(x::UniVariateLSstatic_x{N}) where N = UniVariateLSstatic_x{N}(x.varindex)
 copy_structure(x) = x
 copy_structure(ls::LinearSystem{F, V}) where {F, V} = LinearSystem{F, V}(copy_structure(ls.x), copy_structure(ls.ls))
+copy_structure(ls::LinearSystemShared{F, V, N}) where {F, V, N} = LinearSystemShared{F, V, N}(copy_structure(ls.x), SVector{N, V}(ntuple(i -> copy_structure(ls.ls[i]), Val(N))), MVector{N, Float64}(undef))
+
+# The blocks of one linear system with the unknowns (and solver state) of another
+sharex(ls::LinearSystem{F, V}, from) where {F, V} = LinearSystem{F, V}(from.x, ls.ls)
+sharex(ls::LinearSystemShared{F, V, N}, from) where {F, V, N} = LinearSystemShared{F, V, N}(from.x, ls.ls, ls.costs)
 
 sharedlinearsystem(ls::LinearSystem, ::StaticInt{1}) = ls
 sharedlinearsystem(ls::LinearSystemShared, ::StaticInt) = ls
