@@ -127,7 +127,7 @@ function setupstaticvarls(func::F1, problem::NLLSProblem, options::NLLSOptions, 
 end
 
 function setupiterator(func::F1, problem::NLLSProblem, options::NLLSOptions, ls, startstats, callback::F2, trailingargs) where {F1, F2}
-    iteratordata = construct(options.iterator, problem, ls)
+    iteratordata = construct(options.iterator, problem, ls, options.callbackchangesstate)
     return func(problem, options, NLLSInternal(ls, startstats), iteratordata, callback, trailingargs...)
 end
 
@@ -157,6 +157,11 @@ function setupsmultivarls(func::F1, problem::NLLSProblem, options::NLLSOptions, 
     return setupiterator(func, problem, options, sharedlinearsystem(lsdense, problem, options), startstats, callback, trailingargs)
 end
 
+function computelinearization!(data, problem)
+    data.gradients += @elapsed_ns cost_ = costgradhess!(data.linsystem, problem.variables, problem.costs)
+    return cost_
+end
+
 # The meat of an optimization
 @inline function optimizeloop!(problem::NLLSProblem, options::NLLSOptions, data, iteratedata, callback::F) where F
     # Initializations
@@ -165,21 +170,17 @@ end
     converged = 0
     data.iternum = 0
     # Initialize the linear problem
-    data.gradients += @elapsed_ns cost = costgradhess!(data.linsystem, problem.variables, problem.costs)
+    cost = computelinearization!(data, problem)
     data.bestcost = cost
     data.startcost = cost
     # Do the iterations
     while true
         data.iternum += 1
         # Call the per iteration solver
-        cost = iterate!(iteratedata, data, problem, options)
-        computegradient = isequal(cost, -Inf)
-        if computegradient
-            # Construct the linear problem now, in order to compute the correct cost
-            data.gradients += @elapsed_ns cost = costgradhess!(data.linsystem, problem.varnext, problem.costs)
-        end
+        cost_ = iterate!(iteratedata, data, problem, options)
         # Call the user-defined callback
-        cost, terminate = callback(cost, problem, data, iteratedata)
+        cost, terminate = callback(cost_, problem, data, iteratedata)
+        @assert(dynamic(options.callbackchangesstate) || cost == cost_, "callback expected to not change the cost")
         # Check for cost increase (only some iterators will do this)
         dcost = data.bestcost - cost
         if dcost >= 0
@@ -215,11 +216,9 @@ end
         if converged != 0
             break
         end
-        if !computegradient
-            # Construct the linear problem
-            data.gradients += @elapsed_ns cost_ = costgradhess!(data.linsystem, problem.variables, problem.costs)
-            converged |= !isapprox(cost_, cost)                      << 10 # Cost computations don't agree
-        end
+        # Construct the new linear problem (the iterator may already hold it)
+        cost_ = linearize!(iteratedata, data, problem)
+        converged |= !isapprox(cost_, cost)                          << 10 # Cost computations don't agree
     end
     if !(data.bestcost >= cost)
         # Update the problem variables to the best ones found

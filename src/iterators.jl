@@ -18,11 +18,16 @@ function Base.String(iterator::NLLSIterator)
     end
 end
 
+# Construct the linear problem at the variables the last iterate! returned, updating data.linsystem, and
+# return the cost there. 
+# return the cost there.
+linearize!(::Any, data, problem) = computelinearization!(data, problem)
+
 # Newton optimization (undamped-Hessian form)
 struct NewtonData
 end
-construct(::StaticSymbol{:newton}, problem, ls) = NewtonData()
-reset!(nd::NewtonData) = nothing
+construct(::StaticSymbol{:newton}, problem, ls, ::True) = NewtonData()
+reset!(::NewtonData) = nothing
 
 @inline function iterate!(::NewtonData, data, problem::NLLSProblem, options::NLLSOptions)::Float64
     # Compute the step
@@ -30,9 +35,30 @@ reset!(nd::NewtonData) = nothing
     data.solves += @elapsed_ns negate!(solve!(data.linsystem))
     # Update the new variables
     update!(problem.varnext, problem.variables, data.linsystem)
-    # Return -Inf to signal the cost wasn't computed
-    return -Inf
+    # Compute the cost
+    data.costs += @elapsed_ns cost_ = cost(problem.varnext, problem.costs, options.numthreads)
+    # Return the cost
+    return cost_
 end
+
+mutable struct NewtonDataRelinearize
+    cost::Float64
+end
+construct(::StaticSymbol{:newton}, problem, ls, ::False) = NewtonDataRelinearize(0.)
+reset!(::NewtonDataRelinearize) = nothing
+
+@inline function iterate!(nd::NewtonDataRelinearize, data, problem::NLLSProblem, options::NLLSOptions)::Float64
+    # Compute the step
+    gethessian(data.linsystem)
+    data.solves += @elapsed_ns negate!(solve!(data.linsystem))
+    # Update the new variables
+    update!(problem.varnext, problem.variables, data.linsystem)
+    # Relinearize now, in order to compute the cost
+    data.gradients += @elapsed_ns nd.cost = costgradhess!(data.linsystem, problem.varnext, problem.costs)
+    return nd.cost
+end
+
+linearize!(nd::NewtonDataRelinearize, data, problem) = nd.cost
 
 # Dogleg optimization
 mutable struct DoglegData{T}
@@ -43,7 +69,7 @@ mutable struct DoglegData{T}
         return new{typeof(getx(ls))}(0.0, similar(getx(ls)))
     end
 end
-construct(::StaticSymbol{:dogleg}, problem, data) = DoglegData(problem, data)
+construct(::StaticSymbol{:dogleg}, problem, data, ::Any) = DoglegData(problem, data)
 reset!(dd::DoglegData) = dd.trustradius = 0.0
 
 @inline function iterate!(doglegdata::DoglegData, data, problem::NLLSProblem, options::NLLSOptions)::Float64
@@ -121,14 +147,29 @@ printoutcallback(cost, problem, data, iteratedata::DoglegData) = printoutcallbac
 # :levenbergmarquardt_dtd damps it with lambda * D'D (Marquardt scaling), where D'D is the running maximum of diag(J'J)
 # over the iterations so far, floored at 1e-8 times its largest entry (Transtrum & Sethna, arXiv:1201.5885).
 abstract type LevMarData end
+abstract type LevMarDataTrial <: LevMarData end
 
 mutable struct LevenbergData <: LevMarData
     lambda::Float64
 end
-construct(::StaticSymbol{:levenbergmarquardt}, problem, ls) = LevenbergData(0.0)
-reset!(lmd::LevenbergData) = lmd.lambda = 0.0
+construct(::StaticSymbol{:levenbergmarquardt}, problem, ls, ::True) = LevenbergData(0.0)
+reset!(lmd::LevenbergData) = (lmd.lambda = 0.0)
 
-function updatescaling!(lmd::LevenbergData, hessian)
+# LevenbergDataTrial holds a second linear system, trial, into which the first trial step of an iteration computes the cost,
+# gradient and Hessian, rather than the cost alone. When the step is accepted, the optimizer swaps it in
+# (in linearize!) rather than recomputing every residual at the new point.
+mutable struct LevenbergDataTrial{L} <: LevMarDataTrial
+    lambda::Float64
+    trial::L
+    trialcost::Float64 # The cost at that point (the last one computed with the gradient, until reset!)
+    trialready::Bool # Whether trial holds the linear system at the point last returned by iterate!
+end
+construct(::StaticSymbol{:levenbergmarquardt}, problem, ls, ::False) = LevenbergDataTrial(0.0, copy_structure(ls), NaN, false)
+reset!(lmd::LevenbergDataTrial) = (lmd.trialready = false; lmd.trialcost = NaN; lmd.lambda = 0.0)
+
+const AnyLevenbergData = Union{LevenbergData, LevenbergDataTrial}
+
+function updatescaling!(lmd::AnyLevenbergData, hessian)
     if lmd.lambda == 0
         m = zero(eltype(hessian))
         for i in axes(hessian, 1)
@@ -138,17 +179,29 @@ function updatescaling!(lmd::LevenbergData, hessian)
     end
 end
 
-dampenhessian!(hessian, ::LevenbergData, dlambda) = uniformscaling!(hessian, dlambda)
+dampenhessian!(hessian, ::AnyLevenbergData, dlambda) = uniformscaling!(hessian, dlambda)
 
 mutable struct MarquardtData{T} <: LevMarData
     lambda::Float64
     scaling::T
 end
-construct(::StaticSymbol{:levenbergmarquardt_dtd}, problem, ls) = MarquardtData(0.0, zero(getx(ls)))
+construct(::StaticSymbol{:levenbergmarquardt_dtd}, problem, ls, ::True) = MarquardtData(0.0, zero(getx(ls)))
 reset!(lmd::MarquardtData) = (fill!(lmd.scaling, 0.0); lmd.lambda = 0.0)
 
+mutable struct MarquardtDataTrial{T, L} <: LevMarDataTrial
+    lambda::Float64
+    scaling::T
+    trial::L
+    trialcost::Float64
+    trialready::Bool
+end
+construct(::StaticSymbol{:levenbergmarquardt_dtd}, problem, ls, ::False) = MarquardtDataTrial(0.0, zero(getx(ls)), copy_structure(ls), NaN, false)
+reset!(lmd::MarquardtDataTrial) = (fill!(lmd.scaling, 0.0); lmd.trialready = false; lmd.trialcost = NaN; lmd.lambda = 0.0)
+
+const AnyMarquardtData = Union{MarquardtData, MarquardtDataTrial}
+
 # Update the running maximum D'D of the Hessian diagonal
-function updatescaling!(lmd::MarquardtData, hessian)
+function updatescaling!(lmd::AnyMarquardtData, hessian)
     if lmd.lambda == 0
         lmd.lambda = 1e-6
     end
@@ -160,10 +213,34 @@ function updatescaling!(lmd::MarquardtData, hessian)
     lmd.scaling .= max.(lmd.scaling, m * 1e-8)
 end
 
-function dampenhessian!(hessian, lmd::MarquardtData, dlambda)
+function dampenhessian!(hessian, lmd::AnyMarquardtData, dlambda)
     for i in axes(hessian, 1)
         @inbounds hessian[i,i] += dlambda * lmd.scaling[i]
     end
+end
+
+# x' D x, for the damping matrix D
+dampingnorm(::AnyLevenbergData, x) = fast_dot(x, x)
+function dampingnorm(lmd::AnyMarquardtData, x)
+    total = 0.0
+    scaling = lmd.scaling
+    @turbo for i in eachindex(x)
+        total += scaling[i] * x[i] * x[i]
+    end
+    return total
+end
+
+# Levenberg-Marquardt iterators may already hold the current linearization.
+function linearize!(lmd::LevMarDataTrial, data, problem)
+    if !lmd.trialready
+        return computelinearization!(data, problem)
+    end
+    # Make the trial linear system the current one, keeping the current one's blocks for the next trial
+    lmd.trialready = false
+    trial = sharex(lmd.trial, data.linsystem)
+    lmd.trial = data.linsystem
+    data.linsystem = trial
+    return lmd.trialcost
 end
 
 @inline function iterate!(levmardata::LevMarData, data, problem::NLLSProblem, options::NLLSOptions)::Float64
@@ -199,13 +276,61 @@ end
     end
 end
 
+@inline function iterate!(levmardata::LevMarDataTrial, data, problem::NLLSProblem, options::NLLSOptions)::Float64
+    @assert levmardata.lambda >= 0.
+    hessian, gradient = gethessgrad(data.linsystem)
+    updatescaling!(levmardata, hessian)
+    lastlambda = 0.
+    mu = 2.
+    levmardata.trialready = false
+    firsttrial = true
+    while true
+        # Dampen the Hessian
+        dampenhessian!(hessian, levmardata, levmardata.lambda - lastlambda)
+        lastlambda = levmardata.lambda
+        # Solve the linear system
+        data.solves += @elapsed_ns negate!(solve!(data.linsystem))
+        # Update the new variables
+        update!(problem.varnext, problem.variables, data.linsystem)
+        # Compute the cost. The first trial of an iteration is usually accepted, so compute the gradient and
+        # Hessian there too, unless the model's predicted decrease, -g'x - x'Hx/2 = (lambda x'Dx - g'x)/2
+        # given (H + lambda D) x = -g, is too small for the optimization to continue
+        step = getx(data.linsystem)
+        if firsttrial && 0.5 * (levmardata.lambda * dampingnorm(levmardata, step) - fast_dot(gradient, step)) >= data.bestcost * options.reldcost
+            levmardata.trial = sharex(levmardata.trial, data.linsystem)
+            data.gradients += @elapsed_ns cost_ = costgradhess!(levmardata.trial, problem.varnext, problem.costs)
+            levmardata.trialready = true
+            levmardata.trialcost = cost_
+        else
+            data.costs += @elapsed_ns cost_ = cost(problem.varnext, problem.costs, options.numthreads)
+        end
+        firsttrial = false
+        # Check for exit
+        # Accept only a cost that is not greater than the best: a NaN cost (a step past the domain of the
+        # residual) is a failed step, like a higher one
+        if cost_ <= data.bestcost || maximum(abs, getx(data.linsystem))::Float64 < options.dstep
+            # Success (or convergence) - update lambda
+            dampenhessian!(hessian, levmardata, -lastlambda)
+            stepquality = (cost_ - data.bestcost) / (0.5 * fast_bAb(hessian, getx(data.linsystem)) + fast_dot(gradient, getx(data.linsystem)))
+            levmardata.lambda *= stepquality < 0.983 ? 1 - (2 * stepquality - 1) ^ 3 : 0.1
+            # Return the cost
+            return cost_
+        end
+        # Failure - increase lambda
+        levmardata.trialready = false
+        levmardata.lambda *= mu
+        mu *= 2.
+    end
+end
+
 printoutcallback(cost, problem, data, iteratedata::LevMarData) = printoutcallback(cost, data, 1.0/iteratedata.lambda)
 
 # Gradient descent optimization
 mutable struct GradientDescentData
     stepsize::Float64
 end
-construct(::StaticSymbol{:gradientdescent}, problem, data) = GradientDescentData(1.0)
+construct(::StaticSymbol{:gradientdescent}, problem, data, ::Any) = GradientDescentData(1.0)
+construct(s::StaticSymbol, problem, data) = construct(s, problem, data, False)
 reset!(gdd::GradientDescentData) = gdd.stepsize = 1.0
 
 @inline function iterate!(gddata::GradientDescentData, data, problem::NLLSProblem, options::NLLSOptions)::Float64

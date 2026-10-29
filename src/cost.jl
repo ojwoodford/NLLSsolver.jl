@@ -8,6 +8,7 @@ Compute and return the scalar cost defined by `problem`.
 """
 cost(problem::NLLSProblem, numthreads=StaticInt(Threads.nthreads())) = cost(problem.variables, problem.costs, numthreads)
 cost(problem::NLLSProblem, numthreads::Integer) = cost(problem, static(numthreads))
+cost(problem::NLLSProblem, options::NLLSOptions) = cost(problem.variables, problem.costs, options.numthreads)
 cost(vars::AbstractVector, costs::CostStruct)::Float64 = cost(vars, costs, static(1))
 cost(vars::AbstractVector, costs::CostStruct, ::StaticInt{1})::Float64 = cost_repo(vars, costs, static(1))
 cost(vars::AbstractVector, costs::CostStruct, numthreads::Integer)::Float64 = cost(vars, costs, static(numthreads))
