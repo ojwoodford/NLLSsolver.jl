@@ -112,7 +112,7 @@ function optimizesingles!(problem::NLLSProblem{VT, CT}, options::NLLSOptions, in
     problem.costs = CostStruct{CT}()
     # Group variables of the same size together to minimize allocations, so sort the indices by variable size
     if !sortedbysize
-        indices = sort!(indices, lt=(i, j)->nvars(problem.variables[i])<=nvars(problem.variables[j]))
+        indices = isa(indices, Vector) ? sort!(indices, lt=(i, j)->nvars(problem.variables[i])<=nvars(problem.variables[j])) : sort(indices, lt=(i, j)->nvars(problem.variables[i])<=nvars(problem.variables[j]))
     end
     # Loop over all the variables
     result = NLLSResult(0.0, 0.0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, getiterator(options), 0, 0, 0, 0)
@@ -259,12 +259,11 @@ end
 end
 
 # Optimizing variables one at a time (e.g. in alternation)
-@inline function optimizesinglesinternal!(problem::NLLSProblem, options::NLLSOptions, data::NLLSInternal{LST}, iteratedata, callback::F, allcosts::CostStruct, costindices, varindices, result) where  {LST<:NLLSsolver.UniVariateLS, F}
+@inline function optimizesingles_worker!(problem::NLLSProblem, options::NLLSOptions, data::NLLSInternal{LST}, iteratedata, callback::F, allcosts::CostStruct, costindices, varindices) where {LST<:NLLSsolver.UniVariateLS, F}
     iternum = 0
     termination = 0
     startcost = 0.0
     bestcost = 0.0
-    data.init = Stats()
     for ind in varindices
         data.linsystem = updateunfixed(data.linsystem, ind)
         # Construct the subset of residuals that depend on this variable
@@ -281,6 +280,12 @@ end
     data.iternum = iternum
     data.startcost = startcost
     data.bestcost = bestcost
+    return termination
+end
+
+@inline function optimizesinglesinternal!(problem::NLLSProblem, options::NLLSOptions{S, 1}, data::NLLSInternal{LST}, iteratedata, callback::F, allcosts::CostStruct, costindices, varindices, result) where {S, LST<:NLLSsolver.UniVariateLS, F}
+    data.init = Stats()
+    termination = optimizesingles_worker!(problem, options, data, iteratedata, callback, allcosts, costindices, varindices)
     data.optimize = Stats()
     result += NLLSResult(data, termination, getiterator(options))
     return result

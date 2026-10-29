@@ -26,6 +26,7 @@ function NLLSOptions(; maxiters=100, reldcost=1.e-15, absdcost=1.e-15, dstep=1.e
     @assert(isnothing(iteratordata), "Iteratordata should not be passed to the options struct.")
     NLLSOptions(reldcost, absdcost, dstep, maxfails, maxiters, UInt64(round(maxtime * 1e9)), static(Symbol(iterator)), static(numthreads), makestaticbool(callbackchangesstate))
 end
+singlethreaded(options::NLLSOptions) = NLLSOptions(options.reldcost, options.absdcost, options.dstep, options.maxfails, options.maxiters, options.maxtime, options.iterator, static(1), options.callbackchangesstate)
 getiterator(options) = eval(dynamic(options.iterator))::NLLSIterator
 
 struct NLLSResult

@@ -65,11 +65,16 @@ end
     @test cost(problem) ≈ costbefore
 
     # Optimze just the landmarks
+    prob_m = deepcopy(problem)
     result = NLLSsolver.optimizesingles!(problem, options, findall(landmarks))
+    result_m = NLLSsolver.optimizesingles!(prob_m, NLLSOptions(numthreads=static(4)), findall(landmarks))
     costafter = NLLSsolver.cost(problem, static(1))
+    costafter_m = NLLSsolver.cost(prob_m, static(1))
     @test costbefore ≈ result.startcost
     @test isapprox(costafter, result.bestcost; atol=1.e-22)
     @test costafter < 1.e-15
+    @test isapprox(costafter_m, result_m.bestcost; atol=1.e-22)
+    @test costafter_m < 1.e-15
 
     # Optimze just the landmarks, specified by type
     problem = perturb_ba_problem(problem, 0.003, 0.0)
@@ -108,8 +113,13 @@ end
     @test isapprox(NLLSsolver.cost(problem), result.bestcost; atol=1.e-22)
     @test result.bestcost < 1.e-15
     problem = perturb_ba_problem(problem, 0.003, 0.0)
+    problem_m = deepcopy(problem)
+    dtdoptions_m = NLLSOptions(numthreads = static(4), iterator = :levenbergmarquardt_dtd)
     result = NLLSsolver.optimizesingles!(problem, dtdoptions, EuclideanVector{3, Float64})
+    result_m = NLLSsolver.optimizesingles!(problem_m, dtdoptions_m, EuclideanVector{3, Float64})
     @test NLLSsolver.cost(problem) < 1.e-15
+    @test NLLSsolver.cost(problem_m) < 1.e-15
+    @test result.bestcost ≈ result_m.bestcost
     problem = perturb_ba_problem(create_ba_problem(10, 50, 0.3), 0.001, 0.001)
     result = optimize!(problem, dtdoptions)
     @test isapprox(NLLSsolver.cost(problem), result.bestcost; atol=1.e-22)
