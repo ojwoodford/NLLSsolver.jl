@@ -157,7 +157,12 @@ end
 
 function setupsmultivarls(func::F1, problem::NLLSProblem, options::NLLSOptions, unfixed, startstats, nblocks, callback::F2, trailingargs...) where {F1, F2}
     problem = checkvars!(problem)
-    # Multiple variables. Decide whether to have a sparse or a dense system
+    # Multiple variables. Eliminate the eliminable variables, if there are any alongside retained ones
+    if useschur(problem.variables, unfixed)
+        lsschur = MultiVariateLSschur(problem, unfixed)
+        return setupiterator(func, problem, options, sharedlinearsystem(lsschur, problem, options), startstats, callback, trailingargs)
+    end
+    # Otherwise decide whether to have a sparse or a dense system
     blocksizes, blockindices = block_sizes_indices(problem.variables, unfixed, nblocks)
     formarginalization = false # To be used in the future
     len = formarginalization ? 40 : sum(blocksizes)

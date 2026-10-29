@@ -30,3 +30,28 @@ function update(var::ZeroToOneScalar, updatevec, start=1)
     val = ifelse(var.val > 0, var.val, floatmin(var.val)) * exp(updatevec[start])
     return ZeroToOneScalar(ifelse(val < Inf, val / (1 + (val - var.val)), one(val)))
 end
+
+"""
+    NLLSsolver.iseliminable(::Type{V}) -> StaticBool
+
+Whether variables of type `V` may be eliminated from the normal equations by
+the Schur complement, before the remaining (retained) variables are solved
+for. The default is `static(false)`.
+
+Return `static(true)` for a type with many instances, each of a small, static
+size (`nvars` a `StaticInt`), that no cost couples to another eliminable
+variable — the 3D points of a bundle adjustment are the standard case:
+
+```julia
+NLLSsolver.iseliminable(::Type{<:MyPoint}) = NLLSsolver.static(true)
+```
+
+When at least one unfixed variable is eliminable and at least one is not,
+`optimize!` uses the Schur-complement linear system,
+`MultiVariateLSschur`: each iteration it factorizes every eliminable
+variable's diagonal block, solves the dense reduced system over the retained
+variables, and back-substitutes the eliminated ones. A cost that depends on
+two unfixed eliminable variables is refused with an `ArgumentError`.
+"""
+iseliminable(::Type) = static(false)
+iseliminable(var) = iseliminable(typeof(var))
