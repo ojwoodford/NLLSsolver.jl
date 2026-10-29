@@ -1,20 +1,6 @@
 # OptimizeCache: storage for an optimization's internal data (its linear system and iterator state), for reuse
 # by later optimize! calls on the same problem. See the OptimizeCache docstring.
 
-# Reset the costs, statistics and counts, for a new optimization with the same linear system
-function reset!(data::NLLSInternal, startstats)
-    data.startcost = 0.
-    data.bestcost = 0.
-    data.start = startstats
-    data.init = Stats(0)
-    data.optimize = Stats(0)
-    data.costs = TimeCounter()
-    data.gradients = TimeCounter()
-    data.solves = TimeCounter()
-    data.iternum = 0
-    return data
-end
-
 """
     NLLSsolver.OptimizeCache()
 
@@ -109,28 +95,3 @@ end
 storedata!(cache::OptimizeCache{K, D}, d) where {K, D} = (d isa D && (cache.data = d); cache)
 storekey!(cache::OptimizeCache{K, D}, key) where {K, D} = (!isnothing(cache.data) && key isa K && (cache.key = key); cache)
 
-"""
-    NLLSsolver.optimize!(problem::NLLSProblem, options::NLLSOptions, unfixed, callback, cache::OptimizeCache)
-
-Optimize as `optimize!(problem, options, unfixed, callback)` does, reusing the internal data stored in `cache`
-by an earlier call when it is still valid for this one (see [`OptimizeCache`](@ref)).
-"""
-function optimize!(problem::NLLSProblem, options::NLLSOptions, unfixed, callback::F, cache::OptimizeCache)::NLLSResult where F
-    startstats = Stats()
-    unfixed = convertunfixed(unfixed, problem)
-    if !cachevalid(cache, problem, options, unfixed)
-        empty!(cache)
-        result = optimizewith(StoreInCache(cache), problem, options, unfixed, startstats, callback)
-        storekey!(cache, cachekey(problem, options, unfixed))
-        return result
-    end
-    data, iteratedata = something(cache.data)
-    return optimizecached!(problem, options, data, iteratedata, callback, startstats)
-end
-
-function optimizecached!(problem::NLLSProblem, options::NLLSOptions, data::NLLSInternal, iteratedata, callback::F, startstats) where F
-    checkvars!(problem)
-    reset!(data, startstats)
-    reset!(iteratedata)
-    return optimizeinternal!(problem, options, data, iteratedata, callback)
-end

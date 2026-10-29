@@ -48,6 +48,7 @@ include("BlockSparseMatrix.jl")
 include("BlockDenseMatrix.jl")
 include("linearsystem.jl")
 include("structs.jl")
+include("OptimizeCache.jl")
 
 # Optimization
 include("residual.jl")
@@ -59,6 +60,5 @@ include("linearsolver.jl")
 include("callbacks.jl")
 include("iterators.jl")
 include("optimize.jl")
-include("OptimizeCache.jl")
 include("multithreading.jl")
 end

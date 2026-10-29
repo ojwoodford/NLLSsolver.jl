@@ -18,6 +18,32 @@ function optimizewith(func::F1, problem::NLLSProblem, options::NLLSOptions, unfi
     end
 end
 
+"""
+    NLLSsolver.optimize!(problem::NLLSProblem, options::NLLSOptions, unfixed, callback, cache::OptimizeCache)
+
+Optimize as `optimize!(problem, options, unfixed, callback)` does, reusing the internal data stored in `cache`
+by an earlier call when it is still valid for this one (see [`OptimizeCache`](@ref)).
+"""
+function optimize!(problem::NLLSProblem, options::NLLSOptions, unfixed, callback::F, cache::OptimizeCache)::NLLSResult where F
+    startstats = Stats()
+    unfixed = convertunfixed(unfixed, problem)
+    if !cachevalid(cache, problem, options, unfixed)
+        empty!(cache)
+        result = optimizewith(StoreInCache(cache), problem, options, unfixed, startstats, callback)
+        storekey!(cache, cachekey(problem, options, unfixed))
+        return result
+    end
+    data, iteratedata = something(cache.data)
+    return optimizecached!(problem, options, data, iteratedata, callback, startstats)
+end
+
+function optimizecached!(problem::NLLSProblem, options::NLLSOptions, data::NLLSInternal, iteratedata, callback::F, startstats) where F
+    checkvars!(problem)
+    reset!(data, startstats)
+    reset!(iteratedata)
+    return optimizeinternal!(problem, options, data, iteratedata, callback)
+end
+
 # Conversions for different types of "unfixed"
 convertunfixed(::Nothing, problem) = trues(length(problem.variables))
 convertunfixed(unfixed::DataType, problem) = isa.(problem.variables, unfixed)
