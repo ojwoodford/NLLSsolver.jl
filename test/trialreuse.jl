@@ -93,6 +93,6 @@ end
     end
     # A callback that changes the cost: the trial system is not used, the gradient is recomputed
     problem = expfitproblem(SVector{2, Float64})
-    result = optimize!(problem, NLLSOptions(), nothing, (cost, unusedargs...) -> (nextfloat(cost), 0))
+    result = optimize!(problem, NLLSOptions(callbackchangesstate=true), nothing, (cost, unusedargs...) -> (nextfloat(cost), 0))
     @test result.gradientcomputations >= result.niterations
 end

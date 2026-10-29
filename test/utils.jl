@@ -143,7 +143,10 @@ test_fast_bAb(A, b) = @test NLLSsolver.fast_bAb(A, b) ≈ dot(b, A, b)
     @test String(NLLSsolver.dogleg) == "Dogleg"
     @test String(NLLSsolver.gradientdescent) == "gradient descent"
     @test String(reinterpret(NLLSsolver.NLLSIterator, Int32(99))) == "unknown iterator"
-    @test NLLSsolver.reset!(NLLSsolver.NewtonData(0.)) === nothing
+    @test NLLSsolver.reset!(NLLSsolver.NewtonData()) === nothing
+    @test NLLSsolver.reset!(NLLSsolver.NewtonDataRelinearize(0.)) === nothing
+    @test NLLSsolver.reset!(NLLSsolver.LevenbergData(1.0)) == 0.0
+    @test NLLSsolver.reset!(NLLSsolver.MarquardtData(1.0, [1.0])) == 0.0
 
     # Linear solver utilities
     @test NLLSsolver.invsym([2.0 0.5; 0.5 2.0]) ≈ inv([2.0 0.5; 0.5 2.0])
