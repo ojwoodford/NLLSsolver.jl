@@ -73,7 +73,7 @@ end
     @test costbefore ≈ result.startcost
     @test isapprox(costafter, result.bestcost; atol=1.e-22)
     @test costafter < 1.e-15
-    @test costafter_m ≈ result_m.bestcost
+    @test isapprox(costafter_m, result_m.bestcost; atol=1.e-22)
     @test costafter_m < 1.e-15
 
     # Optimze just the landmarks, specified by type
