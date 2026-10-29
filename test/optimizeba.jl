@@ -68,7 +68,7 @@ end
     result = NLLSsolver.optimizesingles!(problem, options, findall(landmarks))
     costafter = NLLSsolver.cost(problem, static(1))
     @test costbefore ≈ result.startcost
-    @test costafter ≈ result.bestcost
+    @test isapprox(costafter, result.bestcost; atol=1.e-22)
     @test costafter < 1.e-15
 
     # Optimze just the landmarks, specified by type

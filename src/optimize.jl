@@ -125,7 +125,7 @@ function setupstaticvarls(func::F1, problem::NLLSProblem, options::NLLSOptions, 
 end
 
 function setupiterator(func::F1, problem::NLLSProblem, options::NLLSOptions, ls, startstats, callback::F2, trailingargs) where {F1, F2}
-    iteratordata = construct(options.iterator, problem, ls)
+    iteratordata = construct(options.iterator, problem, ls, options.callbackchangesstate)
     return func(problem, options, NLLSInternal(ls, startstats), iteratordata, callback, trailingargs...)
 end
 
@@ -178,6 +178,7 @@ end
         cost_ = iterate!(iteratedata, data, problem, options)
         # Call the user-defined callback
         cost, terminate = callback(cost_, problem, data, iteratedata)
+        @assert(dynamic(options.callbackchangesstate) || cost == cost_, "callback expected to not change the cost")
         # Check for cost increase (only some iterators will do this)
         dcost = data.bestcost - cost
         if dcost >= 0

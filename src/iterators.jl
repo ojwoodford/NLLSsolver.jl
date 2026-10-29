@@ -23,13 +23,30 @@ end
 linearize!(iteratedata, data, problem) = computelinearization!(data, problem)
 
 # Newton optimization (undamped-Hessian form)
-mutable struct NewtonData
-    cost::Float64
+struct NewtonData
 end
-construct(::StaticSymbol{:newton}, problem, ls) = NewtonData(0.)
+construct(::StaticSymbol{:newton}, problem, ls, ::True) = NewtonData()
 reset!(::NewtonData) = nothing
 
-@inline function iterate!(nd::NewtonData, data, problem::NLLSProblem, options::NLLSOptions)::Float64
+@inline function iterate!(::NewtonData, data, problem::NLLSProblem, options::NLLSOptions)::Float64
+    # Compute the step
+    gethessian(data.linsystem)
+    data.solves += @elapsed_ns negate!(solve!(data.linsystem))
+    # Update the new variables
+    update!(problem.varnext, problem.variables, data.linsystem)
+    # Compute the cost
+    data.costs += @elapsed_ns cost_ = cost(problem.varnext, problem.costs, options.numthreads)
+    # Return the cost
+    return cost_
+end
+
+mutable struct NewtonDataRelinearize
+    cost::Float64
+end
+construct(::StaticSymbol{:newton}, problem, ls, ::False) = NewtonDataRelinearize(0.)
+reset!(::NewtonDataRelinearize) = nothing
+
+@inline function iterate!(nd::NewtonDataRelinearize, data, problem::NLLSProblem, options::NLLSOptions)::Float64
     # Compute the step
     gethessian(data.linsystem)
     data.solves += @elapsed_ns negate!(solve!(data.linsystem))
@@ -40,7 +57,7 @@ reset!(::NewtonData) = nothing
     return nd.cost
 end
 
-linearize!(nd::NewtonData, data, problem) = nd.cost
+linearize!(nd::NewtonDataRelinearize, data, problem) = nd.cost
 
 # Dogleg optimization
 mutable struct DoglegData{T}
@@ -133,7 +150,7 @@ abstract type LevMarData end
 # Both hold a second linear system, trial, into which the first trial step of an iteration computes the cost,
 # gradient and Hessian, rather than the cost alone. When the step is accepted, the optimizer swaps it in
 # (in linearize!) rather than recomputing every residual at the new point.
-mutable struct LevenbergData{L} <: LevMarData
+mutable struct LevenbergDataTrial{L} <: LevMarDataTrial
     lambda::Float64
     trial::L
     trialcost::Float64 # The cost at that point (the last one computed with the gradient, until reset!)
