@@ -107,7 +107,7 @@ function addcost!(problem::NLLSProblem, cost::Cost) where Cost <: AbstractCost
 end
 
 """
-    NLLSsolver.addcost!(problem::NLLSProblem, variable)
+    NLLSsolver.addvariable!(problem::NLLSProblem, variable)
 
 Add the variable block defined by `variable` to `problem`.
 """

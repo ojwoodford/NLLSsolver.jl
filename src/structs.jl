@@ -3,7 +3,7 @@ import Printf.@printf
 
 @enum NLLSIterator newton levenbergmarquardt dogleg gradientdescent levenbergmarquardt_dtd
 
-struct NLLSOptions{S, N}
+struct NLLSOptions{S, N, B <: StaticBool}
     reldcost::Float64           # Minimum relative reduction in cost required to avoid termination
     absdcost::Float64           # Minimum absolute reduction in cost required to avoid termination
     dstep::Float64              # Minimum L-infinity norm of the update vector required to avoid termination
@@ -12,10 +12,10 @@ struct NLLSOptions{S, N}
     maxtime::UInt64             # Maximum optimization time allowed, in nano-seconds (converted from seconds in the constructor)
     iterator::StaticSymbol{S}   # Static Symbol of the inner iterator (see above for options for iterators)
     numthreads::StaticInt{N}    # Number of threads to use for parallel computations
-    callbackchangesstate::StaticBool # True if the callback can potentially change the state of the problem
+    callbackchangesstate::B     # True if the callback can potentially change the state of the problem
 
-    function NLLSOptions(reldcost, abscost, dstep, maxfails, maxiters, maxtime, iterator::StaticSymbol{S}, numthreads::StaticInt{N}, callbackchangesstate::StaticBool) where {S, N}
-        return new{S, N}(reldcost, abscost, dstep, maxfails, maxiters, maxtime, iterator, numthreads, callbackchangesstate)
+    function NLLSOptions(reldcost, abscost, dstep, maxfails, maxiters, maxtime, iterator::StaticSymbol{S}, numthreads::StaticInt{N}, callbackchangesstate::B) where {S, N, B <: StaticBool}
+        return new{S, N, B}(reldcost, abscost, dstep, maxfails, maxiters, maxtime, iterator, numthreads, callbackchangesstate)
     end
 end
 makestaticbool(x::Union{Bool, StaticBool}) = static(x)

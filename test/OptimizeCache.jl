@@ -37,7 +37,7 @@ startvalues(n, seed=1) = [SVector(0.1 * i, sin(i + seed), cos(i * seed)) for i i
 startvalues(n, seed, unfixed::Integer) = (v = startvalues(n); v[unfixed] = startvalues(n, seed)[unfixed]; v)
 startvalues(n, seed, unfixed) = startvalues(n, seed)
 
-@testset "optimizecache.jl" begin
+@testset "OptimizeCache.jl" begin
     for (n, unfixed, iterator) in ((20, nothing, :levenbergmarquardt), (20, nothing, :levenbergmarquardt_dtd), (20, nothing, :dogleg),
                                    (20, nothing, :newton), (2, nothing, :levenbergmarquardt), (20, 7, :levenbergmarquardt_dtd))
         options = NLLSOptions(iterator=iterator)
@@ -91,8 +91,20 @@ startvalues(n, seed, unfixed) = startvalues(n, seed)
     addvariable!(problem, SVector(0.0, 0.0, 0.0))
     optimize!(problem, options, nothing, nullcallback, cache)
     @test length(cache.data[1].linsystem.x.blockindices) == 21
+    # Switching callbackchangesstate rebuilds the iterator data
+    @test cache.data[2] isa NLLSsolver.MarquardtDataTrial
+    optimize!(problem, NLLSOptions(iterator=:levenbergmarquardt_dtd, callbackchangesstate=true), nothing, nullcallback, cache)
+    @test cache.data[2] isa NLLSsolver.MarquardtData
+    # Switching unfixed between an Integer and a BitVector/nothing
+    subprob = subproblem(problem, 1)
+    optimize!(subprob, options, 1, nullcallback, cache)
+    @test cache.key[3] === 1
+    optimize!(problem, options, nothing, nullcallback, cache)
+    @test cache.key[3] isa BitVector
     empty!(cache)
     @test isempty(cache)
+    # Cache is fully populated (both data and key) before optimizeloop! runs
+    optimize!(problem, options, nothing, (cost, unusedargs...) -> (@test !isempty(cache) && !isnothing(cache.key); (cost, 0)), cache)
 end
 
 # A cache built for its problem (`OptimizeCache(problem, options, unfixed)`) is concretely typed: the same
@@ -117,8 +129,10 @@ function offsetproblem()
 end
 typedrun!(problem, options, cache) = (problem.variables[1] = SVector(0.0, 0.0, 0.0); optimize!(problem, options, 1, nullcallback, cache))
 
-@testset "optimizecache.jl: a typed cache" begin
+@testset "OptimizeCache.jl: a typed cache" begin
     options = NLLSOptions(iterator=:levenbergmarquardt_dtd, numthreads=static(1))
+    @test isbitstype(typeof(options))
+    @test !isempty(OptimizeCache(offsetproblem()))
     for (makeproblem, unfixed) in ((offsetproblem, 1), (() -> chainproblem(20), nothing))
         reference = makeproblem()
         refresult = optimize!(reference, options, unfixed)

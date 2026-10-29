@@ -29,9 +29,7 @@ function optimize!(problem::NLLSProblem, options::NLLSOptions, unfixed, callback
     unfixed = convertunfixed(unfixed, problem)
     if !cachevalid(cache, problem, options, unfixed)
         empty!(cache)
-        result = optimizewith(StoreInCache(cache), problem, options, unfixed, startstats, callback)
-        storekey!(cache, cachekey(problem, options, unfixed))
-        return result
+        return optimizewith(StoreInCache(cache, unfixed), problem, options, unfixed, startstats, callback)
     end
     data, iteratedata = something(cache.data)
     return optimizecached!(problem, options, data, iteratedata, callback, startstats)

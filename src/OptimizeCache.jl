@@ -18,10 +18,10 @@ reuse it while the problem's structure is unchanged, so they skip constructing t
 or Schur-complement system, its sparsity analysis) and allocate nothing for it. Results are identical to those
 of `optimize!` without a cache.
 
-The data is reconstructed when the call differs in its problem, unfixed variables, iterator or number of
-threads, or when variables or costs have been added to the problem (with `addvariable!` or `addcost!`). After
-changing the problem in any other way that alters its structure (e.g. editing `problem.costs` directly, or
-changing the size of a dynamically sized variable), call `empty!(cache)`.
+The data is reconstructed when the call differs in its problem, unfixed variables or `options` type parameters
+(`iterator`, `numthreads`, `callbackchangesstate`), or when variables or costs have been added to the problem
+(with `addvariable!` or `addcost!`). After changing the problem in any other way that alters its structure (e.g.
+editing `problem.costs` directly, or changing the size of a dynamically sized variable), call `empty!(cache)`.
 """
 mutable struct OptimizeCache{K, D}
     key::Union{Nothing, K}
@@ -30,7 +30,7 @@ end
 OptimizeCache() = OptimizeCache{Any, Any}(nothing, nothing)
 
 """
-    NLLSsolver.OptimizeCache(problem::NLLSProblem, options::NLLSOptions, unfixed=nothing)
+    NLLSsolver.OptimizeCache(problem::NLLSProblem, options::NLLSOptions=NLLSOptions(), unfixed=nothing)
 
 An [`OptimizeCache`](@ref) built for `problem`, `options` and `unfixed`: the internal data are constructed now
 (nothing is optimized), and the cache is concretely typed by them, so a later
@@ -39,7 +39,7 @@ An [`OptimizeCache`](@ref) built for `problem`, `options` and `unfixed`: the int
 objects). When the problem's structure changes, the data are rebuilt as for an untyped cache; if the rebuilt
 data have another type, that call optimizes without storing them.
 """
-function OptimizeCache(problem::NLLSProblem, options::NLLSOptions, unfixed=nothing)
+function OptimizeCache(problem::NLLSProblem, options::NLLSOptions=NLLSOptions(), unfixed=nothing)
     unfixed = convertunfixed(unfixed, problem)
     data = optimizewith(BuildOnly(), problem, options, unfixed, Stats(), nullcallback)
     key = cachekey(problem, options, unfixed)
@@ -53,9 +53,9 @@ Base.empty!(cache::OptimizeCache) = (cache.key = nothing; cache.data = nothing; 
 Base.isempty(cache::OptimizeCache) = isnothing(cache.data)
 
 # What the internal data depend on: the problem, its unfixed variables and their sizes, the number of variables
-# and costs, and the iterator and number of threads (the options' type)
+# and costs, and the iterator, number of threads and callbackchangesstate (the options' type)
 function cachekey(problem::NLLSProblem, options::NLLSOptions, unfixed::Integer)
-    return (problem, typeof(options), Int(unfixed), Int(dynamic(nvars(problem.variables[unfixed]))))
+    return (problem, typeof(options), Int(unfixed), nvars(problem.variables[unfixed]))
 end
 function cachekey(problem::NLLSProblem, options::NLLSOptions, unfixed::AbstractVector)
     # The costs' structure is also tracked through the validity of the variable cost map: addcost! and
@@ -64,17 +64,19 @@ function cachekey(problem::NLLSProblem, options::NLLSOptions, unfixed::AbstractV
     sizes = [unfixed_ ? Int(dynamic(nvars(var))) : 0 for (var, unfixed_) in zip(problem.variables, unfixed)]
     return (problem, typeof(options), BitVector(unfixed), sizes, countcosts(costnum, problem.costs))
 end
-function cachevalid(cache::OptimizeCache, problem::NLLSProblem, options::NLLSOptions, unfixed::Integer)
-    key = cache.key
-    return !isnothing(key) && key[1] === problem && key[2] === typeof(options) && key[3] == unfixed && key[4] == dynamic(nvars(problem.variables[unfixed]))
+
+cachevalid(cache::OptimizeCache, problem::NLLSProblem, options::NLLSOptions, unfixed) = keyvalid(cache.key, problem, options, unfixed)
+keyvalid(key, problem, options, unfixed) = false
+function keyvalid(key::Tuple{NLLSProblem, DataType, Int, Any}, problem::NLLSProblem, options::NLLSOptions, unfixed::Integer)
+    return key[1] === problem && key[2] === typeof(options) && key[3] == unfixed && key[4] === nvars(problem.variables[unfixed])
 end
-function cachevalid(cache::OptimizeCache, problem::NLLSProblem, options::NLLSOptions, unfixed::AbstractVector)
-    key = cache.key
-    (!isnothing(key) && key[1] === problem && key[2] === typeof(options) && problem.varcostmapvalid) || return false
-    (key[3]::BitVector == unfixed && key[5]::Int == countcosts(costnum, problem.costs)) || return false
-    return samesizes(key[4]::Vector{Int}, problem.variables, unfixed)
+function keyvalid(key::Tuple{NLLSProblem, DataType, BitVector, Vector{Int}, Int}, problem::NLLSProblem, options::NLLSOptions, unfixed::AbstractVector)
+    (key[1] === problem && key[2] === typeof(options) && problem.varcostmapvalid) || return false
+    (key[3] == unfixed && key[5] == countcosts(costnum, problem.costs)) || return false
+    return samesizes(key[4], problem.variables, unfixed)
 end
 function samesizes(sizes::Vector{Int}, variables::Vector, unfixed)
+    length(sizes) == length(variables) || return false
     for (i, var) in enumerate(variables)
         if @inbounds(unfixed[i]) && @inbounds(sizes[i]) != dynamic(nvars(var))
             return false
@@ -84,14 +86,23 @@ function samesizes(sizes::Vector{Int}, variables::Vector, unfixed)
 end
 
 # Store the internal data in the cache, then optimize
-struct StoreInCache{C <: OptimizeCache}
+struct StoreInCache{C <: OptimizeCache, U}
     cache::C
+    unfixed::U
 end
 function (store::StoreInCache)(problem, options, data, iteratedata, callback)
-    storedata!(store.cache, (data, iteratedata))
+    storecache!(store.cache, (data, iteratedata), problem, options, store.unfixed)
     return optimizeinternal!(problem, options, data, iteratedata, callback)
 end
-# A typed cache keeps only data of its type
-storedata!(cache::OptimizeCache{K, D}, d) where {K, D} = (d isa D && (cache.data = d); cache)
-storekey!(cache::OptimizeCache{K, D}, key) where {K, D} = (!isnothing(cache.data) && key isa K && (cache.key = key); cache)
+# A typed cache keeps only data and keys of its type
+function storecache!(cache::OptimizeCache{K, D}, d, problem, options, unfixed) where {K, D}
+    if d isa D
+        key = cachekey(problem, options, unfixed)
+        if key isa K
+            cache.data = d
+            cache.key = key
+        end
+    end
+    return cache
+end
 
