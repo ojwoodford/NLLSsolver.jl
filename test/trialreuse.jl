@@ -92,7 +92,22 @@ end
         @test problem.variables == refvars
     end
     # A callback that changes the cost: the trial system is not used, the gradient is recomputed
-    problem = expfitproblem(SVector{2, Float64})
-    result = optimize!(problem, NLLSOptions(callbackchangesstate=true), nothing, (cost, unusedargs...) -> (nextfloat(cost), 0))
-    @test result.gradientcomputations >= result.niterations
+    for iter in (:levenbergmarquardt, :levenbergmarquardt_dtd)
+        problem = expfitproblem(SVector{2, Float64})
+        result = optimize!(problem, NLLSOptions(iterator=iter, callbackchangesstate=true), nothing, (cost, unusedargs...) -> (nextfloat(cost), 0))
+        @test result.gradientcomputations >= result.niterations
+    end
+    # Safety assertion when callback changes cost without callbackchangesstate=true
+    problem = expfitproblem(Float64)
+    @test_throws AssertionError optimize!(problem, NLLSOptions(callbackchangesstate=false), nothing, (cost, args...) -> (nextfloat(cost), 0))
+
+    # Newton optimization with and without callbackchangesstate
+    p1 = expfitproblem(SVector{2, Float64})
+    res1 = optimize!(p1, NLLSOptions(iterator=:newton, callbackchangesstate=false))
+    p2 = expfitproblem(SVector{2, Float64})
+    res2 = optimize!(p2, NLLSOptions(iterator=:newton, callbackchangesstate=true))
+    @test p1.variables ≈ p2.variables
+    @test res1.bestcost ≈ res2.bestcost
+    @test res1.costcomputations == 0
+    @test res2.costcomputations > 0
 end

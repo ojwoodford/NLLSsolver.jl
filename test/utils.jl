@@ -148,6 +148,26 @@ test_fast_bAb(A, b) = @test NLLSsolver.fast_bAb(A, b) ≈ dot(b, A, b)
     @test NLLSsolver.reset!(NLLSsolver.LevenbergData(1.0)) == 0.0
     @test NLLSsolver.reset!(NLLSsolver.MarquardtData(1.0, [1.0])) == 0.0
 
+    # Iterator construction and options
+    prob = NLLSProblem(Float64)
+    lsdyn = NLLSsolver.LinearSystem{NLLSsolver.UniVariateLSdynamic_x, NLLSsolver.UniVariateLSdynamic_ls}((1, 1), (1,))
+    @test NLLSsolver.construct(static(:newton), prob, lsdyn, True()) isa NLLSsolver.NewtonData
+    @test NLLSsolver.construct(static(:newton), prob, lsdyn, False()) isa NLLSsolver.NewtonDataRelinearize
+    @test NLLSsolver.construct(static(:levenbergmarquardt), prob, lsdyn, True()) isa NLLSsolver.LevenbergData
+    @test NLLSsolver.construct(static(:levenbergmarquardt), prob, lsdyn, False()) isa NLLSsolver.LevenbergDataTrial
+    @test NLLSsolver.construct(static(:levenbergmarquardt_dtd), prob, lsdyn, True()) isa NLLSsolver.MarquardtData
+    @test NLLSsolver.construct(static(:levenbergmarquardt_dtd), prob, lsdyn, False()) isa NLLSsolver.MarquardtDataTrial
+    @test NLLSsolver.construct(static(:dogleg), prob, lsdyn, True()) isa NLLSsolver.DoglegData
+    @test NLLSsolver.construct(static(:dogleg), prob, lsdyn, False()) isa NLLSsolver.DoglegData
+    @test NLLSsolver.construct(static(:gradientdescent), prob, lsdyn, True()) isa NLLSsolver.GradientDescentData
+    @test NLLSsolver.construct(static(:gradientdescent), prob, lsdyn, False()) isa NLLSsolver.GradientDescentData
+
+    for v in (true, false, True, False, True(), False())
+        opt = NLLSOptions(callbackchangesstate=v)
+        @test opt.callbackchangesstate isa StaticBool
+        @test dynamic(opt.callbackchangesstate) == (v in (true, True, True()))
+    end
+
     # Linear solver utilities
     @test NLLSsolver.invsym([2.0 0.5; 0.5 2.0]) ≈ inv([2.0 0.5; 0.5 2.0])
     @test NLLSsolver.invsym(SMatrix{2, 2}(2.0, 0.5, 0.5, 2.0)) ≈ inv([2.0 0.5; 0.5 2.0])
