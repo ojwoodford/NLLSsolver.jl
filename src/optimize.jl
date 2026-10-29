@@ -1,19 +1,45 @@
 # Uni-variate optimization (single unfixed variable)
-optimize!(problem::NLLSProblem, options::NLLSOptions, unfixed::Integer, callback::F=nullcallback) where F = setupsinglevarls(optimizeinternal!, problem, options, unfixed, Stats(), callback)
+optimize!(problem::NLLSProblem, options::NLLSOptions, unfixed::Integer, callback::F=nullcallback) where F = optimizewith(optimizeinternal!, problem, options, unfixed, Stats(), callback)
 
 # Multi-variate optimization
-function optimize!(problem::NLLSProblem, options::NLLSOptions, unfixed::AbstractVector, callback::F=nullcallback)::NLLSResult where F
-    startstats = Stats()
+optimize!(problem::NLLSProblem, options::NLLSOptions, unfixed::AbstractVector, callback::F=nullcallback) where F = optimizewith(optimizeinternal!, problem, options, unfixed, Stats(), callback)
+
+optimizewith(func::F1, problem::NLLSProblem, options::NLLSOptions, unfixed::Integer, startstats, callback::F2) where {F1, F2} = setupsinglevarls(func, problem, options, unfixed, startstats, callback)
+function optimizewith(func::F1, problem::NLLSProblem, options::NLLSOptions, unfixed::AbstractVector, startstats, callback::F2) where {F1, F2}
     @assert length(problem.variables) > 0
     # Compute the number of free variables (nblocks)
     nblocks = sum(unfixed)
     if nblocks == 1
         # One unfixed variable
-        return setupsinglevarls(optimizeinternal!, problem, options, findfirst(unfixed), startstats, callback)
+        return setupsinglevarls(func, problem, options, findfirst(unfixed), startstats, callback)
     else
         # Multiple variables
-        return setupsmultivarls(optimizeinternal!, problem, options, unfixed, startstats, nblocks, callback)
+        return setupsmultivarls(func, problem, options, unfixed, startstats, nblocks, callback)
     end
+end
+
+"""
+    NLLSsolver.optimize!(problem::NLLSProblem, options::NLLSOptions, unfixed, callback, cache::OptimizeCache)
+
+Optimize as `optimize!(problem, options, unfixed, callback)` does, reusing the internal data stored in `cache`
+by an earlier call when it is still valid for this one (see [`OptimizeCache`](@ref)).
+"""
+function optimize!(problem::NLLSProblem, options::NLLSOptions, unfixed, callback::F, cache::OptimizeCache)::NLLSResult where F
+    startstats = Stats()
+    unfixed = convertunfixed(unfixed, problem)
+    if !cachevalid(cache, problem, options, unfixed)
+        empty!(cache)
+        return optimizewith(StoreInCache(cache, unfixed), problem, options, unfixed, startstats, callback)
+    end
+    data, iteratedata = something(cache.data)
+    return optimizecached!(problem, options, data, iteratedata, callback, startstats)
+end
+
+function optimizecached!(problem::NLLSProblem, options::NLLSOptions, data::NLLSInternal, iteratedata, callback::F, startstats) where F
+    checkvars!(problem)
+    reset!(data, startstats)
+    reset!(iteratedata)
+    return optimizeinternal!(problem, options, data, iteratedata, callback)
 end
 
 # Conversions for different types of "unfixed"

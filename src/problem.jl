@@ -107,7 +107,7 @@ function addcost!(problem::NLLSProblem, cost::Cost) where Cost <: AbstractCost
 end
 
 """
-    NLLSsolver.addcost!(problem::NLLSProblem, variable)
+    NLLSsolver.addvariable!(problem::NLLSProblem, variable)
 
 Add the variable block defined by `variable` to `problem`.
 """
@@ -117,6 +117,8 @@ function addvariable!(problem::NLLSProblem, variable)
     @assert (isa(N, Integer) || isa(N, StaticInt)) && N>0 "Problem with nvars()"
     # Add the variable
     push!(problem.variables, variable)
+    # Mark the var cost map as invalid (its size has changed)
+    problem.varcostmapvalid = false
     # Return the index
     return length(problem.variables)
 end

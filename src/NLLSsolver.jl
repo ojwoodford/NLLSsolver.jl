@@ -2,7 +2,7 @@ module NLLSsolver
 # Export the API
 # Types
 export AbstractCost, AbstractResidual, AbstractRobustifier # Abstract problem definition types
-export NLLSProblem, NLLSOptions, NLLSResult, NLLSIterator # Concrete problem & solver types
+export NLLSProblem, NLLSOptions, NLLSResult, NLLSIterator, OptimizeCache # Concrete problem & solver types
 export AbstractRobustifier, NoRobust, Scaled, HuberKernel, Huber2oKernel, GemanMcclureKernel, GemanMcclure2oKernel # Robustifiers
 export ContaminatedGaussian # Adaptive robustifiers
 export EuclideanVector, ZeroToInfScalar, ZeroToOneScalar # Concrete general variables
@@ -48,6 +48,7 @@ include("BlockSparseMatrix.jl")
 include("BlockDenseMatrix.jl")
 include("linearsystem.jl")
 include("structs.jl")
+include("OptimizeCache.jl")
 
 # Optimization
 include("residual.jl")
