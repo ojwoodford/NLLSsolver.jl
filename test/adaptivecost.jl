@@ -60,7 +60,7 @@ end
 
     # Optimize the cost by alternating EM & optimizing the mean
     optimisekernel!(problem) # Initial kernel optimization
-    result = NLLSsolver.optimize!(problem, NLLSsolver.NLLSOptions(iterator=NLLSsolver.newton), SVector(1, 2, 3) .> 1, emcallback)
+    result = NLLSsolver.optimize!(problem, NLLSsolver.NLLSOptions(iterator=NLLSsolver.newton, callbackchangesstate=true), SVector(1, 2, 3) .> 1, emcallback)
 
     # Check the result
     @test isapprox(NLLSsolver.params(problem.variables[1]), SVector(1.0, 10.0, 0.8); rtol=0.1)

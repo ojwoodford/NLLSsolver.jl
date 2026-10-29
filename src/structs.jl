@@ -12,15 +12,19 @@ struct NLLSOptions{S, N}
     maxtime::UInt64             # Maximum optimization time allowed, in nano-seconds (converted from seconds in the constructor)
     iterator::StaticSymbol{S}   # Static Symbol of the inner iterator (see above for options for iterators)
     numthreads::StaticInt{N}    # Number of threads to use for parallel computations
+    callbackchangesstate::StaticBool # True if the callback can potentially change the state of the problem
 
-    function NLLSOptions(reldcost, abscost, dstep, maxfails, maxiters, maxtime, iterator::StaticSymbol{S}, numthreads::StaticInt{N}) where {S, N}
-        return new{S, N}(reldcost, abscost, dstep, maxfails, maxiters, maxtime, iterator, numthreads)
+    function NLLSOptions(reldcost, abscost, dstep, maxfails, maxiters, maxtime, iterator::StaticSymbol{S}, numthreads::StaticInt{N}, callbackchangesstate::StaticBool) where {S, N}
+        return new{S, N}(reldcost, abscost, dstep, maxfails, maxiters, maxtime, iterator, numthreads, callbackchangesstate)
     end
 end
-function NLLSOptions(; maxiters=100, reldcost=1.e-15, absdcost=1.e-15, dstep=1.e-15, maxfails=3, maxtime=30.0, iterator=:levenbergmarquardt, callback=nothing, iteratordata=nothing, numthreads=StaticInt(Threads.nthreads()))
+makestaticbool(x::Union{Bool, StaticBool}) = static(x)
+makestaticbool(::Type{True}) = True()
+makestaticbool(::Type{False}) = False()
+function NLLSOptions(; maxiters=100, reldcost=1.e-15, absdcost=1.e-15, dstep=1.e-15, maxfails=3, maxtime=30.0, iterator=:levenbergmarquardt, callback=nothing, iteratordata=nothing, numthreads=StaticInt(Threads.nthreads()), callbackchangesstate=False())
     @assert(isnothing(callback), "Callbacks should be passed directly to optimize!, not to the options struct.")
     @assert(isnothing(iteratordata), "Iteratordata should not be passed to the options struct.")
-    NLLSOptions(reldcost, absdcost, dstep, maxfails, maxiters, UInt64(round(maxtime * 1e9)), static(Symbol(iterator)), static(numthreads))
+    NLLSOptions(reldcost, absdcost, dstep, maxfails, maxiters, UInt64(round(maxtime * 1e9)), static(Symbol(iterator)), static(numthreads), makestaticbool(callbackchangesstate))
 end
 getiterator(options) = eval(dynamic(options.iterator))::NLLSIterator
 
