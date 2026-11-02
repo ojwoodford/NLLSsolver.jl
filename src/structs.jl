@@ -116,6 +116,7 @@ function Base.show(io::IO, x::NLLSResult)
     if 0 != x.termination & (1 << 8); println(io,  "   Maximum number of outer iterations reached."); end
     if 0 != x.termination & (1 << 9); println(io,  "   Maximum allowed computation time exceeded."); end
     if 0 != x.termination & (1 << 10); println(io, "   Internal discrepancy in cost computations."); end
+    if 0 != x.termination & (1 << 11); println(io, "   Cost or gradient not finite at the start point."); end
     userflags = x.termination >> 16
     if 0 != userflags; println(io, "   Terminated by user-defined callback, with flags: ", string(userflags, base=2)); end
 end
