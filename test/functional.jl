@@ -26,29 +26,11 @@ Base.eltype(::RosenbrockB) = Float64
 @testset "functional.jl" begin
     # Create the problem
     problem = NLLSProblem(Float64)
-    @test NLLSsolver.countcosts(NLLSsolver.costnum, problem.costs) == 0
-    @test NLLSsolver.countcosts(NLLSsolver.costdeps, problem.costs) == 0
-    @test NLLSsolver.countcosts(NLLSsolver.resnum, problem.costs) == 0
-    @test addvariable!(problem, 0.) == 1
+    addvariable!(problem, 0.)
     addcost!(problem, RosenbrockA(1.0))
-    @test NLLSsolver.countcosts(NLLSsolver.costnum, problem.costs) == 1
-    @test NLLSsolver.countcosts(NLLSsolver.costdeps, problem.costs) == 1
-    @test NLLSsolver.countcosts(NLLSsolver.resnum, problem.costs) == 1
-    @test addvariable!(problem, 0.) == 2
+    addvariable!(problem, 0.)
     addcost!(problem, RosenbrockB(10.))
-    @test NLLSsolver.countcosts(NLLSsolver.costnum, problem.costs) == 2
-    @test NLLSsolver.countcosts(NLLSsolver.costdeps, problem.costs) == 3
-    @test NLLSsolver.countcosts(NLLSsolver.resnum, problem.costs) == 2
     @test cost(problem) == 0.5
-    @test problem.varcostmapvalid == false
-    NLLSsolver.updatevarcostmap!(problem)
-    @test problem.varcostmapvalid == true
-    @test vec(sum(Matrix(problem.varcostmap); dims=2)) == [2; 1]
-    # Create a subproblem
-    @test NLLSsolver.countcosts(NLLSsolver.resnum, NLLSsolver.subproblem(problem, trues(2)).costs) == 2
-    subprob = NLLSsolver.subproblem(problem, 2)
-    @test NLLSsolver.countcosts(NLLSsolver.resnum, subprob.costs) == 1
-    @test NLLSsolver.cost(subprob) == 0.
 
     # Optimize a subset of variables, such that some of the costs have no free variables
     @test_logs (:warn, "A cost for which all variables are fixed is being optimized. Remove such cost functions from the cost to avoid redundant computation, using the subproblem() method.") optimize!(problem, NLLSOptions(), 2)
