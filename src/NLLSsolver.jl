@@ -1,12 +1,10 @@
 module NLLSsolver
 
 using BlockMatrices
-using FastNorm
 using MicroInfo
 using NLLSModels
 using OptimizationVariableInterface
 using SecondOrderOptimization
-using ValueDispatch
 using Static, StaticArrays, SparseArrays, LinearAlgebra
 
 import SecondOrderOptimization:
@@ -62,31 +60,26 @@ const NLLSInternal  = SecondOrderOptimization.OptimizationInternal
 
 include("optimize.jl")
 
-# Export the public API
-export optimize, optimvars, OptimizationOptions, OptimizationResult, OptimizationWorkspace, OptimizationInternal
-export OptimizationIterator, newton, levenbergmarquardt, dogleg, gradientdescent, levenbergmarquardt_dtd, getiterator
-export NewtonData, NewtonDataRelinearize, DoglegData, LevenbergData, LevenbergDataTrial, MarquardtData, MarquardtDataTrial, GradientDescentData
-export OptimizationLinearSolver, auto_solver, cholesky_solver, ldl_solver, qr_solver
-export CostTrajectory, nullcallback, printoutcallback, storecostscallback
-export nvars, update, update!, zero!, solve!
-
-export NLLSProblem
-export AbstractCost, AbstractResidual, AbstractAdaptiveResidual, AbstractRobustifier, AbstractAdaptiveRobustifier
-export NoRobust, Scaled, HuberKernel, Huber2oKernel, GemanMcclureKernel, GemanMcclure2oKernel, ContaminatedGaussian
-export EuclideanVector, DynamicVector, ZeroToInfScalar, ZeroToOneScalar
-export SimpleError2, SimpleError3, SimpleError4
-export BlockSparseMatrix, BlockDenseMatrix, VectorRepo
-export addvariable!, addcost!, addresidual!, updatevarcostmap!, subproblem, subproblem!
-export cost, costgradhess!, computeresidual, computeresjac, computecost, computecostgradhess
-export optimize!, optimizesingles!
-export getvars, varindices, generatemeasurement, ndeps, nres
-export robustkernel, robustify, robustifydcost, robustifydkernel
-export OptimizeCache, copyvars, syncvars!, isbitsvartype
-export NLLSOptions, NLLSResult, NLLSIterator, NLLSInternal
-export @elapsed_ns, @stats, @unroll, @bitiset
+# Export the API
+# Types
+export AbstractCost, AbstractResidual, AbstractRobustifier # Abstract problem definition types
+export NLLSProblem, NLLSOptions, NLLSResult, NLLSIterator, OptimizeCache # Concrete problem & solver types
+export AbstractRobustifier, NoRobust, Scaled, HuberKernel, Huber2oKernel, GemanMcclureKernel, GemanMcclure2oKernel # Robustifiers
+export ContaminatedGaussian # Adaptive robustifiers
+export EuclideanVector, ZeroToInfScalar, ZeroToOneScalar # Concrete general variables
+export SimpleError2, SimpleError3, SimpleError4 # Measurement error residuals depending on 2, 3, and 4 variables
+export CostTrajectory # Object for storing opimization trajectory and costs
+# Functions
+export addcost!, addvariable!, updatevarcostmap!, subproblem, subproblem!, nvars, nres # Construct a problem
+export update, nvars # Variable interface
+export nres, ndeps, varindices, getvars, generatemeasurement # Residual interface
+export robustkernel, robustify, robustifydcost, robustifydkernel # Robustifier interface
+export cost, computeresidual, computeresjac, computecost, computecostgradhess # Compute the objective
+export optimize!  # Optimize the objective
+export nullcallback, printoutcallback, storecostscallback # Callbacks to be called once per optimization iteration
 
 # Also import any remaining unexported symbols from component modules for full internal test compatibility
-for mod in (SecondOrderOptimization, NLLSModels, BlockMatrices, FastNorm, MicroInfo, OptimizationVariableInterface, ValueDispatch)
+for mod in (SecondOrderOptimization, NLLSModels, BlockMatrices, MicroInfo, OptimizationVariableInterface)
     for sym in names(mod; all=true)
         s = string(sym)
         if !startswith(s, "#") && !startswith(s, "@") && !isdefined(@__MODULE__, sym) && sym !== :eval && sym !== :include

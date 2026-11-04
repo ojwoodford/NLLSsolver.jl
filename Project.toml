@@ -8,7 +8,6 @@ projects = ["examples", "test"]
 
 [deps]
 BlockMatrices = "a7d4e89f-9c3b-4d0e-8f5a-5b8c7d1e4f28"
-FastNorm = "9ae3a7d3-f420-46c0-9803-30469fdd2dd1"
 LinearAlgebra = "37e2e46d-f89d-539d-b4ee-838fcccc9c8e"
 MicroInfo = "d9a1e34b-6c2f-4b8d-9e3a-2f5c4d8e1a05"
 NLLSModels = "b7e28c5a-4e6f-4d8b-9a1c-5d3e2f1a0b9c"
@@ -17,11 +16,9 @@ SecondOrderOptimization = "a3f5c71e-3b2d-4d9a-9e20-7f8e3c4b1a50"
 SparseArrays = "2f01184e-e22b-5df5-ae63-d93ebab69eaf"
 Static = "aedffcd0-7271-4cad-89d0-dc628f76c6d3"
 StaticArrays = "90137ffa-7385-5640-81b9-e52037218182"
-ValueDispatch = "c8e4d12a-5f3b-4a9c-8d2e-1f6b3a7c9e04"
 
 [compat]
 BlockMatrices = "0.1"
-FastNorm = "0.2"
 LinearAlgebra = "1.10"
 MicroInfo = "0.1"
 NLLSModels = "0.1"
@@ -30,5 +27,4 @@ SecondOrderOptimization = "0.1"
 SparseArrays = "1.10"
 Static = "0.8.7, 1"
 StaticArrays = "1"
-ValueDispatch = "0.1"
 julia = "1.10"
