@@ -8,7 +8,7 @@ projects = ["examples", "test"]
 
 [deps]
 BlockMatrices = "a7d4e89f-9c3b-4d0e-8f5a-5b8c7d1e4f28"
-FastLinAlg = "e4b2c56d-7a1e-4f9b-8c3d-3e6f5a9b2c06"
+FastNorm = "9ae3a7d3-f420-46c0-9803-30469fdd2dd1"
 LinearAlgebra = "37e2e46d-f89d-539d-b4ee-838fcccc9c8e"
 MicroInfo = "d9a1e34b-6c2f-4b8d-9e3a-2f5c4d8e1a05"
 NLLSModels = "b7e28c5a-4e6f-4d8b-9a1c-5d3e2f1a0b9c"
@@ -21,7 +21,7 @@ ValueDispatch = "c8e4d12a-5f3b-4a9c-8d2e-1f6b3a7c9e04"
 
 [compat]
 BlockMatrices = "0.1"
-FastLinAlg = "0.1"
+FastNorm = "0.2"
 LinearAlgebra = "1.10"
 MicroInfo = "0.1"
 NLLSModels = "0.1"
