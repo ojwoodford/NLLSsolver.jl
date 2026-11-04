@@ -1,7 +1,7 @@
 module NLLSsolver
 
 using BlockMatrices
-using FastLinAlg
+using FastNorm
 using MicroInfo
 using NLLSModels
 using OptimizationVariableInterface
@@ -86,7 +86,7 @@ export NLLSOptions, NLLSResult, NLLSIterator, NLLSInternal
 export @elapsed_ns, @stats, @unroll, @bitiset
 
 # Also import any remaining unexported symbols from component modules for full internal test compatibility
-for mod in (SecondOrderOptimization, NLLSModels, BlockMatrices, FastLinAlg, MicroInfo, OptimizationVariableInterface, ValueDispatch)
+for mod in (SecondOrderOptimization, NLLSModels, BlockMatrices, FastNorm, MicroInfo, OptimizationVariableInterface, ValueDispatch)
     for sym in names(mod; all=true)
         s = string(sym)
         if !startswith(s, "#") && !startswith(s, "@") && !isdefined(@__MODULE__, sym) && sym !== :eval && sym !== :include
