@@ -33,7 +33,7 @@ import ValueDispatch:
 
 import OptimizationVariableInterface:
     nvars, update, update!, copyvars, syncvars!, isbitsvartype,
-    EuclideanVector, DynamicVector, ZeroToInfScalar, ZeroToOneScalar
+    ZeroToInfScalar, ZeroToOneScalar
 
 import BlockMatrices:
     BlockSparseMatrix, BlockDenseMatrix,
@@ -63,6 +63,8 @@ import NLLSModels:
     block_sizes_indices, getgrad, getA, getb, gethessian
 
 # Backward-compatibility aliases
+const EuclideanVector{N, T} = SVector{N, T}
+const DynamicVector{T}      = Vector{T}
 const NLLSOptions   = SecondOrderOptimization.OptimizationOptions
 const NLLSResult    = SecondOrderOptimization.OptimizationResult
 const NLLSIterator  = SecondOrderOptimization.OptimizationIterator
