@@ -25,6 +25,7 @@ Each instance of these two types must implement a standard API, as follows.
 #### Variable blocks
 - **`N::Union{Int, StaticInt} = nvars(::MyVar)`** returns the intrinsic dimensionality, N, of the variable block. This must be fixed for the duration of the optimization. Returning a `::StaticInt{N}` will improve performance, so do so where possible.
 - **`newvar::MyVar = update(oldvar::MyVar, updatevec::AbstractVector, start::Int=1)`** updates a variable, using the values in update vector `updatevec`, starting at index `start`. 
+- **`NLLSsolver.iseliminable(::Type{MyVar}) = static(true)`** (*optional*) marks a variable type as eliminable by the Schur complement (default `static(false)`). Use it for many small, statically sized variables that no cost couples to one another, such as the 3D points of a bundle adjustment: each iteration then eliminates them block by block and solves a dense system over the remaining variables only. A cost depending on two unfixed eliminable variables is an error.
 
 #### Cost blocks
 - **`::StaticInt{N} = ndeps(::MyCost)`** returns the number of variable blocks the cost block depends on. This must be a compile-time constant of type `StaticInt`.

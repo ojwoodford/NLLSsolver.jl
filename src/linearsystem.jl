@@ -122,10 +122,29 @@ struct MultiVariateLSdense_ls
     b::Vector{Float64}
 end
 
+# Multi-variate linear system with the eliminable variables removed by the Schur complement (see schur.jl)
+struct MultiVariateLSschur_x{Ps, G}
+    x::Vector{Float64}
+    blockindices::Vector{UInt} # One for each variable
+    boffsets::Vector{UInt} # One per block in b: the retained blocks first, then the eliminable ones
+    structure::SchurStructure{G} # Block layout of the Hessian, shared with every copy of it
+    S::Matrix{Float64} # The reduced (Schur complement) system over the retained variables
+    Sfac::Matrix{Float64} # Its Cholesky factor
+    rc::Vector{Float64} # Its right-hand side
+    ppinv::Vector{Float64} # The inverse of each eliminable diagonal block, laid out as SchurBlockMatrix.pp
+    w::Vector{Float64} # H_cp * inv(H_pp), laid out as SchurBlockMatrix.cp
+end
+
+struct MultiVariateLSschur_ls{G}
+    A::SchurBlockMatrix{Float64, G}
+    b::Vector{Float64}
+end
+
 const MultiVariateLSsparse = Union{LinearSystem{MultiVariateLSsparse_x, MultiVariateLSsparse_ls}, LinearSystemShared{MultiVariateLSsparse_x, MultiVariateLSsparse_ls, M} where M}
 const MultiVariateLSdense = Union{LinearSystem{MultiVariateLSdense_x, MultiVariateLSdense_ls}, LinearSystemShared{MultiVariateLSdense_x, MultiVariateLSdense_ls, M} where M}
-const MultiVariateLSsingle = Union{LinearSystem{MultiVariateLSsparse_x, MultiVariateLSsparse_ls}, LinearSystem{MultiVariateLSdense_x, MultiVariateLSdense_ls}}
-const MultiVariateLS = Union{MultiVariateLSsparse, MultiVariateLSdense}
+const MultiVariateLSschur = Union{LinearSystem{MultiVariateLSschur_x{Ps, G}, MultiVariateLSschur_ls{G}} where {Ps, G}, LinearSystemShared{MultiVariateLSschur_x{Ps, G}, MultiVariateLSschur_ls{G}, M} where {Ps, G, M}}
+const MultiVariateLSsingle = Union{LinearSystem{MultiVariateLSsparse_x, MultiVariateLSsparse_ls}, LinearSystem{MultiVariateLSdense_x, MultiVariateLSdense_ls}, LinearSystem{MultiVariateLSschur_x{Ps, G}, MultiVariateLSschur_ls{G}} where {Ps, G}}
+const MultiVariateLS = Union{MultiVariateLSsparse, MultiVariateLSdense, MultiVariateLSschur}
 
 function MultiVariateLSsparse(A::BlockSparseMatrix, blockindices, storehessian=true)
     @assert A.rowblocksizes == A.columnblocksizes
@@ -177,6 +196,7 @@ copy_structure(ls::UniVariateLSdynamic_ls) = UniVariateLSdynamic_ls(size(ls.A, 1
 copy_structure(::UniVariateLSstatic_ls{N, N2}) where {N, N2} = UniVariateLSstatic_ls{N, N2}()
 copy_structure(ls::MultiVariateLSdense_ls) = MultiVariateLSdense_ls(copy_structure(ls.A), zeros(Float64, length(ls.b)))
 copy_structure(ls::MultiVariateLSsparse_ls) = MultiVariateLSsparse_ls(copy_structure(ls.A), zeros(Float64, length(ls.b)))
+copy_structure(ls::MultiVariateLSschur_ls) = MultiVariateLSschur_ls(copy_structure(ls.A), zeros(Float64, length(ls.b)))
 copy_structure(ls::LinearSystem{F, V}) where {F, V} = LinearSystem{F, V}(ls.x, copy_structure(ls.ls))
 copy_structure(ls::LinearSystemShared{F, V, N}) where {F, V, N} = LinearSystemShared{F, V, N}(ls.x, SVector{N, V}(ntuple(i -> copy_structure(ls.ls[i]), Val(N))), MVector{N, Float64}(undef))
 
@@ -200,6 +220,7 @@ add!(dest::UniVariateLSdynamic_ls, src::UniVariateLSdynamic_ls) = (dest.A .+= sr
 add!(dest::UniVariateLSstatic_ls, src::UniVariateLSstatic_ls) = (dest.A .+= src.A; dest.b .+= src.b; nothing)
 add!(dest::MultiVariateLSdense_ls, src::MultiVariateLSdense_ls) = (dest.A.data .+= src.A.data; dest.b .+= src.b; nothing)
 add!(dest::MultiVariateLSsparse_ls, src::MultiVariateLSsparse_ls) = (dest.A.data .+= src.A.data; dest.b .+= src.b; nothing)
+add!(dest::MultiVariateLSschur_ls, src::MultiVariateLSschur_ls) = (add!(dest.A, src.A); dest.b .+= src.b; nothing)
 add!(dest::LinearSystem, src::LinearSystem) = add!(dest.ls, src.ls)
 
 function updatesymlinearsystem!(linsystem::UniVariateLS, g, H, unusedargs...)
@@ -262,6 +283,7 @@ gethessian(ls::LinearSystemShared) = gethessian(ls.x, ls.ls[1])
 gethessian(::UniVariateLSdynamic_x, ls::UniVariateLSdynamic_ls) = ls.A
 gethessian(::UniVariateLSstatic_x, ls::UniVariateLSstatic_ls) = ls.A
 gethessian(::MultiVariateLSdense_x, ls::MultiVariateLSdense_ls) = symmetrifyfull(ls.A)
+gethessian(::MultiVariateLSschur_x, ls::MultiVariateLSschur_ls) = ls.A
 function gethessian(x::MultiVariateLSsparse_x, ls::MultiVariateLSsparse_ls)
     # Fill sparse hessian
     @inbounds for (i, si) in enumerate(x.sparseindices)
