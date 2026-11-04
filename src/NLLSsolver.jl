@@ -17,30 +17,20 @@ import SecondOrderOptimization:
     OptimizationLinearSolver, auto_solver, cholesky_solver, ldl_solver, qr_solver,
     CostTrajectory,
     nullcallback, printoutcallback, storecostscallback,
-    solve!, sharex,
-    reset!, construct, iterate!, linearize!
+    reset!, construct
 
 import MicroInfo:
-    TimeCounter, StatsCounter, Stats,
-    timestring, bytesstring,
+    Stats,
     @elapsed_ns, @stats
 
-import FastLinAlg:
-    sqnorm, fast_dot, fast_norm, fast_bAb, cumsum!
-
-import ValueDispatch:
-    valuedispatch
-
 import OptimizationVariableInterface:
-    nvars, update, update!, copyvars, syncvars!, isbitsvartype,
+    nvars, update, update!, syncvars!,
     ZeroToInfScalar, ZeroToOneScalar
 
 import BlockMatrices:
     BlockSparseMatrix, BlockDenseMatrix,
-    block, validblock, zero!, copy_structure, uniformscaling!,
-    symmetrifyfull, symmetrifyfull!, symmetrifysparse,
-    makesparseindices, cacheindices, clearindicescache, updatelastrowsym!,
-    sparse_dense_decision, block_sparse_nnz, computestartindices, find_diag_inds
+    block, zero!, copy_structure, uniformscaling!,
+    symmetrifyfull, computestartindices
 
 import NLLSModels:
     NLLSProblem,
@@ -53,9 +43,9 @@ import NLLSModels:
     optimvars,
     getvars, varindices, generatemeasurement, ndeps, nres,
     robustkernel, robustify, robustifydcost, robustifydkernel,
-    countcosts, costnum, costdeps, resnum,
-    reordercostsforschur!, block_sparsity,
-    SR, bindleadingargs, runlengthencodesortedints,
+    countcosts, costnum,
+    reordercostsforschur!,
+    SR,
     @unroll, @bitiset,
     LinearSystem, LinearSystemShared,
     UniVariateLSstatic_x, UniVariateLSstatic_ls, UniVariateLSdynamic_x, UniVariateLSdynamic_ls,
