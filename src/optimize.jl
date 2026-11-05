@@ -1,5 +1,5 @@
 using SecondOrderOptimization, NLLSModels, MicroInfo, OptimizationVariableInterface
-using Static, StaticArrays, SparseArrays, LinearAlgebra
+using Static, StaticArrays, SparseArrays
 import NLLSModels: convertunfixed, SingleVarCostFunc, SingleVarCostGradHess, updateunfixed, selectcosts!, getvarcostmap, CostStruct, countcosts, costnum
 
 # Callback wrapper to expose NLLSProblem variables and state to callbacks

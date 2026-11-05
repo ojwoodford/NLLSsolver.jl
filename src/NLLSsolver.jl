@@ -5,7 +5,7 @@ using MicroInfo
 using NLLSModels
 using OptimizationVariableInterface
 using SecondOrderOptimization
-using Static, StaticArrays, SparseArrays, LinearAlgebra
+using Static, StaticArrays, SparseArrays
 
 import SecondOrderOptimization:
     optimize,
