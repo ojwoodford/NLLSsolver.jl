@@ -1,11 +1,14 @@
 module NLLSsolver
 
 using BlockMatrices
-using MicroInfo
 using NLLSModels
 using OptimizationVariableInterface
 using SecondOrderOptimization
 using Static, StaticArrays, SparseArrays
+
+# Module aliases
+const SecondOrderOptimizer = SecondOrderOptimization
+const SecodOrderOptimizer = SecondOrderOptimization
 
 import SecondOrderOptimization:
     optimize, optimize!,
@@ -16,10 +19,6 @@ import SecondOrderOptimization:
     CostTrajectory,
     nullcallback, printoutcallback, storecostscallback,
     reset!, construct
-
-import MicroInfo:
-    Stats,
-    @elapsed_ns, @stats
 
 import OptimizationVariableInterface:
     nvars, update, update!, syncvars!,
@@ -79,7 +78,7 @@ export optimize!  # Optimize the objective
 export nullcallback, printoutcallback, storecostscallback # Callbacks to be called once per optimization iteration
 
 # Also import any remaining unexported symbols from component modules for full internal test compatibility
-for mod in (SecondOrderOptimization, NLLSModels, BlockMatrices, MicroInfo, OptimizationVariableInterface)
+for mod in (SecondOrderOptimization, NLLSModels, BlockMatrices, OptimizationVariableInterface)
     for sym in names(mod; all=true)
         s = string(sym)
         if !startswith(s, "#") && !startswith(s, "@") && !isdefined(@__MODULE__, sym) && sym !== :eval && sym !== :include

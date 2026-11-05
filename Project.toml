@@ -8,7 +8,6 @@ projects = ["examples", "test"]
 
 [deps]
 BlockMatrices = "a7d4e89f-9c3b-4d0e-8f5a-5b8c7d1e4f28"
-MicroInfo = "d9a1e34b-6c2f-4b8d-9e3a-2f5c4d8e1a05"
 NLLSModels = "b7e28c5a-4e6f-4d8b-9a1c-5d3e2f1a0b9c"
 OptimizationVariableInterface = "f1c3d78e-8b2a-4c9d-9e4f-4a7b6c0d3e17"
 SecondOrderOptimization = "a3f5c71e-3b2d-4d9a-9e20-7f8e3c4b1a50"
@@ -18,7 +17,6 @@ StaticArrays = "90137ffa-7385-5640-81b9-e52037218182"
 
 [compat]
 BlockMatrices = "0.1"
-MicroInfo = "0.1"
 NLLSModels = "0.1"
 OptimizationVariableInterface = "0.1"
 SecondOrderOptimization = "0.1"
