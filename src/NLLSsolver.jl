@@ -34,7 +34,7 @@ import NLLSModels:
     AbstractCost, AbstractResidual, AbstractAdaptiveResidual, AbstractRobustifier, AbstractAdaptiveRobustifier,
     NoRobust, Scaled, HuberKernel, Huber2oKernel, GemanMcclureKernel, GemanMcclure2oKernel, ContaminatedGaussian,
     SimpleError2, SimpleError3, SimpleError4,
-    VectorRepo,
+    CostStruct,
     addvariable!, addcost!, addresidual!, updatevarcostmap!, subproblem, subproblem!,
     cost, costgradhess!, computeresidual, computeresjac, computecost, computecostgradhess,
     optimvars,
