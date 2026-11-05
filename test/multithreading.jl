@@ -38,6 +38,17 @@ NLLSsolver.getvars(::MTTestDynamicRes, vars::AbstractVector) = (vars[1]::NLLSsol
 NLLSsolver.computeresidual(res::MTTestDynamicRes, w) = dot(res.X, w) - res.y
 Base.eltype(::MTTestDynamicRes) = Float64
 
+struct MTTestDynamicSingleRes <: NLLSsolver.AbstractResidual
+    val::Vector{Float64}
+    var::Int
+end
+NLLSsolver.ndeps(::MTTestDynamicSingleRes) = static(1)
+NLLSsolver.nres(res::MTTestDynamicSingleRes) = length(res.val)
+NLLSsolver.varindices(res::MTTestDynamicSingleRes) = res.var
+NLLSsolver.getvars(res::MTTestDynamicSingleRes, vars::AbstractVector) = (vars[res.var]::Vector{Float64},)
+NLLSsolver.computeresidual(res::MTTestDynamicSingleRes, x) = x - res.val
+Base.eltype(::MTTestDynamicSingleRes) = Float64
+
 alloc_ephemeral(ls, ind) = @allocated NLLSsolver.LinearSystem(ls, ind)
 
 @testset "multithreading.jl" begin
@@ -150,7 +161,11 @@ alloc_ephemeral(ls, ind) = @allocated NLLSsolver.LinearSystem(ls, ind)
     @test allocs == 0
 
     # Additional linearsystem coverage
-    @test NLLSsolver.copy_structure(ls_static_single) isa NLLSsolver.LinearSystem
+    cp_stat = NLLSsolver.copy_structure(ls_static_single)
+    @test cp_stat isa NLLSsolver.LinearSystem
+    @test cp_stat.x.x !== ls_static_single.x.x
+    @test cp_stat.ls.A !== ls_static_single.ls.A
+    @test cp_stat.ls.b !== ls_static_single.ls.b
     @test NLLSsolver.sharedlinearsystem(ls_static_shared, static(4)) === ls_static_shared
     @test NLLSsolver.sharedlinearsystem(ls_static_single, 4) isa NLLSsolver.LinearSystemShared
     ls_ep2 = NLLSsolver.LinearSystem(ls_static_shared, 2)
@@ -178,6 +193,11 @@ alloc_ephemeral(ls, ind) = @allocated NLLSsolver.LinearSystem(ls, ind)
     @test c_ds ≈ c_dm
     @test NLLSsolver.getgrad(ls_dyn_single) ≈ NLLSsolver.getgrad(ls_dyn_shared)
     @test NLLSsolver.gethessian(ls_dyn_single) ≈ NLLSsolver.gethessian(ls_dyn_shared)
+    cp_dyn = NLLSsolver.copy_structure(ls_dyn_single)
+    @test cp_dyn isa NLLSsolver.LinearSystem
+    @test cp_dyn.x.x !== ls_dyn_single.x.x
+    @test cp_dyn.ls.A !== ls_dyn_single.ls.A
+    @test cp_dyn.ls.b !== ls_dyn_single.ls.b
 
     # 3. MultiVariateLSdense
     prob_dense = NLLSProblem(Float64)
@@ -258,4 +278,69 @@ alloc_ephemeral(ls, ind) = @allocated NLLSsolver.LinearSystem(ls, ind)
     res_large_s = optimize!(deepcopy(prob_large), opt_single)
     res_large_m = optimize!(deepcopy(prob_large), opt_multi)
     @test res_large_s.bestcost ≈ res_large_m.bestcost
+
+    # singlethreaded helper
+    @test NLLSsolver.singlethreaded(opt_multi).numthreads === static(1)
+    @test NLLSsolver.singlethreaded(opt_multi).iterator === opt_multi.iterator
+    @test NLLSsolver.singlethreaded(opt_single).numthreads === static(1)
+
+    # Multi-threaded optimizesingles! tests
+    # 1. Single variable (nactive = 1 path)
+    prob_one_s = deepcopy(prob_static)
+    prob_one_m = deepcopy(prob_static)
+    res_one_s = NLLSsolver.optimizesingles!(prob_one_s, opt_single, [1])
+    res_one_m = NLLSsolver.optimizesingles!(prob_one_m, opt_multi, [1])
+    @test res_one_s.bestcost ≈ res_one_m.bestcost
+    @test prob_one_s.variables[1] ≈ prob_one_m.variables[1]
+
+    # 2. Static univariate mini-optimizations
+    prob_singles_stat = NLLSProblem(Float64)
+    for i in 1:12
+        addvariable!(prob_singles_stat, 2.0 * i)
+        for k in 1:5
+            addcost!(prob_singles_stat, MTTestScalarRes(k * 0.1 * i, i))
+        end
+    end
+    prob_singles_stat_s = deepcopy(prob_singles_stat)
+    prob_singles_stat_m = deepcopy(prob_singles_stat)
+    res_singles_s = NLLSsolver.optimizesingles!(prob_singles_stat_s, opt_single, 1:12)
+    res_singles_m = NLLSsolver.optimizesingles!(prob_singles_stat_m, opt_multi, 1:12)
+    @test res_singles_s.bestcost ≈ res_singles_m.bestcost
+    @test prob_singles_stat_s.variables ≈ prob_singles_stat_m.variables
+    @test res_singles_m.bestcost < res_singles_m.startcost
+
+    # 3. Dynamic univariate mini-optimizations
+    prob_singles_dyn = NLLSProblem(Vector{Float64})
+    for i in 1:8
+        addvariable!(prob_singles_dyn, [1.0 + i, 2.0 + i])
+        for k in 1:4
+            addcost!(prob_singles_dyn, MTTestDynamicSingleRes([k * 0.2 + i, k * 0.3 + i], i))
+        end
+    end
+    prob_singles_dyn_s = deepcopy(prob_singles_dyn)
+    prob_singles_dyn_m = deepcopy(prob_singles_dyn)
+    res_dyn_singles_s = NLLSsolver.optimizesingles!(prob_singles_dyn_s, opt_single, 1:8)
+    res_dyn_singles_m = NLLSsolver.optimizesingles!(prob_singles_dyn_m, opt_multi, 1:8)
+    @test res_dyn_singles_s.bestcost ≈ res_dyn_singles_m.bestcost
+    @test prob_singles_dyn_s.variables ≈ prob_singles_dyn_m.variables
+    @test res_dyn_singles_m.bestcost < res_dyn_singles_m.startcost
+
+    # 4. Other iterators with multi-threaded optimizesingles!
+    opt_dtd_m = NLLSOptions(numthreads=static(4), iterator=:levenbergmarquardt_dtd)
+    opt_dtd_s = NLLSOptions(numthreads=static(1), iterator=:levenbergmarquardt_dtd)
+    prob_dtd_s = deepcopy(prob_singles_stat)
+    prob_dtd_m = deepcopy(prob_singles_stat)
+    res_dtd_s = NLLSsolver.optimizesingles!(prob_dtd_s, opt_dtd_s, 1:12)
+    res_dtd_m = NLLSsolver.optimizesingles!(prob_dtd_m, opt_dtd_m, 1:12)
+    @test res_dtd_s.bestcost ≈ res_dtd_m.bestcost
+    @test prob_dtd_s.variables ≈ prob_dtd_m.variables
+
+    opt_dog_m = NLLSOptions(numthreads=static(4), iterator=:dogleg)
+    opt_dog_s = NLLSOptions(numthreads=static(1), iterator=:dogleg)
+    prob_dog_s = deepcopy(prob_singles_stat)
+    prob_dog_m = deepcopy(prob_singles_stat)
+    res_dog_s = NLLSsolver.optimizesingles!(prob_dog_s, opt_dog_s, 1:12)
+    res_dog_m = NLLSsolver.optimizesingles!(prob_dog_m, opt_dog_m, 1:12)
+    @test res_dog_s.bestcost ≈ res_dog_m.bestcost
+    @test prob_dog_s.variables ≈ prob_dog_m.variables
 end
