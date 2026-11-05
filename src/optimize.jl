@@ -197,6 +197,15 @@ end
     cost = computelinearization!(data, problem)
     data.bestcost = cost
     data.startcost = cost
+    # A start point outside the residuals' domain (a non-finite cost, or a non-finite gradient from a non-finite Jacobian):
+    # no trial step can be judged against it (an iterator only accepts a trial whose cost is not greater than the best, and
+    # every comparison with NaN is false), so the iterators would never return. Stop before iterating.
+    if !isfinite(cost) || !all(isfinite, getgrad(data.linsystem))
+        converged |= isinf(cost)                                     << 0 # Cost is infinite
+        converged |= isnan(cost)                                     << 1 # Cost is NaN
+        converged |= 1                                               << 11 # Non-finite cost or gradient at the start point
+        return converged
+    end
     # Do the iterations
     while true
         data.iternum += 1

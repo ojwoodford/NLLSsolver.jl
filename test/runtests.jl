@@ -13,6 +13,7 @@ using Test
     include("multithreading.jl")
     include("utils.jl")
     include("nantrial.jl")
+    include("nanstart.jl")
     include("copyvars.jl")
     include("OptimizeCache.jl")
     include("trialreuse.jl")

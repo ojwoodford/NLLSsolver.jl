@@ -27,7 +27,7 @@ function NLLSOptions(; maxiters=100, reldcost=1.e-15, absdcost=1.e-15, dstep=1.e
     NLLSOptions(reldcost, absdcost, dstep, maxfails, maxiters, UInt64(round(maxtime * 1e9)), static(Symbol(iterator)), static(numthreads), makestaticbool(callbackchangesstate))
 end
 singlethreaded(options::NLLSOptions) = NLLSOptions(options.reldcost, options.absdcost, options.dstep, options.maxfails, options.maxiters, options.maxtime, options.iterator, static(1), options.callbackchangesstate)
-getiterator(options) = eval(dynamic(options.iterator))::NLLSIterator
+getiterator(options) = getfield(@__MODULE__, dynamic(options.iterator))::NLLSIterator
 
 struct NLLSResult
     # Costs
@@ -117,6 +117,7 @@ function Base.show(io::IO, x::NLLSResult)
     if 0 != x.termination & (1 << 8); println(io,  "   Maximum number of outer iterations reached."); end
     if 0 != x.termination & (1 << 9); println(io,  "   Maximum allowed computation time exceeded."); end
     if 0 != x.termination & (1 << 10); println(io, "   Internal discrepancy in cost computations."); end
+    if 0 != x.termination & (1 << 11); println(io, "   Cost or gradient not finite at the start point."); end
     userflags = x.termination >> 16
     if 0 != userflags; println(io, "   Terminated by user-defined callback, with flags: ", string(userflags, base=2)); end
 end
