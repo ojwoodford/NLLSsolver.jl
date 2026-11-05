@@ -1,7 +1,7 @@
 module NLLSsolver
 
 using BlockMatrices
-using NLLSModels
+using NLLSModel
 using OptimizationVariableInterface
 using SecondOrderOptimization
 using Static, StaticArrays, SparseArrays
@@ -29,8 +29,8 @@ import BlockMatrices:
     block, zero!, copy_structure, uniformscaling!,
     symmetrifyfull, computestartindices
 
-import NLLSModels:
-    NLLSProblem,
+import NLLSModel:
+    Model,
     AbstractCost, AbstractResidual, AbstractAdaptiveResidual, AbstractRobustifier, AbstractAdaptiveRobustifier,
     NoRobust, Scaled, HuberKernel, Huber2oKernel, GemanMcclureKernel, GemanMcclure2oKernel, ContaminatedGaussian,
     SimpleError2, SimpleError3, SimpleError4,
@@ -50,6 +50,7 @@ import NLLSModels:
     block_sizes_indices, getgrad, getA, getb, gethessian
 
 # Backward-compatibility aliases
+const NLLSProblem           = Model
 const EuclideanVector{N, T} = SVector{N, T}
 const DynamicVector{T}      = Vector{T}
 const NLLSOptions   = SecondOrderOptimization.OptimizationOptions
@@ -62,7 +63,7 @@ include("optimize.jl")
 # Export the API
 # Types
 export AbstractCost, AbstractResidual, AbstractRobustifier # Abstract problem definition types
-export NLLSProblem, NLLSOptions, NLLSResult, NLLSIterator, OptimizeCache # Concrete problem & solver types
+export Model, NLLSProblem, NLLSOptions, NLLSResult, NLLSIterator, OptimizeCache # Concrete problem & solver types
 export AbstractRobustifier, NoRobust, Scaled, HuberKernel, Huber2oKernel, GemanMcclureKernel, GemanMcclure2oKernel # Robustifiers
 export ContaminatedGaussian # Adaptive robustifiers
 export EuclideanVector, ZeroToInfScalar, ZeroToOneScalar # Concrete general variables
@@ -78,7 +79,7 @@ export optimize!  # Optimize the objective
 export nullcallback, printoutcallback, storecostscallback # Callbacks to be called once per optimization iteration
 
 # Also import any remaining unexported symbols from component modules for full internal test compatibility
-for mod in (SecondOrderOptimization, NLLSModels, BlockMatrices, OptimizationVariableInterface)
+for mod in (SecondOrderOptimization, NLLSModel, BlockMatrices, OptimizationVariableInterface)
     for sym in names(mod; all=true)
         s = string(sym)
         if !startswith(s, "#") && !startswith(s, "@") && !isdefined(@__MODULE__, sym) && sym !== :eval && sym !== :include
@@ -94,38 +95,38 @@ end
 # Backward-compatibility method extensions
 SecondOrderOptimization.construct(iter::StaticSymbol, problem, ls, cbchangesstate) = construct(iter, ls, cbchangesstate)
 SecondOrderOptimization.optimize(kernel::ContaminatedGaussian{T}, squarederrors::Vector{T}, maxiters=10) where T =
-    NLLSModels.optimize(kernel, squarederrors, maxiters)
+    NLLSModel.optimize(kernel, squarederrors, maxiters)
 BlockMatrices.zero!(ls::SecondOrderOptimization.AbstractLinearSystem) = SecondOrderOptimization.zero!(ls)
 BlockMatrices.copy_structure(ls::SecondOrderOptimization.AbstractLinearSystem) = SecondOrderOptimization.copy_structure(ls)
 BlockMatrices.uniformscaling!(ls::SecondOrderOptimization.AbstractLinearSystem, k) = SecondOrderOptimization.uniformscaling!(ls, k)
 SecondOrderOptimization.copy_structure(x) = BlockMatrices.copy_structure(x)
-SecondOrderOptimization.getx(x) = NLLSModels.getx(x)
-SecondOrderOptimization.getA(x) = NLLSModels.getA(x)
-SecondOrderOptimization.getb(x) = NLLSModels.getb(x)
-SecondOrderOptimization.getgrad(x) = NLLSModels.getgrad(x)
-SecondOrderOptimization.gethessian(x) = NLLSModels.gethessian(x)
-SecondOrderOptimization.gethessgrad(x) = NLLSModels.gethessgrad(x)
-NLLSModels.getx(ls::SecondOrderOptimization.AbstractLinearSystem) = SecondOrderOptimization.getx(ls)
-NLLSModels.getA(ls::SecondOrderOptimization.AbstractLinearSystem) = SecondOrderOptimization.getA(ls)
-NLLSModels.getb(ls::SecondOrderOptimization.AbstractLinearSystem) = SecondOrderOptimization.getb(ls)
-NLLSModels.getgrad(ls::SecondOrderOptimization.AbstractLinearSystem) = SecondOrderOptimization.getgrad(ls)
-NLLSModels.gethessian(ls::SecondOrderOptimization.AbstractLinearSystem) = SecondOrderOptimization.gethessian(ls)
-NLLSModels.gethessgrad(ls::SecondOrderOptimization.AbstractLinearSystem) = SecondOrderOptimization.gethessgrad(ls)
+SecondOrderOptimization.getx(x) = NLLSModel.getx(x)
+SecondOrderOptimization.getA(x) = NLLSModel.getA(x)
+SecondOrderOptimization.getb(x) = NLLSModel.getb(x)
+SecondOrderOptimization.getgrad(x) = NLLSModel.getgrad(x)
+SecondOrderOptimization.gethessian(x) = NLLSModel.gethessian(x)
+SecondOrderOptimization.gethessgrad(x) = NLLSModel.gethessgrad(x)
+NLLSModel.getx(ls::SecondOrderOptimization.AbstractLinearSystem) = SecondOrderOptimization.getx(ls)
+NLLSModel.getA(ls::SecondOrderOptimization.AbstractLinearSystem) = SecondOrderOptimization.getA(ls)
+NLLSModel.getb(ls::SecondOrderOptimization.AbstractLinearSystem) = SecondOrderOptimization.getb(ls)
+NLLSModel.getgrad(ls::SecondOrderOptimization.AbstractLinearSystem) = SecondOrderOptimization.getgrad(ls)
+NLLSModel.gethessian(ls::SecondOrderOptimization.AbstractLinearSystem) = SecondOrderOptimization.gethessian(ls)
+NLLSModel.gethessgrad(ls::SecondOrderOptimization.AbstractLinearSystem) = SecondOrderOptimization.gethessgrad(ls)
 
-NLLSModels.getoffsets(block, ::SecondOrderOptimization.StaticLinearSystem) = SVector(UInt(1))
-function NLLSModels.updatesymlinearsystem!(linsystem::SecondOrderOptimization.StaticLinearSystem, g, H, unusedargs...)
+NLLSModel.getoffsets(block, ::SecondOrderOptimization.StaticLinearSystem) = SVector(UInt(1))
+function NLLSModel.updatesymlinearsystem!(linsystem::SecondOrderOptimization.StaticLinearSystem, g, H, unusedargs...)
     getb(linsystem) .+= g
     getA(linsystem) .+= H
 end
-function NLLSModels.costgradhess!(linsystem::SecondOrderOptimization.DenseLinearSystem, vars::AbstractVector, costs::NLLSModels.CostStruct)
+function NLLSModel.costgradhess!(linsystem::SecondOrderOptimization.DenseLinearSystem, vars::AbstractVector, costs::NLLSModel.CostStruct)
     zero!(linsystem)
     n = length(vars)
     blocksizes, blockindices = block_sizes_indices(vars, trues(n), n)
     boffsets = computestartindices(blocksizes)
     push!(boffsets, boffsets[end] + blocksizes[end])
     bdm = BlockDenseMatrix{Float64}(linsystem.A, boffsets)
-    ls = LinearSystem(NLLSModels.MultiVariateLSdense_x(linsystem.x, blockindices, boffsets), NLLSModels.MultiVariateLSdense_ls(bdm, linsystem.b))
-    c = NLLSModels.costgradhess_nozero!(ls, vars, costs)
+    ls = LinearSystem(NLLSModel.MultiVariateLSdense_x(linsystem.x, blockindices, boffsets), NLLSModel.MultiVariateLSdense_ls(bdm, linsystem.b))
+    c = NLLSModel.costgradhess_nozero!(ls, vars, costs)
     symmetrifyfull(bdm)
     return c
 end

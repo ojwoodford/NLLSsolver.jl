@@ -1,8 +1,8 @@
-using SecondOrderOptimization, NLLSModels, OptimizationVariableInterface
+using SecondOrderOptimization, NLLSModel, OptimizationVariableInterface
 using Static, StaticArrays, SparseArrays
-import NLLSModels: convertunfixed, SingleVarCostFunc, SingleVarCostGradHess, updateunfixed, selectcosts!, getvarcostmap, CostStruct, countcosts, costnum
+import NLLSModel: Model, convertunfixed, SingleVarCostFunc, SingleVarCostGradHess, updateunfixed, selectcosts!, getvarcostmap, CostStruct, countcosts, costnum
 
-# Callback wrapper to expose NLLSProblem variables and state to callbacks
+# Callback wrapper to expose NLLSModel variables and state to callbacks
 struct NLLSCallbackWrapper{CB, P, U, UI, O}
     cb::CB
     problem::P
@@ -74,22 +74,22 @@ NLLSCallbackWrapper(cb, problem, unfixed=nothing) = NLLSCallbackWrapper(cb, prob
 end
 @inline (w::NLLSCallbackWrapper{typeof(nullcallback), P, U, UI, O})(cost, x_trial, data, iteratedata) where {P, U, UI, O} = (cost, 0)
 
-@inline function update_problem_variables!(problem::NLLSProblem, unfixed::Integer, ::Any, x_opt)
+@inline function update_problem_variables!(problem::Model, unfixed::Integer, ::Any, x_opt)
     @inbounds problem.variables[unfixed] = x_opt
     return problem
 end
-@inline function update_problem_variables!(problem::NLLSProblem, ::AbstractVector, ::Nothing, x_opt)
+@inline function update_problem_variables!(problem::Model, ::AbstractVector, ::Nothing, x_opt)
     problem.variables = x_opt
     return problem
 end
-@inline function update_problem_variables!(problem::NLLSProblem, ::AbstractVector, unfixed_inds::Vector{Int}, x_opt)
+@inline function update_problem_variables!(problem::Model, ::AbstractVector, unfixed_inds::Vector{Int}, x_opt)
     @inbounds for (k, idx) in enumerate(unfixed_inds)
         problem.variables[idx] = x_opt[k]
     end
     return problem
 end
 
-get_unfixed_inds(fdf!::NLLSModels.SingleVarCostGradHess) = nothing
+get_unfixed_inds(fdf!::SingleVarCostGradHess) = nothing
 get_unfixed_inds(fdf!) = fdf!.unfixed_inds
 
 mutable struct NLLSInternalData{LS, F, FDF, HType, D}
@@ -101,17 +101,17 @@ mutable struct NLLSInternalData{LS, F, FDF, HType, D}
 end
 
 # Public optimize! entry points
-optimize!(problem::NLLSProblem, options::OptimizationOptions=OptimizationOptions(), unfixed=nothing, callback=nullcallback) =
+optimize!(problem::Model, options::OptimizationOptions=OptimizationOptions(), unfixed=nothing, callback=nullcallback) =
     optimize!(problem, options, convertunfixed(unfixed, problem), callback, nothing)
 
-optimize!(problem::NLLSProblem, options::OptimizationOptions, unfixed, callback::CB, workspace::WS) where {CB, WS<:Union{Nothing, OptimizationWorkspace}} =
+optimize!(problem::Model, options::OptimizationOptions, unfixed, callback::CB, workspace::WS) where {CB, WS<:Union{Nothing, OptimizationWorkspace}} =
     optimize_dispatch!(problem, options, convertunfixed(unfixed, problem), callback, workspace, SecondOrderOptimization.Stats())
 
-@inline function optimize_cached_dispatch!(problem::NLLSProblem, options::OptimizationOptions, unfixed, callback, workspace::OptimizationWorkspace, startstats::SecondOrderOptimization.Stats)
+@inline function optimize_cached_dispatch!(problem::Model, options::OptimizationOptions, unfixed, callback, workspace::OptimizationWorkspace, startstats::SecondOrderOptimization.Stats)
     return run_cached_nlls!(something(workspace.data), problem, options, unfixed, callback, startstats)
 end
 
-function run_cached_nlls!(cached::Tuple{D, ID}, problem::NLLSProblem, options::OptimizationOptions, unfixed, callback::CB, startstats::SecondOrderOptimization.Stats) where {D, ID, CB}
+function run_cached_nlls!(cached::Tuple{D, ID}, problem::Model, options::OptimizationOptions, unfixed, callback::CB, startstats::SecondOrderOptimization.Stats) where {D, ID, CB}
     data, so_iteratedata = cached
     unfixed_inds = get_unfixed_inds(data.fdf!)
     if unfixed isa Integer
@@ -127,7 +127,7 @@ function run_cached_nlls!(cached::Tuple{D, ID}, problem::NLLSProblem, options::O
     return res
 end
 
-function run_nlls_optimvars!(problem::NLLSProblem, options::OptimizationOptions, unfixed, callback::CB, workspace::WS, startstats::SecondOrderOptimization.Stats) where {CB, WS}
+function run_nlls_optimvars!(problem::Model, options::OptimizationOptions, unfixed, callback::CB, workspace::WS, startstats::SecondOrderOptimization.Stats) where {CB, WS}
     f, fdf!, x0, H = optimvars(problem, unfixed, options.numthreads)
     unfixed_inds = get_unfixed_inds(fdf!)
     cb = callback === nullcallback ? nullcallback : NLLSCallbackWrapper(callback, problem, unfixed, unfixed_inds, options)
@@ -149,7 +149,7 @@ function run_nlls_optimvars!(problem::NLLSProblem, options::OptimizationOptions,
 end
 
 # Single variable optimization
-function optimize_dispatch!(problem::NLLSProblem, options::OptimizationOptions, unfixed::Integer, callback::CB, workspace::WS, startstats::SecondOrderOptimization.Stats=SecondOrderOptimization.Stats()) where {CB, WS}
+function optimize_dispatch!(problem::Model, options::OptimizationOptions, unfixed::Integer, callback::CB, workspace::WS, startstats::SecondOrderOptimization.Stats=SecondOrderOptimization.Stats()) where {CB, WS}
     if !isnothing(workspace) && !isnothing(workspace.key) && nlls_keyvalid(workspace.key, problem, options, unfixed)
         return optimize_cached_dispatch!(problem, options, unfixed, callback, workspace, startstats)
     end
@@ -157,7 +157,7 @@ function optimize_dispatch!(problem::NLLSProblem, options::OptimizationOptions, 
 end
 
 # Multi-variable optimization
-function optimize_dispatch!(problem::NLLSProblem, options::OptimizationOptions, unfixed::AbstractVector, callback::CB, workspace::WS, startstats::SecondOrderOptimization.Stats=SecondOrderOptimization.Stats()) where {CB, WS}
+function optimize_dispatch!(problem::Model, options::OptimizationOptions, unfixed::AbstractVector, callback::CB, workspace::WS, startstats::SecondOrderOptimization.Stats=SecondOrderOptimization.Stats()) where {CB, WS}
     @assert length(problem.variables) > 0
     nblocks = sum(unfixed)
     if nblocks == 1
@@ -171,21 +171,21 @@ function optimize_dispatch!(problem::NLLSProblem, options::OptimizationOptions, 
 end
 
 # Cache key and workspace management
-function nlls_cachekey(problem::NLLSProblem, options::OptimizationOptions, unfixed::Integer)
+function nlls_cachekey(problem::Model, options::OptimizationOptions, unfixed::Integer)
     return (problem, typeof(options), Int(unfixed), dynamic(nvars(problem.variables[unfixed])), countcosts(costnum, problem.costs))
 end
 
-function nlls_cachekey(problem::NLLSProblem, options::OptimizationOptions, unfixed::AbstractVector)
+function nlls_cachekey(problem::Model, options::OptimizationOptions, unfixed::AbstractVector)
     getvarcostmap(problem)
     sizes = [unfixed_ ? Int(dynamic(nvars(var))) : 0 for (var, unfixed_) in zip(problem.variables, unfixed)]
     return (problem, typeof(options), BitVector(unfixed), sizes, countcosts(costnum, problem.costs))
 end
 
-function nlls_keyvalid(key::Tuple{NLLSProblem, DataType, Int, Any, Int}, problem::NLLSProblem, options::OptimizationOptions, unfixed::Integer)
+function nlls_keyvalid(key::Tuple{Model, DataType, Int, Any, Int}, problem::Model, options::OptimizationOptions, unfixed::Integer)
     return key[1] === problem && key[2] === typeof(options) && key[3] == unfixed && key[4] === dynamic(nvars(problem.variables[unfixed])) && key[5] == countcosts(costnum, problem.costs)
 end
 
-function nlls_keyvalid(key::Tuple{NLLSProblem, DataType, BitVector, Vector{Int}, Int}, problem::NLLSProblem, options::OptimizationOptions, unfixed::AbstractVector)
+function nlls_keyvalid(key::Tuple{Model, DataType, BitVector, Vector{Int}, Int}, problem::Model, options::OptimizationOptions, unfixed::AbstractVector)
     (key[1] === problem && key[2] === typeof(options) && problem.varcostmapvalid) || return false
     (key[3] == unfixed && key[5] == countcosts(costnum, problem.costs)) || return false
     length(key[4]) == length(problem.variables) || return false
@@ -201,7 +201,7 @@ nlls_keyvalid(key, problem, options, unfixed) = false
 # OptimizeCache constructor
 const OptimizeCache = OptimizationWorkspace
 
-function OptimizeCache(problem::NLLSProblem, options::OptimizationOptions=OptimizationOptions(), unfixed=nothing)
+function OptimizeCache(problem::Model, options::OptimizationOptions=OptimizationOptions(), unfixed=nothing)
     startstats = SecondOrderOptimization.Stats()
     unfixed_ = convertunfixed(unfixed, problem)
     if unfixed_ isa AbstractVector && sum(unfixed_) == 1
@@ -217,12 +217,12 @@ function OptimizeCache(problem::NLLSProblem, options::OptimizationOptions=Optimi
 end
 
 # Optimizing variables one at a time (e.g. alternating minimization in BA)
-function optimizesingles!(problem::NLLSProblem{VT, CT}, options::OptimizationOptions, type::DataType)::OptimizationResult where {VT, CT}
+function optimizesingles!(problem::Model{VT, CT}, options::OptimizationOptions, type::DataType)::OptimizationResult where {VT, CT}
     indices = findall(v -> isa(v, type), problem.variables)
     return optimizesingles!(problem, options, indices, !isempty(indices) && dynamic(is_static(nvars(problem.variables[indices[1]]))))
 end
 
-function optimizesingles!(problem::NLLSProblem{VT, CT}, options::OptimizationOptions, indices, sortedbysize=false)::OptimizationResult where {VT, CT}
+function optimizesingles!(problem::Model{VT, CT}, options::OptimizationOptions, indices, sortedbysize=false)::OptimizationResult where {VT, CT}
     startstats = SecondOrderOptimization.Stats()
     costindices = sparse(getvarcostmap(problem)')
     allcosts = problem.costs
@@ -245,7 +245,7 @@ function optimizesingles!(problem::NLLSProblem{VT, CT}, options::OptimizationOpt
     return result
 end
 
-function setupsinglevarls(problem::NLLSProblem, options::OptimizationOptions, unfixed::Integer, allcosts::CostStruct, costindices, varindices, result, startstats::SecondOrderOptimization.Stats=SecondOrderOptimization.Stats())
+function setupsinglevarls(problem::Model, options::OptimizationOptions, unfixed::Integer, allcosts::CostStruct, costindices, varindices, result, startstats::SecondOrderOptimization.Stats=SecondOrderOptimization.Stats())
     _, fdf0!, x0_init, H = optimvars(problem, unfixed, options.numthreads)
     ls = fdf0!.linsystem
     so_ls = SecondOrderOptimization.makelinearsystem(x0_init, H, options.linsolver)

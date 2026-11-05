@@ -3,9 +3,9 @@
 > [!WARNING]
 > **DEPRECATION NOTICE**: `NLLSsolver.jl` is deprecated and has been split into two standalone, modular packages that replace it:
 > - [**`SecondOrderOptimization.jl`**](https://github.com/ojwoodford/SecondOrderOptimization.jl): A lightweight, high-performance second-order optimization engine providing iterator strategies (Dogleg, Levenberg-Marquardt, Newton), robust step controllers, and linear solver abstractions.
-> - [**`NLLSModels.jl`**](https://github.com/ojwoodford/NLLSModels.jl): Non-Linear Least Squares problem formulations, variable representations, robust cost blocks and residuals, automatic differentiation, block-sparse linear systems, and Schur complement solvers powered by `SecondOrderOptimization.jl`.
+> - [**`NLLSModel.jl`**](https://github.com/ojwoodford/NLLSModel.jl): Non-Linear Least Squares problem formulations, variable representations, robust cost blocks and residuals, automatic differentiation, block-sparse linear systems, and Schur complement solvers powered by `SecondOrderOptimization.jl`.
 >
-> Existing code can transition to using `NLLSModels.jl` and `SecondOrderOptimization.jl`.
+> Existing code can transition to using `NLLSModel.jl` and `SecondOrderOptimization.jl`.
 
 [![Build Status](https://github.com/ojwoodford/NLLSsolver.jl/actions/workflows/CI.yml/badge.svg?branch=main)](https://github.com/ojwoodford/NLLSsolver.jl/actions/workflows/CI.yml?query=branch%3Amain)
 [![codecov](https://codecov.io/gh/ojwoodford/NLLSsolver.jl/branch/main/graph/badge.svg?token=1556CDMEGH)](https://codecov.io/gh/ojwoodford/NLLSsolver.jl)
