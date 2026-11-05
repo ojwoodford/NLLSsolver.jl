@@ -8,7 +8,7 @@ using SecondOrderOptimization
 using Static, StaticArrays, SparseArrays
 
 import SecondOrderOptimization:
-    optimize,
+    optimize, optimize!,
     OptimizationOptions, OptimizationResult, OptimizationWorkspace, OptimizationInternal,
     OptimizationIterator, newton, levenbergmarquardt, dogleg, gradientdescent, levenbergmarquardt_dtd, getiterator,
     NewtonData, NewtonDataRelinearize, DoglegData, LevenbergData, LevenbergDataTrial, MarquardtData, MarquardtDataTrial, GradientDescentData,

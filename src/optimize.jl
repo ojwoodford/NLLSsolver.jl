@@ -132,7 +132,7 @@ function run_nlls_optimvars!(problem::NLLSProblem, options::OptimizationOptions,
     unfixed_inds = get_unfixed_inds(fdf!)
     cb = callback === nullcallback ? nullcallback : NLLSCallbackWrapper(callback, problem, unfixed, unfixed_inds, options)
     if isnothing(workspace)
-        x_opt, res = optimize(f, fdf!, x0, options; H=H, callback=cb, startstats=startstats)
+        x_opt, res = optimize!(f, fdf!, x0, options; H=H, callback=cb, startstats=startstats)
         update_problem_variables!(problem, unfixed, unfixed_inds, x_opt)
         return res
     else
@@ -142,7 +142,7 @@ function run_nlls_optimvars!(problem::NLLSProblem, options::OptimizationOptions,
         data = NLLSInternalData(fdf!.linsystem, f, fdf!, H, so_data)
         key = nlls_cachekey(problem, options, unfixed)
         SecondOrderOptimization.storeworkspace!(workspace, key, (data, so_iteratedata))
-        x_opt, res = SecondOrderOptimization.run_optimize!(so_data, so_iteratedata, f, fdf!, options, update!, cb)
+        x_opt, res = SecondOrderOptimization.run_optimize!(so_data, so_iteratedata, f, fdf!, options, update!, cb, x0)
         update_problem_variables!(problem, unfixed, unfixed_inds, x_opt)
         return res
     end
