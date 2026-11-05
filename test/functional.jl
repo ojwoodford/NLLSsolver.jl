@@ -25,7 +25,7 @@ Base.eltype(::RosenbrockB) = Float64
 
 @testset "functional.jl" begin
     # Create the problem
-    problem = NLLSProblem(Float64)
+    problem = NLLSProblem(Float64, Union{RosenbrockA, RosenbrockB})
     addvariable!(problem, 0.)
     addcost!(problem, RosenbrockA(1.0))
     addvariable!(problem, 0.)
