@@ -27,7 +27,7 @@ import OptimizationVariableInterface:
 import BlockMatrices:
     BlockSparseMatrix, BlockDenseMatrix,
     block, zero!, copy_structure, uniformscaling!,
-    symmetrifyfull, computestartindices
+    symmetrifyfull, symmetrifyfull!, computestartindices
 
 import NLLSModel:
     Model,
@@ -127,7 +127,7 @@ function NLLSModel.costgradhess!(linsystem::SecondOrderOptimization.DenseLinearS
     bdm = BlockDenseMatrix{Float64}(linsystem.A, boffsets)
     ls = LinearSystem(NLLSModel.MultiVariateLSdense_x(linsystem.x, blockindices, boffsets), NLLSModel.MultiVariateLSdense_ls(bdm, linsystem.b))
     c = NLLSModel.costgradhess_nozero!(ls, vars, costs)
-    symmetrifyfull(bdm)
+    symmetrifyfull!(bdm)
     return c
 end
 
