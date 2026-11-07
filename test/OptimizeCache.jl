@@ -130,7 +130,7 @@ end
 typedrun!(problem, options, cache) = (problem.variables[1] = SVector(0.0, 0.0, 0.0); optimize!(problem, options, 1, nullcallback, cache))
 
 @testset "OptimizeCache.jl: a typed cache" begin
-    options = NLLSOptions(iterator=:levenbergmarquardt_dtd, numthreads=static(1))
+    options = NLLSOptions(iterator=:levenbergmarquardt_dtd)
     @test isbitstype(typeof(options))
     @test !isempty(OptimizeCache(offsetproblem()))
     for (makeproblem, unfixed) in ((offsetproblem, 1), (() -> chainproblem(20), nothing))

@@ -55,7 +55,7 @@ end
     # Generate some test data for a dense problem
     Random.seed!(1)
     problem = create_ba_problem(3, 5, 1.0)
-    options = NLLSOptions(numthreads = static(1))
+    options = NLLSOptions()
 
     # Test reordering the costs
     problem = perturb_ba_problem(problem, 0.003, 0.0)
@@ -102,7 +102,7 @@ end
     @test result.optimizeallocated == 0
 
     # The same with D'D damping: dense, single-variable (static) and sparse linear systems
-    dtdoptions = NLLSOptions(numthreads = static(1), iterator = :levenbergmarquardt_dtd)
+    dtdoptions = NLLSOptions(iterator = :levenbergmarquardt_dtd)
     problem = perturb_ba_problem(create_ba_problem(3, 5, 1.0), 0.001, 0.001)
     result = optimize!(problem, dtdoptions)
     @test isapprox(NLLSsolver.cost(problem), result.bestcost; atol=1.e-22)

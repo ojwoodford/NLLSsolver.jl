@@ -101,11 +101,11 @@ mutable struct NLLSInternalData{LS, F, FDF, HType, D}
 end
 
 # Public optimize! entry points
-optimize!(problem::Model, options::OptimizationOptions=OptimizationOptions(), unfixed=nothing, callback=nullcallback) =
-    optimize!(problem, options, convertunfixed(unfixed, problem), callback, nothing)
+optimize!(problem::Model, options::OptimizationOptions=OptimizationOptions(), unfixed=nothing, callback=nullcallback; numthreads=StaticInt(Threads.nthreads())) =
+    optimize!(problem, options, convertunfixed(unfixed, problem), callback, nothing; numthreads=numthreads)
 
-optimize!(problem::Model, options::OptimizationOptions, unfixed, callback::CB, workspace::WS) where {CB, WS<:Union{Nothing, OptimizationWorkspace}} =
-    optimize_dispatch!(problem, options, convertunfixed(unfixed, problem), callback, workspace, SecondOrderOptimization.Stats())
+optimize!(problem::Model, options::OptimizationOptions, unfixed, callback::CB, workspace::WS; numthreads=StaticInt(Threads.nthreads())) where {CB, WS<:Union{Nothing, OptimizationWorkspace}} =
+    optimize_dispatch!(problem, options, convertunfixed(unfixed, problem), callback, workspace, SecondOrderOptimization.Stats(); numthreads=numthreads)
 
 @inline function optimize_cached_dispatch!(problem::Model, options::OptimizationOptions, unfixed, callback, workspace::OptimizationWorkspace, startstats::SecondOrderOptimization.Stats)
     return run_cached_nlls!(something(workspace.data), problem, options, unfixed, callback, startstats)
@@ -122,13 +122,13 @@ function run_cached_nlls!(cached::Tuple{D, ID}, problem::Model, options::Optimiz
         x0 = problem.variables[unfixed_inds]
     end
     cb = callback === nullcallback ? nullcallback : NLLSCallbackWrapper(callback, problem, unfixed, unfixed_inds, options)
-    x_opt, res = SecondOrderOptimization.run_cached_optimize!((data.so_data, so_iteratedata), x0, data.f, data.fdf!, options, update!, cb, startstats)
+    x_opt, res = SecondOrderOptimization.run_cached_optimize!((data.so_data, so_iteratedata), x0, data.f, data.fdf!, options, cb, startstats)
     update_problem_variables!(problem, unfixed, unfixed_inds, x_opt)
     return res
 end
 
-function run_nlls_optimvars!(problem::Model, options::OptimizationOptions, unfixed, callback::CB, workspace::WS, startstats::SecondOrderOptimization.Stats) where {CB, WS}
-    f, fdf!, x0, H = optimvars(problem, unfixed, options.numthreads)
+function run_nlls_optimvars!(problem::Model, options::OptimizationOptions, unfixed, callback::CB, workspace::WS, startstats::SecondOrderOptimization.Stats; numthreads=StaticInt(Threads.nthreads())) where {CB, WS}
+    f, fdf!, x0, H = optimvars(problem, unfixed, static(numthreads))
     unfixed_inds = get_unfixed_inds(fdf!)
     cb = callback === nullcallback ? nullcallback : NLLSCallbackWrapper(callback, problem, unfixed, unfixed_inds, options)
     if isnothing(workspace)
@@ -142,32 +142,32 @@ function run_nlls_optimvars!(problem::Model, options::OptimizationOptions, unfix
         data = NLLSInternalData(fdf!.linsystem, f, fdf!, H, so_data)
         key = nlls_cachekey(problem, options, unfixed)
         SecondOrderOptimization.storeworkspace!(workspace, key, (data, so_iteratedata))
-        x_opt, res = SecondOrderOptimization.run_optimize!(so_data, so_iteratedata, f, fdf!, options, update!, cb, x0)
+        x_opt, res = SecondOrderOptimization.run_optimize!(so_data, so_iteratedata, f, fdf!, options, cb, x0)
         update_problem_variables!(problem, unfixed, unfixed_inds, x_opt)
         return res
     end
 end
 
 # Single variable optimization
-function optimize_dispatch!(problem::Model, options::OptimizationOptions, unfixed::Integer, callback::CB, workspace::WS, startstats::SecondOrderOptimization.Stats=SecondOrderOptimization.Stats()) where {CB, WS}
+function optimize_dispatch!(problem::Model, options::OptimizationOptions, unfixed::Integer, callback::CB, workspace::WS, startstats::SecondOrderOptimization.Stats=SecondOrderOptimization.Stats(); numthreads=StaticInt(Threads.nthreads())) where {CB, WS}
     if !isnothing(workspace) && !isnothing(workspace.key) && nlls_keyvalid(workspace.key, problem, options, unfixed)
         return optimize_cached_dispatch!(problem, options, unfixed, callback, workspace, startstats)
     end
-    return run_nlls_optimvars!(problem, options, unfixed, callback, workspace, startstats)
+    return run_nlls_optimvars!(problem, options, unfixed, callback, workspace, startstats; numthreads=numthreads)
 end
 
 # Multi-variable optimization
-function optimize_dispatch!(problem::Model, options::OptimizationOptions, unfixed::AbstractVector, callback::CB, workspace::WS, startstats::SecondOrderOptimization.Stats=SecondOrderOptimization.Stats()) where {CB, WS}
+function optimize_dispatch!(problem::Model, options::OptimizationOptions, unfixed::AbstractVector, callback::CB, workspace::WS, startstats::SecondOrderOptimization.Stats=SecondOrderOptimization.Stats(); numthreads=StaticInt(Threads.nthreads())) where {CB, WS}
     @assert length(problem.variables) > 0
     nblocks = sum(unfixed)
     if nblocks == 1
         ind = findfirst(unfixed)
-        return optimize_dispatch!(problem, options, ind, callback, workspace, startstats)
+        return optimize_dispatch!(problem, options, ind, callback, workspace, startstats; numthreads=numthreads)
     end
     if !isnothing(workspace) && !isnothing(workspace.key) && nlls_keyvalid(workspace.key, problem, options, unfixed)
         return optimize_cached_dispatch!(problem, options, unfixed, callback, workspace, startstats)
     end
-    return run_nlls_optimvars!(problem, options, unfixed, callback, workspace, startstats)
+    return run_nlls_optimvars!(problem, options, unfixed, callback, workspace, startstats; numthreads=numthreads)
 end
 
 # Cache key and workspace management
@@ -201,13 +201,13 @@ nlls_keyvalid(key, problem, options, unfixed) = false
 # OptimizeCache constructor
 const OptimizeCache = OptimizationWorkspace
 
-function OptimizeCache(problem::Model, options::OptimizationOptions=OptimizationOptions(), unfixed=nothing)
+function OptimizeCache(problem::Model, options::OptimizationOptions=OptimizationOptions(), unfixed=nothing; numthreads=StaticInt(Threads.nthreads()))
     startstats = SecondOrderOptimization.Stats()
     unfixed_ = convertunfixed(unfixed, problem)
     if unfixed_ isa AbstractVector && sum(unfixed_) == 1
         unfixed_ = findfirst(unfixed_)
     end
-    f, fdf!, x0, H = optimvars(problem, unfixed_, options.numthreads)
+    f, fdf!, x0, H = optimvars(problem, unfixed_, static(numthreads))
     so_ls = SecondOrderOptimization.makelinearsystem(x0, H, options.linsolver)
     so_data = OptimizationInternal(so_ls, x0, startstats)
     so_iteratedata = SecondOrderOptimization.construct(options.iterator, so_ls, options.callbackchangesstate)
@@ -217,12 +217,12 @@ function OptimizeCache(problem::Model, options::OptimizationOptions=Optimization
 end
 
 # Optimizing variables one at a time (e.g. alternating minimization in BA)
-function optimizesingles!(problem::Model{VT, CT}, options::OptimizationOptions, type::DataType)::OptimizationResult where {VT, CT}
+function optimizesingles!(problem::Model{VT, CT}, options::OptimizationOptions, type::DataType; numthreads=StaticInt(Threads.nthreads()))::OptimizationResult where {VT, CT}
     indices = findall(v -> isa(v, type), problem.variables)
-    return optimizesingles!(problem, options, indices, !isempty(indices) && dynamic(is_static(nvars(problem.variables[indices[1]]))))
+    return optimizesingles!(problem, options, indices, !isempty(indices) && dynamic(is_static(nvars(problem.variables[indices[1]])) ); numthreads=numthreads)
 end
 
-function optimizesingles!(problem::Model{VT, CT}, options::OptimizationOptions, indices, sortedbysize=false)::OptimizationResult where {VT, CT}
+function optimizesingles!(problem::Model{VT, CT}, options::OptimizationOptions, indices, sortedbysize=false; numthreads=StaticInt(Threads.nthreads()))::OptimizationResult where {VT, CT}
     startstats = SecondOrderOptimization.Stats()
     costindices = sparse(getvarcostmap(problem)')
     allcosts = problem.costs
@@ -238,15 +238,16 @@ function optimizesingles!(problem::Model{VT, CT}, options::OptimizationOptions, 
         while last <= length(indices) && dynamic(nvars(problem.variables[indices[last]]))::Int == varsz
             last += 1
         end
-        result = setupsinglevarls(problem, options, indices[first], allcosts, costindices, @inbounds(view(indices, first:last-1)), result, first == 1 ? startstats : SecondOrderOptimization.Stats())
+        result = setupsinglevarls(problem, options, indices[first], allcosts, costindices, @inbounds(view(indices, first:last-1)), result, first == 1 ? startstats : SecondOrderOptimization.Stats(); numthreads=numthreads)
         first = last
     end
     problem.costs = allcosts
     return result
 end
 
-function setupsinglevarls(problem::Model, options::OptimizationOptions, unfixed::Integer, allcosts::CostStruct, costindices, varindices, result, startstats::SecondOrderOptimization.Stats=SecondOrderOptimization.Stats())
-    _, fdf0!, x0_init, H = optimvars(problem, unfixed, options.numthreads)
+function setupsinglevarls(problem::Model, options::OptimizationOptions, unfixed::Integer, allcosts::CostStruct, costindices, varindices, result, startstats::SecondOrderOptimization.Stats=SecondOrderOptimization.Stats(); numthreads=StaticInt(Threads.nthreads()))
+    nthr = static(numthreads)
+    _, fdf0!, x0_init, H = optimvars(problem, unfixed, nthr)
     ls = fdf0!.linsystem
     so_ls = SecondOrderOptimization.makelinearsystem(x0_init, H, options.linsolver)
     data = OptimizationInternal(so_ls, x0_init, startstats)
@@ -274,9 +275,9 @@ function setupsinglevarls(problem::Model, options::OptimizationOptions, unfixed:
         end
         data.iternum = 0
         SecondOrderOptimization.reset!(iteratedata)
-        f = SingleVarCostFunc(problem, ind, options.numthreads)
+        f = SingleVarCostFunc(problem, ind, nthr)
         fdf! = SingleVarCostGradHess(ls_ind, problem, ind)
-        termination |= SecondOrderOptimization.optimizeloop!(data, iteratedata, f, fdf!, options, update!, nullcallback)
+        termination |= SecondOrderOptimization.optimizeloop!(data, iteratedata, f, fdf!, options, nullcallback)
         problem.variables[ind] = data.variables
         startcost += data.startcost
         bestcost += data.bestcost
