@@ -1,6 +1,6 @@
 module NLLSsolver
 
-using BlockMatrices
+using BlockLinearSystems
 using NLLSModel
 using OptimizationVariableInterface
 using SecondOrderOptimization
@@ -24,8 +24,8 @@ import OptimizationVariableInterface:
     nvars, update, update!, syncvars!,
     ZeroToInfScalar, ZeroToOneScalar
 
-import BlockMatrices:
-    BlockSparseMatrix, BlockDenseMatrix,
+import BlockLinearSystems:
+    SparseBlockLinearSystem, DenseBlockLinearSystem,
     block, zero!, copy_structure, uniformscaling!,
     symmetrifyfull, symmetrifyfull!, computestartindices
 
@@ -79,7 +79,7 @@ export optimize!  # Optimize the objective
 export nullcallback, printoutcallback, storecostscallback # Callbacks to be called once per optimization iteration
 
 # Also import any remaining unexported symbols from component modules for full internal test compatibility
-for mod in (SecondOrderOptimization, NLLSModel, BlockMatrices, OptimizationVariableInterface)
+for mod in (SecondOrderOptimization, NLLSModel, BlockLinearSystems, OptimizationVariableInterface)
     for sym in names(mod; all=true)
         s = string(sym)
         if !startswith(s, "#") && !startswith(s, "@") && !isdefined(@__MODULE__, sym) && sym !== :eval && sym !== :include
@@ -96,10 +96,10 @@ end
 SecondOrderOptimization.construct(iter::StaticSymbol, problem, ls, cbchangesstate) = construct(iter, ls, cbchangesstate)
 SecondOrderOptimization.optimize(kernel::ContaminatedGaussian{T}, squarederrors::Vector{T}, maxiters=10) where T =
     NLLSModel.optimize(kernel, squarederrors, maxiters)
-BlockMatrices.zero!(ls::SecondOrderOptimization.AbstractLinearSystem) = SecondOrderOptimization.zero!(ls)
-BlockMatrices.copy_structure(ls::SecondOrderOptimization.AbstractLinearSystem) = SecondOrderOptimization.copy_structure(ls)
-BlockMatrices.uniformscaling!(ls::SecondOrderOptimization.AbstractLinearSystem, k) = SecondOrderOptimization.uniformscaling!(ls, k)
-SecondOrderOptimization.copy_structure(x) = BlockMatrices.copy_structure(x)
+BlockLinearSystems.zero!(ls::SecondOrderOptimization.AbstractLinearSystem) = SecondOrderOptimization.zero!(ls)
+BlockLinearSystems.copy_structure(ls::SecondOrderOptimization.AbstractLinearSystem) = SecondOrderOptimization.copy_structure(ls)
+BlockLinearSystems.uniformscaling!(ls::SecondOrderOptimization.AbstractLinearSystem, k) = SecondOrderOptimization.uniformscaling!(ls, k)
+SecondOrderOptimization.copy_structure(x) = BlockLinearSystems.copy_structure(x)
 SecondOrderOptimization.getx(x) = NLLSModel.getx(x)
 SecondOrderOptimization.getA(x) = NLLSModel.getA(x)
 SecondOrderOptimization.getb(x) = NLLSModel.getb(x)
@@ -124,7 +124,7 @@ function NLLSModel.costgradhess!(linsystem::SecondOrderOptimization.DenseLinearS
     blocksizes, blockindices = block_sizes_indices(vars, trues(n), n)
     boffsets = computestartindices(blocksizes)
     push!(boffsets, boffsets[end] + blocksizes[end])
-    bdm = BlockDenseMatrix{Float64}(linsystem.A, boffsets)
+    bdm = DenseBlockLinearSystem{Float64}(linsystem.A, boffsets)
     ls = LinearSystem(NLLSModel.MultiVariateLSdense_x(linsystem.x, blockindices, boffsets), NLLSModel.MultiVariateLSdense_ls(bdm, linsystem.b))
     c = NLLSModel.costgradhess_nozero!(ls, vars, costs)
     symmetrifyfull!(bdm)
