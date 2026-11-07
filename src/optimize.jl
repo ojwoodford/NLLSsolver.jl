@@ -101,17 +101,17 @@ mutable struct NLLSInternalData{LS, F, FDF, HType, D}
 end
 
 # Public optimize! entry points
-optimize!(problem::Model, options::OptimizationOptions=OptimizationOptions(), unfixed=nothing, callback=nullcallback; numthreads=StaticInt(Threads.nthreads())) =
-    optimize!(problem, options, convertunfixed(unfixed, problem), callback, nothing; numthreads=numthreads)
+@inline optimize!(problem::Model, options::OptimizationOptions=OptimizationOptions(), unfixed=nothing, callback=nullcallback; numthreads=StaticInt(Threads.nthreads())) =
+    optimize_dispatch!(problem, options, convertunfixed(unfixed, problem), callback, nothing, SecondOrderOptimization.Stats(), static(numthreads))
 
-optimize!(problem::Model, options::OptimizationOptions, unfixed, callback::CB, workspace::WS; numthreads=StaticInt(Threads.nthreads())) where {CB, WS<:Union{Nothing, OptimizationWorkspace}} =
-    optimize_dispatch!(problem, options, convertunfixed(unfixed, problem), callback, workspace, SecondOrderOptimization.Stats(); numthreads=numthreads)
+@inline optimize!(problem::Model, options::OptimizationOptions, unfixed, callback::CB, workspace::WS; numthreads=StaticInt(Threads.nthreads())) where {CB, WS<:Union{Nothing, OptimizationWorkspace}} =
+    optimize_dispatch!(problem, options, convertunfixed(unfixed, problem), callback, workspace, SecondOrderOptimization.Stats(), static(numthreads))
 
 @inline function optimize_cached_dispatch!(problem::Model, options::OptimizationOptions, unfixed, callback, workspace::OptimizationWorkspace, startstats::SecondOrderOptimization.Stats)
     return run_cached_nlls!(something(workspace.data), problem, options, unfixed, callback, startstats)
 end
 
-function run_cached_nlls!(cached::Tuple{D, ID}, problem::Model, options::OptimizationOptions, unfixed, callback::CB, startstats::SecondOrderOptimization.Stats) where {D, ID, CB}
+@inline function run_cached_nlls!(cached::Tuple{D, ID}, problem::Model, options::OptimizationOptions, unfixed, callback::CB, startstats::SecondOrderOptimization.Stats) where {D, ID, CB}
     data, so_iteratedata = cached
     unfixed_inds = get_unfixed_inds(data.fdf!)
     if unfixed isa Integer
@@ -127,8 +127,8 @@ function run_cached_nlls!(cached::Tuple{D, ID}, problem::Model, options::Optimiz
     return res
 end
 
-function run_nlls_optimvars!(problem::Model, options::OptimizationOptions, unfixed, callback::CB, workspace::WS, startstats::SecondOrderOptimization.Stats; numthreads=StaticInt(Threads.nthreads())) where {CB, WS}
-    f, fdf!, x0, H = optimvars(problem, unfixed, static(numthreads))
+@inline function run_nlls_optimvars!(problem::Model, options::OptimizationOptions, unfixed, callback::CB, workspace::WS, startstats::SecondOrderOptimization.Stats, numthreads::StaticInt=StaticInt(Threads.nthreads())) where {CB, WS}
+    f, fdf!, x0, H = optimvars(problem, unfixed, numthreads)
     unfixed_inds = get_unfixed_inds(fdf!)
     cb = callback === nullcallback ? nullcallback : NLLSCallbackWrapper(callback, problem, unfixed, unfixed_inds, options)
     if isnothing(workspace)
@@ -149,25 +149,25 @@ function run_nlls_optimvars!(problem::Model, options::OptimizationOptions, unfix
 end
 
 # Single variable optimization
-function optimize_dispatch!(problem::Model, options::OptimizationOptions, unfixed::Integer, callback::CB, workspace::WS, startstats::SecondOrderOptimization.Stats=SecondOrderOptimization.Stats(); numthreads=StaticInt(Threads.nthreads())) where {CB, WS}
+@inline function optimize_dispatch!(problem::Model, options::OptimizationOptions, unfixed::Integer, callback::CB, workspace::WS, startstats::SecondOrderOptimization.Stats=SecondOrderOptimization.Stats(), numthreads::StaticInt=StaticInt(Threads.nthreads())) where {CB, WS}
     if !isnothing(workspace) && !isnothing(workspace.key) && nlls_keyvalid(workspace.key, problem, options, unfixed)
         return optimize_cached_dispatch!(problem, options, unfixed, callback, workspace, startstats)
     end
-    return run_nlls_optimvars!(problem, options, unfixed, callback, workspace, startstats; numthreads=numthreads)
+    return run_nlls_optimvars!(problem, options, unfixed, callback, workspace, startstats, numthreads)
 end
 
 # Multi-variable optimization
-function optimize_dispatch!(problem::Model, options::OptimizationOptions, unfixed::AbstractVector, callback::CB, workspace::WS, startstats::SecondOrderOptimization.Stats=SecondOrderOptimization.Stats(); numthreads=StaticInt(Threads.nthreads())) where {CB, WS}
+@inline function optimize_dispatch!(problem::Model, options::OptimizationOptions, unfixed::AbstractVector, callback::CB, workspace::WS, startstats::SecondOrderOptimization.Stats=SecondOrderOptimization.Stats(), numthreads::StaticInt=StaticInt(Threads.nthreads())) where {CB, WS}
     @assert length(problem.variables) > 0
     nblocks = sum(unfixed)
     if nblocks == 1
         ind = findfirst(unfixed)
-        return optimize_dispatch!(problem, options, ind, callback, workspace, startstats; numthreads=numthreads)
+        return optimize_dispatch!(problem, options, ind, callback, workspace, startstats, numthreads)
     end
     if !isnothing(workspace) && !isnothing(workspace.key) && nlls_keyvalid(workspace.key, problem, options, unfixed)
         return optimize_cached_dispatch!(problem, options, unfixed, callback, workspace, startstats)
     end
-    return run_nlls_optimvars!(problem, options, unfixed, callback, workspace, startstats; numthreads=numthreads)
+    return run_nlls_optimvars!(problem, options, unfixed, callback, workspace, startstats, numthreads)
 end
 
 # Cache key and workspace management
