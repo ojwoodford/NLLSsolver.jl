@@ -124,7 +124,7 @@ function NLLSModel.costgradhess!(linsystem::SecondOrderOptimization.DenseLinearS
     blocksizes, blockindices = block_sizes_indices(vars, trues(n), n)
     boffsets = computestartindices(blocksizes)
     push!(boffsets, boffsets[end] + blocksizes[end])
-    bdm = DenseBlockLinearSystem{Float64}(linsystem.A, boffsets)
+    bdm = DenseBlockLinearSystem{Float64}(linsystem.A, blocksizes)
     ls = LinearSystem(NLLSModel.MultiVariateLSdense_x(linsystem.x, blockindices, boffsets), NLLSModel.MultiVariateLSdense_ls(bdm, linsystem.b))
     c = NLLSModel.costgradhess_nozero!(ls, vars, costs)
     symmetrifyfull!(bdm)
