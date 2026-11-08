@@ -16,7 +16,7 @@ Static = "aedffcd0-7271-4cad-89d0-dc628f76c6d3"
 StaticArrays = "90137ffa-7385-5640-81b9-e52037218182"
 
 [sources]
-BlockLinearSystems = {path = "/Users/olly/.julia/dev/BlockMatrices.jl"}
+BlockLinearSystems = {path = "/Users/olly/.julia/dev/BlockLinearSystems.jl"}
 NLLSModel = {path = "/Users/olly/.julia/dev/NLLSModel.jl"}
 OptimizationVariableInterface = {path = "/Users/olly/.julia/dev/OptimizationVariableInterface.jl"}
 SecondOrderOptimization = {path = "/Users/olly/.julia/dev/SecondOrderOptimization.jl"}
