@@ -15,6 +15,7 @@ using Test
     include("nantrial.jl")
     include("nanstart.jl")
     include("nanlinearization.jl")
+    include("dampinglimit.jl")
     include("copyvars.jl")
     include("OptimizeCache.jl")
     include("trialreuse.jl")

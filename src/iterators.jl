@@ -256,6 +256,7 @@ end
     updatescaling!(levmardata, hessian)
     lastlambda = 0.
     mu = 2.
+    inneriters = 0
     while true
         # Dampen the Hessian
         dampenhessian!(hessian, levmardata, levmardata.lambda - lastlambda)
@@ -287,6 +288,10 @@ end
         # Failure - increase lambda
         levmardata.lambda *= mu
         mu *= 2.
+        # Bound the inner loop: no step that lowers the cost was found, so stop without one
+        if (inneriters += 1) > 100 || levmardata.lambda > 1e16
+            return nostep!(data, problem)
+        end
     end
 end
 
@@ -296,6 +301,7 @@ end
     updatescaling!(levmardata, hessian)
     lastlambda = 0.
     mu = 2.
+    inneriters = 0
     levmardata.trialready = false
     firsttrial = true
     while true
@@ -341,7 +347,18 @@ end
         levmardata.trialready = false
         levmardata.lambda *= mu
         mu *= 2.
+        # Bound the inner loop: no step that lowers the cost was found, so stop without one
+        if (inneriters += 1) > 100 || levmardata.lambda > 1e16
+            return nostep!(data, problem)
+        end
     end
+end
+
+# Return the best cost with a zero step, leaving the variables where they are
+function nostep!(data, problem)
+    fill!(getx(data.linsystem), 0)
+    update!(problem.varnext, problem.variables, data.linsystem)
+    return data.bestcost
 end
 
 printoutcallback(cost, problem, data, iteratedata::LevMarData) = printoutcallback(cost, data, 1.0/iteratedata.lambda)
