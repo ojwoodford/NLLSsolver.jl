@@ -121,6 +121,13 @@ reset!(dd::DoglegData) = dd.trustradius = 0.0
                 linear_approx = 0.5 * (a * (1 - step) ^ 2 * gnorm2) + step * (2 - step) * cost_
             end
         end
+        # A non-finite step (from a non-finite gradient or Hessian) is not made finite by shrinking the trust region,
+        # so every further trial would fail too: stop. The NaN cost makes the optimizer keep the best variables and
+        # terminate (the NaN step sets its NaN-step flag)
+        maxstep = maximum(abs, getx(data.linsystem))::Float64
+        if !isfinite(maxstep)
+            return NaN
+        end
         # Update the new variables
         update!(problem.varnext, problem.variables, data.linsystem)
         # Compute the cost
@@ -133,7 +140,7 @@ reset!(dd::DoglegData) = dd.trustradius = 0.0
             doglegdata.trustradius *= 0.5
         end
         # Check for exit
-        if cost_ <= data.bestcost || (maximum(abs, getx(data.linsystem))::Float64 < options.dstep)
+        if cost_ <= data.bestcost || maxstep < options.dstep
             # Return the cost
             return cost_
         end
