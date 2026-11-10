@@ -128,7 +128,7 @@ end
 end
 
 @inline function run_nlls_optimvars!(problem::Model, options::OptimizationOptions, unfixed, callback::CB, workspace::WS, startstats::SecondOrderOptimization.Stats, numthreads::StaticInt=StaticInt(Threads.nthreads())) where {CB, WS}
-    f, fdf!, x0, H = optimvars(problem, unfixed, numthreads)
+    f, fdf!, x0, H = optimvars(problem, unfixed, numthreads; linsolver=options.linsolver)
     unfixed_inds = get_unfixed_inds(fdf!)
     cb = callback === nullcallback ? nullcallback : NLLSCallbackWrapper(callback, problem, unfixed, unfixed_inds, options)
     if isnothing(workspace)
@@ -207,7 +207,7 @@ function OptimizeCache(problem::Model, options::OptimizationOptions=Optimization
     if unfixed_ isa AbstractVector && sum(unfixed_) == 1
         unfixed_ = findfirst(unfixed_)
     end
-    f, fdf!, x0, H = optimvars(problem, unfixed_, static(numthreads))
+    f, fdf!, x0, H = optimvars(problem, unfixed_, static(numthreads); linsolver=options.linsolver)
     so_ls = SecondOrderOptimization.makelinearsystem(x0, H, options.linsolver)
     so_data = OptimizationInternal(so_ls, x0, startstats)
     so_iteratedata = SecondOrderOptimization.construct(options.iterator, so_ls, options.callbackchangesstate)
