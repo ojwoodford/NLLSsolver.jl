@@ -255,6 +255,13 @@ end
         lastlambda = levmardata.lambda
         # Solve the linear system
         data.solves += @elapsed_ns negate!(solve!(data.linsystem))
+        # A non-finite step (from a non-finite gradient or Hessian, or an overflowed lambda) is not made finite by
+        # more damping, so every further trial would fail too: stop. The NaN cost makes the optimizer keep the best
+        # variables and terminate (the NaN step sets its NaN-step flag)
+        maxstep = maximum(abs, getx(data.linsystem))::Float64
+        if !isfinite(maxstep)
+            return NaN
+        end
         # Update the new variables
         update!(problem.varnext, problem.variables, data.linsystem)
         # Compute the cost
@@ -262,7 +269,7 @@ end
         # Check for exit
         # Accept only a cost that is not greater than the best: a NaN cost (a step past the domain of the
         # residual) is a failed step, like a higher one
-        if cost_ <= data.bestcost || maximum(abs, getx(data.linsystem))::Float64 < options.dstep
+        if cost_ <= data.bestcost || maxstep < options.dstep
             # Success (or convergence) - update lambda
             dampenhessian!(hessian, levmardata, -lastlambda)
             stepquality = (cost_ - data.bestcost) / (0.5 * fast_bAb(hessian, getx(data.linsystem)) + fast_dot(gradient, getx(data.linsystem)))
@@ -290,6 +297,13 @@ end
         lastlambda = levmardata.lambda
         # Solve the linear system
         data.solves += @elapsed_ns negate!(solve!(data.linsystem))
+        # A non-finite step (from a non-finite gradient or Hessian, or an overflowed lambda) is not made finite by
+        # more damping, so every further trial would fail too: stop. The NaN cost makes the optimizer keep the best
+        # variables and terminate (the NaN step sets its NaN-step flag)
+        maxstep = maximum(abs, getx(data.linsystem))::Float64
+        if !isfinite(maxstep)
+            return NaN
+        end
         # Update the new variables
         update!(problem.varnext, problem.variables, data.linsystem)
         # Compute the cost. The first trial of an iteration is usually accepted, so compute the gradient and
@@ -308,7 +322,7 @@ end
         # Check for exit
         # Accept only a cost that is not greater than the best: a NaN cost (a step past the domain of the
         # residual) is a failed step, like a higher one
-        if cost_ <= data.bestcost || maximum(abs, getx(data.linsystem))::Float64 < options.dstep
+        if cost_ <= data.bestcost || maxstep < options.dstep
             # Success (or convergence) - update lambda
             dampenhessian!(hessian, levmardata, -lastlambda)
             stepquality = (cost_ - data.bestcost) / (0.5 * fast_bAb(hessian, getx(data.linsystem)) + fast_dot(gradient, getx(data.linsystem)))

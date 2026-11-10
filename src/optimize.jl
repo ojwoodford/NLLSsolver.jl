@@ -213,7 +213,7 @@ end
         cost_ = iterate!(iteratedata, data, problem, options)
         # Call the user-defined callback
         cost, terminate = callback(cost_, problem, data, iteratedata)
-        @assert(dynamic(options.callbackchangesstate) || cost == cost_, "callback expected to not change the cost")
+        @assert(dynamic(options.callbackchangesstate) || isequal(cost, cost_), "callback expected to not change the cost") # isequal: a NaN cost is unchanged too
         # Check for cost increase (only some iterators will do this)
         dcost = data.bestcost - cost
         if dcost >= 0
