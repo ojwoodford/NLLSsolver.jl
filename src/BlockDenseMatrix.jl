@@ -18,7 +18,7 @@ uniformscaling!(bdm::BlockDenseMatrix, k) = uniformscaling!(bdm.data, k)
 
 zero!(bdm::BlockDenseMatrix) = fill!(bdm.data, 0)
 block(bdm::BlockDenseMatrix, i, j, ::StaticInt{rows}, ::StaticInt{cols}) where {rows, cols} = @inbounds SizedMatrix{rows, cols}(view(bdm.data, SR(0, rows-1).+bdm.rowblockoffsets[i], SR(0, cols-1).+bdm.columnblockoffsets[j]))
-block(bdm::BlockDenseMatrix, i, j, rows::Integer, cols::Integer) = @inbounds view(bdm.data, SR(0, rows-1).+bdm.rowblockoffsets[i], SR(0, cols-1).+bdm.columnblockoffsets[j])
+block(bdm::BlockDenseMatrix, i, j, rows::Integer, cols::Integer) = @inbounds view(bdm.data, blockrange(bdm.rowblockoffsets[i], rows), blockrange(bdm.columnblockoffsets[j], cols))
 block(bdm::BlockDenseMatrix, i, j, ::StaticInt{rows}, cols::Integer) where rows = HybridArray{Tuple{rows, StaticArrays.Dynamic()}}(block(bdm, i, j, rows, cols))
 block(bdm::BlockDenseMatrix, i, j) = @inbounds block(bdm, i, j, bdm.rowblockoffsets[i+1]-bdm.rowblockoffsets[i], bdm.columnblockoffsets[j+1]-bdm.columnblockoffsets[j])
 validblock(::BlockDenseMatrix, ::Integer, ::Integer) = true

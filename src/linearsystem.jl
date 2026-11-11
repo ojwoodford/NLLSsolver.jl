@@ -217,7 +217,7 @@ function updatesymA!(A, a, vars, varflags, blockindices)
     @unroll for i in 1:MAX_ARGS
         if i <= length(vars) && bitiset(varflags, i)
             nvi = nvars(vars[i])
-            rangei = SR(1, nvi) .+ loffseti
+            rangei = blockrange(loffseti + static(1), nvi)
             loffseti += nvi
             @inbounds block(A, blockindices[i], blockindices[i], nvi, nvi) .+= view(a, rangei, rangei)
 
@@ -225,7 +225,7 @@ function updatesymA!(A, a, vars, varflags, blockindices)
             @unroll for j in 1:i-1
                 if bitiset(varflags, j)
                     @inbounds nvj = nvars(vars[j])
-                    rangej = SR(1, nvj) .+ loffsetj
+                    rangej = blockrange(loffsetj + static(1), nvj)
                     loffsetj += nvj
                     if @inbounds blockindices[i] >= blockindices[j] # Make sure the block matrix is lower triangular
                         @inbounds block(A, blockindices[i], blockindices[j], nvi, nvj) .+= view(a, rangei, rangej)
@@ -244,8 +244,7 @@ function updateb!(B, b, vars, varflags, boffsets, blockindices)
     @unroll for i in 1:MAX_ARGS
         if i <= length(vars) && bitiset(varflags, i)
             nv = nvars(vars[i])
-            range = SR(0, nv-1)
-            @inbounds view(B, range .+ boffsets[blockindices[i]]) .+= view(b, range .+ loffset)
+            @inbounds view(B, blockrange(boffsets[blockindices[i]], nv)) .+= view(b, blockrange(loffset, nv))
             loffset += nv
         end
     end
