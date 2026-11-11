@@ -213,7 +213,7 @@ end
         cost_ = iterate!(iteratedata, data, problem, options)
         # Call the user-defined callback
         cost, terminate = callback(cost_, problem, data, iteratedata)
-        @assert(dynamic(options.callbackchangesstate) || cost == cost_, "callback expected to not change the cost")
+        @assert(dynamic(options.callbackchangesstate) || isequal(cost, cost_), "callback expected to not change the cost") # isequal: a NaN cost is unchanged too
         # Check for cost increase (only some iterators will do this)
         dcost = data.bestcost - cost
         if dcost >= 0
@@ -252,6 +252,12 @@ end
         # Construct the new linear problem (the iterator may already hold it)
         cost_ = linearize!(iteratedata, data, problem)
         converged |= !isapprox(cost_, cost)                          << 10 # Cost computations don't agree
+        # A non-finite gradient at the new point (from a non-finite Jacobian there): no gradient-based step from it is
+        # valid, so stop rather than iterate from it (the best variables are restored below)
+        if !all(isfinite, getgrad(data.linsystem))
+            converged |= 1                                           << 12 # Non-finite gradient after an accepted step
+            break
+        end
     end
     if !(data.bestcost >= cost)
         # Update the problem variables to the best ones found
