@@ -22,6 +22,9 @@ end
 bindleadingargs(func, args...) = Bind(func, args)
 
 SR(first, last) = StaticArrays.SUnitRange(dynamic(first), dynamic(last))
+# Indices first:first+len-1 of a block: static for a static length, a UnitRange for a run-time length (an SR of run-time length is a new type per call)
+blockrange(first, len::StaticInt) = SR(0, len - static(1)) .+ first
+blockrange(first, len::Integer) = dynamic(first):dynamic(first)+len-1
 
 macro bitiset(flags, bit)
     esc(:(((1 << ($bit - 1)) & $flags) != 0))

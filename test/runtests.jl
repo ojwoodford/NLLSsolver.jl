@@ -8,6 +8,7 @@ using Test
     include("functional.jl")
     include("optimizeba.jl")
     include("dynamicvars.jl")
+    include("runtimeblocks.jl")
     include("nonsquaredcost.jl")
     include("adaptivecost.jl")
     include("multithreading.jl")

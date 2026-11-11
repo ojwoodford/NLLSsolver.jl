@@ -106,7 +106,7 @@ end
 
 zero!(bsm::BlockSparseMatrix) = fill!(bsm.data, 0)
 block(bsm::BlockSparseMatrix, i, j, ::StaticInt{rows}, ::StaticInt{cols}) where {rows, cols} = @inbounds SizedMatrix{rows, cols}(view(bsm.data, SR(0, rows*cols-1).+bsm.indicestransposed[j,i]))
-block(bsm::BlockSparseMatrix, i, j, rows::Integer, cols::Integer) = @inbounds reshape(view(bsm.data, SR(0, rows*cols-1).+bsm.indicestransposed[j,i]), (rows, cols))
+block(bsm::BlockSparseMatrix, i, j, rows::Integer, cols::Integer) = @inbounds reshape(view(bsm.data, blockrange(bsm.indicestransposed[j,i], Int(rows)*Int(cols))), (Int(rows), Int(cols)))
 block(bsm::BlockSparseMatrix, i, j, ::StaticInt{rows}, cols::Integer) where rows = HybridArray{Tuple{rows, StaticArrays.Dynamic()}}(block(bsm, i, j, rows, cols))
 block(bsm::BlockSparseMatrix, i, j) = @inbounds block(bsm, i, j, bsm.rowblocksizes[i], bsm.columnblocksizes[j])
 validblock(bsm::BlockSparseMatrix, i, j) = @inbounds bsm.indicestransposed[j,i] != 0
