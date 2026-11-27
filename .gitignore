@@ -25,3 +25,7 @@ GEMINI.md
 
 # OS generated files
 .DS_Store
+
+# Working scripts (rule 43) and version-specific Pkg manifests
+/scripts
+Manifest-v*.toml
