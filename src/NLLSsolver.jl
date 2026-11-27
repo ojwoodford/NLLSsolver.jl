@@ -1,134 +1,98 @@
+"""
+    NLLSsolver
+
+**Deprecated.** NLLSsolver has been split into two packages:
+
+- [NLLSModel.jl](https://github.com/ojwoodford/NLLSModel.jl) — the model: variables, residuals,
+  robust and adaptive kernels, automatic and analytic differentiation, cost/gradient/Hessian assembly.
+- [SecondOrderOptimization.jl](https://github.com/ojwoodford/SecondOrderOptimization.jl) — the optimizer:
+  iterators (Levenberg–Marquardt, Dogleg, Newton), step control, the loop, callbacks, stats and workspace.
+
+NLLSsolver 6 is a thin compatibility layer over the two: every call forwards to them, and every name they
+export is re-exported here, so their features are reachable through NLLSsolver without it naming them. It is
+the last major version and receives compatibility fixes only. New code should depend on NLLSModel.jl and
+SecondOrderOptimization.jl directly.
+
+See the README for the translation guide and the behaviour that changed from NLLSsolver 5.
+"""
 module NLLSsolver
 
-using BlockLinearSystems
-using NLLSModel
-using OptimizationVariableInterface
-using SecondOrderOptimization
-using Static, StaticArrays, SparseArrays
+import NLLSModel
+import SecondOrderOptimization
+import OptimizationVariableInterface
+using StaticArrays: SVector
 
-# Module aliases
-const SecondOrderOptimizer = SecondOrderOptimization
-const SecodOrderOptimizer = SecondOrderOptimization
+# --- Names NLLSsolver owns (exported with the 5.3.4 spelling; each names its replacement) -------------
 
-import SecondOrderOptimization:
-    optimize, optimize!,
-    OptimizationOptions, OptimizationResult, OptimizationWorkspace, OptimizationInternal,
-    OptimizationIterator, newton, levenbergmarquardt, dogleg, gradientdescent, levenbergmarquardt_dtd, getiterator,
-    NewtonData, NewtonDataRelinearize, DoglegData, LevenbergData, LevenbergDataTrial, MarquardtData, MarquardtDataTrial, GradientDescentData,
-    OptimizationLinearSolver, auto_solver, cholesky_solver, ldl_solver, qr_solver,
-    CostTrajectory,
-    nullcallback, printoutcallback, storecostscallback,
-    reset!, construct
+"""
+    NLLSProblem(VariableTypes, CostTypes) -> Model
 
-import OptimizationVariableInterface:
-    nvars, update, update!, syncvars!,
-    ZeroToInfScalar, ZeroToOneScalar
+Deprecated alias of [`Model`](@ref) (NLLSModel.jl). Build a model with
+`Model(VariableTypes, CostTypes)`. The no-argument and variables-only forms of NLLSsolver 5
+(costs of type `Any`) are not available: give the cost types.
+"""
+const NLLSProblem = NLLSModel.Model
 
-import BlockLinearSystems:
-    SparseBlockLinearSystem, DenseBlockLinearSystem,
-    block, zero!, copy_structure, uniformscaling!,
-    symmetrifyfull, symmetrifyfull!, computestartindices
+"""
+    NLLSOptions(; kwargs...) -> OptimizationOptions
 
-import NLLSModel:
-    Model,
-    AbstractCost, AbstractResidual, AbstractAdaptiveResidual, AbstractRobustifier, AbstractAdaptiveRobustifier,
-    NoRobust, Scaled, HuberKernel, Huber2oKernel, GemanMcclureKernel, GemanMcclure2oKernel, ContaminatedGaussian,
-    SimpleError2, SimpleError3, SimpleError4,
-    CostStruct,
-    addvariable!, addcost!, addresidual!, updatevarcostmap!, subproblem, subproblem!,
-    cost, costgradhess!, computeresidual, computeresjac, computecost, computecostgradhess,
-    optimvars,
-    getvars, varindices, generatemeasurement, ndeps, nres,
-    robustkernel, robustify, robustifydcost, robustifydkernel,
-    countcosts, costnum,
-    reordercostsforschur!,
-    SR,
-    @unroll, @bitiset,
-    LinearSystem, LinearSystemShared,
-    UniVariateLSstatic_x, UniVariateLSstatic_ls, UniVariateLSdynamic_x, UniVariateLSdynamic_ls,
-    MultiVariateLSdense, MultiVariateLSsparse,
-    block_sizes_indices, getgrad, getA, getb, gethessian
+Deprecated alias of `OptimizationOptions` (SecondOrderOptimization.jl). The 5.x keywords
+`maxfails` and `numthreads` are gone: use `maxstall`/`stalltol`, and pass `numthreads` to
+`optimize!`. The 5.x defaults are not restored (e.g. `reldcost` is `1e-12`).
+"""
+const NLLSOptions = SecondOrderOptimization.OptimizationOptions
 
-# Backward-compatibility aliases
-const NLLSProblem           = Model
+"""
+    NLLSResult
+
+Deprecated alias of `OptimizationResult` (SecondOrderOptimization.jl). Same fields;
+`result.iterator` is now a `Symbol`, and the termination field is read with `isconverged` and
+the `TERMINATION_*` masks.
+"""
+const NLLSResult = SecondOrderOptimization.OptimizationResult
+
+"""
+    EuclideanVector{N, T} = SVector{N, T}
+
+Deprecated alias of `StaticArrays.SVector`. Use `SVector{N, T}` directly.
+"""
 const EuclideanVector{N, T} = SVector{N, T}
-const DynamicVector{T}      = Vector{T}
-const NLLSOptions   = SecondOrderOptimization.OptimizationOptions
-const NLLSResult    = SecondOrderOptimization.OptimizationResult
-const NLLSIterator  = SecondOrderOptimization.OptimizationIterator
-const NLLSInternal  = SecondOrderOptimization.OptimizationInternal
 
-include("optimize.jl")
+"""
+    NLLSsolver.DynamicVector{T} = Vector{T}
 
-# Export the API
-# Types
-export AbstractCost, AbstractResidual, AbstractRobustifier # Abstract problem definition types
-export Model, NLLSProblem, NLLSOptions, NLLSResult, NLLSIterator, OptimizeCache # Concrete problem & solver types
-export AbstractRobustifier, NoRobust, Scaled, HuberKernel, Huber2oKernel, GemanMcclureKernel, GemanMcclure2oKernel # Robustifiers
-export ContaminatedGaussian # Adaptive robustifiers
-export EuclideanVector, ZeroToInfScalar, ZeroToOneScalar # Concrete general variables
-export SimpleError2, SimpleError3, SimpleError4 # Measurement error residuals depending on 2, 3, and 4 variables
-export CostTrajectory # Object for storing opimization trajectory and costs
-# Functions
-export addcost!, addvariable!, updatevarcostmap!, subproblem, subproblem!, nvars, nres # Construct a problem
-export update, nvars # Variable interface
-export nres, ndeps, varindices, getvars, generatemeasurement # Residual interface
-export robustkernel, robustify, robustifydcost, robustifydkernel # Robustifier interface
-export cost, computeresidual, computeresjac, computecost, computecostgradhess # Compute the objective
-export optimize!  # Optimize the objective
-export nullcallback, printoutcallback, storecostscallback # Callbacks to be called once per optimization iteration
+Deprecated (unexported) alias of `Vector`. Use `Vector{T}` directly.
+"""
+const DynamicVector{T} = Vector{T}
 
-# Also import any remaining unexported symbols from component modules for full internal test compatibility
-for mod in (SecondOrderOptimization, NLLSModel, BlockLinearSystems, OptimizationVariableInterface)
-    for sym in names(mod; all=true)
-        s = string(sym)
-        if !startswith(s, "#") && !startswith(s, "@") && !isdefined(@__MODULE__, sym) && sym !== :eval && sym !== :include
-            try
-                val = getfield(mod, sym)
-                @eval const $sym = $val
-            catch
-            end
-        end
+"""
+    NLLSIterator
+
+Deprecated enum of iterator names, kept so that `NLLSOptions(iterator = NLLSsolver.dogleg)` still
+works. New code passes the iterator as a `Symbol` (`iterator = :dogleg`). The members
+(`NLLSsolver.newton`, `NLLSsolver.levenbergmarquardt`, `NLLSsolver.dogleg`,
+`NLLSsolver.levenbergmarquardt_dtd`) are unexported, as in NLLSsolver 5. Gradient descent is no
+longer a built-in iterator: see `examples/gradientdescent.jl`.
+"""
+@enum NLLSIterator newton levenbergmarquardt dogleg levenbergmarquardt_dtd
+export NLLSProblem, NLLSOptions, NLLSResult, NLLSIterator, EuclideanVector
+
+# --- Re-export every exported name of the three packages (D7) -----------------------------------------
+# One short loop, no explicit lists, so a new upstream export passes through. The module's own name and
+# the owned `optimize`/`optimize!` are skipped; a name already bound here (an owned alias, or `syncvars!`
+# which NLLSModel and OptimizationVariableInterface export as the same object) is skipped too.
+for mod in (NLLSModel, SecondOrderOptimization, OptimizationVariableInterface)
+    for name in names(mod)
+        (name === nameof(mod) || name === :optimize || name === :optimize!) && continue
+        isdefined(@__MODULE__, name) && continue
+        @eval const $name = $(getfield(mod, name))
+        @eval export $name
     end
 end
 
-# Backward-compatibility method extensions
-SecondOrderOptimization.construct(iter::StaticSymbol, problem, ls, cbchangesstate) = construct(iter, ls, cbchangesstate)
-SecondOrderOptimization.optimize(kernel::ContaminatedGaussian{T}, squarederrors::Vector{T}, maxiters=10) where T =
-    NLLSModel.optimize(kernel, squarederrors, maxiters)
-BlockLinearSystems.zero!(ls::SecondOrderOptimization.AbstractLinearSystem) = SecondOrderOptimization.zero!(ls)
-BlockLinearSystems.copy_structure(ls::SecondOrderOptimization.AbstractLinearSystem) = SecondOrderOptimization.copy_structure(ls)
-BlockLinearSystems.uniformscaling!(ls::SecondOrderOptimization.AbstractLinearSystem, k) = SecondOrderOptimization.uniformscaling!(ls, k)
-SecondOrderOptimization.copy_structure(x) = BlockLinearSystems.copy_structure(x)
-SecondOrderOptimization.getx(x) = NLLSModel.getx(x)
-SecondOrderOptimization.getA(x) = NLLSModel.getA(x)
-SecondOrderOptimization.getb(x) = NLLSModel.getb(x)
-SecondOrderOptimization.getgrad(x) = NLLSModel.getgrad(x)
-SecondOrderOptimization.gethessian(x) = NLLSModel.gethessian(x)
-SecondOrderOptimization.gethessgrad(x) = NLLSModel.gethessgrad(x)
-NLLSModel.getx(ls::SecondOrderOptimization.AbstractLinearSystem) = SecondOrderOptimization.getx(ls)
-NLLSModel.getA(ls::SecondOrderOptimization.AbstractLinearSystem) = SecondOrderOptimization.getA(ls)
-NLLSModel.getb(ls::SecondOrderOptimization.AbstractLinearSystem) = SecondOrderOptimization.getb(ls)
-NLLSModel.getgrad(ls::SecondOrderOptimization.AbstractLinearSystem) = SecondOrderOptimization.getgrad(ls)
-NLLSModel.gethessian(ls::SecondOrderOptimization.AbstractLinearSystem) = SecondOrderOptimization.gethessian(ls)
-NLLSModel.gethessgrad(ls::SecondOrderOptimization.AbstractLinearSystem) = SecondOrderOptimization.gethessgrad(ls)
-
-NLLSModel.getoffsets(block, ::SecondOrderOptimization.StaticLinearSystem) = SVector(UInt(1))
-function NLLSModel.updatesymlinearsystem!(linsystem::SecondOrderOptimization.StaticLinearSystem, g, H, unusedargs...)
-    getb(linsystem) .+= g
-    getA(linsystem) .+= H
-end
-function NLLSModel.costgradhess!(linsystem::SecondOrderOptimization.DenseLinearSystem, vars::AbstractVector, costs::NLLSModel.CostStruct)
-    zero!(linsystem)
-    n = length(vars)
-    blocksizes, blockindices = block_sizes_indices(vars, trues(n), n)
-    boffsets = computestartindices(blocksizes)
-    push!(boffsets, boffsets[end] + blocksizes[end])
-    bdm = DenseBlockLinearSystem{Float64}(linsystem.A, blocksizes)
-    ls = LinearSystem(NLLSModel.MultiVariateLSdense_x(linsystem.x, blockindices, boffsets), NLLSModel.MultiVariateLSdense_ls(bdm, linsystem.b))
-    c = NLLSModel.costgradhess_nozero!(ls, vars, costs)
-    symmetrifyfull!(bdm)
-    return c
-end
+# --- Owned entry points and compatibility shims -------------------------------------------------------
+include("optimize.jl")
+include("OptimizeCache.jl")
+include("optimizesingles.jl")
 
 end # module NLLSsolver
