@@ -6,6 +6,10 @@
 using StaticArrays, GLMakie, LinearAlgebra, Static
 import NLLSsolver
 
+# Gradient descent was a built-in iterator in NLLSsolver 5; it is now a user-defined iterator. Loading this
+# file registers it as :gradientdescent (see examples/gradientdescent.jl).
+include("gradientdescent.jl")
+
 # Define the Rosenbrock cost function
 struct Rosenbrock <: NLLSsolver.AbstractResidual
     a::Float64
@@ -56,9 +60,9 @@ function runoptimizers!(results, problem, start, iterators)
         result = NLLSsolver.optimize!(problem, options, nothing, NLLSsolver.storecostscallback(costtrajectory))
 
         # Construct the trajectory
-        resize!(results[ind].trajectory.val, length(costtrajectory.trajectory)+1)
+        resize!(results[ind].trajectory.val, length(costtrajectory.steps)+1)
         @inbounds results[ind].trajectory.val[1] = Point2f(start[1], start[2])
-        for (i, step) in enumerate(costtrajectory.trajectory)
+        for (i, step) in enumerate(costtrajectory.steps)
             @inbounds results[ind].trajectory.val[i+1] = results[ind].trajectory.val[i] + Point2f(step[1], step[2])
         end
 
@@ -74,7 +78,7 @@ function runoptimizers!(results, problem, start, iterators)
     end
 end
 
-function optimize2DProblem(problem, start, xrange, yrange; iterators=[NLLSsolver.newton, NLLSsolver.levenbergmarquardt, NLLSsolver.levenbergmarquardt_dtd, NLLSsolver.dogleg, NLLSsolver.gradientdescent])
+function optimize2DProblem(problem, start, xrange, yrange; iterators=[:newton, :levenbergmarquardt, :levenbergmarquardt_dtd, :dogleg, :gradientdescent])
     # Compute the results 
     results = [OptimResult() for i in range(1, length(iterators))]
     runoptimizers!(results, problem, start, iterators)

@@ -1,12 +1,17 @@
 [deps]
+Aqua = "4c88cf16-eb10-579e-8560-4a9242c79595"
 LinearAlgebra = "37e2e46d-f89d-539d-b4ee-838fcccc9c8e"
+NLLSModel = "b7e28c5a-4e6f-4d8b-9a1c-5d3e2f1a0b9c"
 NLLSsolver = "50b5cf9e-bf7a-4e29-8981-4280cbba70cb"
+OptimizationVariableInterface = "f1c3d78e-8b2a-4c9d-9e4f-4a7b6c0d3e17"
 Random = "9a3f8284-a2c9-5f02-9a11-845980a1fd5c"
+SecondOrderOptimization = "a3f5c71e-3b2d-4d9a-9e20-7f8e3c4b1a50"
 SparseArrays = "2f01184e-e22b-5df5-ae63-d93ebab69eaf"
 Static = "aedffcd0-7271-4cad-89d0-dc628f76c6d3"
 StaticArrays = "90137ffa-7385-5640-81b9-e52037218182"
 Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
 
 [compat]
+Aqua = "0.8"
 Random = "1.10"
 Test = "1.10"

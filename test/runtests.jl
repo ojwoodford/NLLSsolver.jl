@@ -1,23 +1,11 @@
 using Test
 
 @testset "NLLSsolver.jl" begin
-    include("BlockSparseMatrix.jl")
-    include("VectorRepo.jl")
-    include("robust.jl")
-    include("linearsolve.jl")
+    include("exports.jl")
     include("functional.jl")
+    include("passthrough.jl")
     include("optimizeba.jl")
-    include("dynamicvars.jl")
-    include("runtimeblocks.jl")
-    include("nonsquaredcost.jl")
-    include("adaptivecost.jl")
-    include("multithreading.jl")
-    include("utils.jl")
-    include("nantrial.jl")
-    include("nanstart.jl")
-    include("nanlinearization.jl")
-    include("dampinglimit.jl")
-    include("copyvars.jl")
     include("OptimizeCache.jl")
-    include("trialreuse.jl")
+    include("aqua.jl")
+    include("readme.jl")
 end

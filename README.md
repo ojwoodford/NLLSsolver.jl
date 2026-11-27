@@ -1,69 +1,111 @@
 # NLLSsolver
 
+> [!WARNING]
+> **`NLLSsolver.jl` is deprecated.** It has been split into two packages that replace it:
+> - [**`NLLSModel.jl`**](https://github.com/ojwoodford/NLLSModel.jl) — the model: variables, residuals, robust and adaptive kernels, automatic and analytic differentiation, cost/gradient/Hessian assembly.
+> - [**`SecondOrderOptimization.jl`**](https://github.com/ojwoodford/SecondOrderOptimization.jl) — the optimizer: Levenberg–Marquardt, Dogleg and Newton iterators, step control, callbacks, stats and workspace.
+>
+> Version 6 is a thin compatibility layer over the two and the **last major version**; it receives compatibility fixes only. New code should depend on `NLLSModel.jl` and `SecondOrderOptimization.jl` directly. See their documentation: [NLLSModel](https://ojwoodford.github.io/NLLSModel.jl/), [SecondOrderOptimization](https://ojwoodford.github.io/SecondOrderOptimization.jl/).
+
 [![Build Status](https://github.com/ojwoodford/NLLSsolver.jl/actions/workflows/CI.yml/badge.svg?branch=main)](https://github.com/ojwoodford/NLLSsolver.jl/actions/workflows/CI.yml?query=branch%3Amain)
 [![codecov](https://codecov.io/gh/ojwoodford/NLLSsolver.jl/branch/main/graph/badge.svg?token=1556CDMEGH)](https://codecov.io/gh/ojwoodford/NLLSsolver.jl)
 
-A package for optimizing robustified Non-Linear Least Squares (NLLS) problems, with the following features:
-- **Simple interface**: Large scale problems can be defined with relatively little code. Derivatives are computed automatically (though can be user-provided if desired).
-- **Robust**: Residual blocks can be robustified easily.
-- **Non-Euclidean variables**: Variables do not need to exist in a Euclidean space. For example, 3D rotations can be represented as a 9 parameter SO(3) matrix, yet retain a minimal 3DoF update parameterization.
+## What NLLSsolver 6 is
 
-The package is heavily inspired by, and very similar to, the [Ceres-Solver C++ library](http://ceres-solver.org/), in terms of interface and functionality. Ceres is used to optimize a large number of academic and commercial [problems](http://ceres-solver.org/users.html), mostly in the field of multi-view geometry.
+Every call forwards to `NLLSModel.jl` and `SecondOrderOptimization.jl`; NLLSsolver holds no modelling or optimizer code of its own. It re-exports every name those packages export, so their new features — Schur elimination, `formulation = :jacobian`, `precision = Float32`, `recommendoptimizer`, user-defined iterators, and the rest — are reachable through NLLSsolver without it naming them. Code written against the NLLSsolver 5 API keeps working, except for the breaks listed below.
 
-Features not currently supported:
-- **Constraints**: Bounds on variables are not explicitly supported. However, bounded variables can be implemented using special, non-Euclidean parameterizations.
+## Translation guide
 
-## Usage
+| NLLSsolver 5 | NLLSModel + SecondOrderOptimization | Works in 6 |
+|---|---|---|
+| `using NLLSsolver` | `using NLLSModel, SecondOrderOptimization` (and `OptimizationVariableInterface` to define variables) | ✔ |
+| `NLLSsolver.nvars(::MyVar)`, `NLLSsolver.update(…)` | methods of `OptimizationVariableInterface.nvars`, `update` | ✔ |
+| `NLLSsolver.ndeps`, `nres`, `varindices`, `getvars`, `computeresidual`, `computeresjac`, `robustkernel`, … | the same names in `NLLSModel` | ✔ |
+| `NLLSProblem(VarTypes, CostTypes)` | `Model(VarTypes, CostTypes)` | ✔ |
+| `NLLSProblem()`, `NLLSProblem(VarTypes)` (costs of type `Any`) | not available: give the cost types | ✘ |
+| `EuclideanVector{N, T}` | `SVector{N, T}` | ✔ |
+| `NLLSOptions(…)` | `OptimizationOptions(…)` | ✔ |
+| `NLLSOptions(maxfails = n)` | `maxstall = n` (and `stalltol`) | ✘ |
+| `NLLSOptions(numthreads = n)` | `optimize!(…; numthreads = n)` | ✘ |
+| `iterator = NLLSsolver.dogleg` | `iterator = :dogleg` | ✔ |
+| `iterator = :gradientdescent` | define it: see `examples/gradientdescent.jl` and SecondOrderOptimization's tutorial | ✘ |
+| `optimize!(problem, options, unfixed, callback)` | `optimize!(model, options; unfixed, callback)` | ✔ |
+| callback signature `(cost, problem, data, iteratedata)` | `(cost, x_trial, data, iteratedata)`: the 2nd argument is the trial point, not the model, and `data` is `OptimizationInternal`, not `NLLSInternal` | ✘ |
+| `problem.varnext`, `problem.varbest` | gone; the trial point is `x_trial` | ✘ |
+| `cache = OptimizeCache()`; `optimize!(problem, options, unfixed, callback, cache)` | `workspace = ModelWorkspace()`; `optimize!(model, options; workspace)` | ✔ |
+| `NLLSsolver.optimizesingles!(problem, options, T)` | a loop: `subproblem` and `optimize!(sub, options; unfixed = i)` | ✔ |
+| `NLLSResult`, `result.bestcost`, … | `OptimizationResult`, same fields | ✔ |
+| `result.iterator` (enum) | a `Symbol` | ✘ |
+| `result.termination` bit values | `isconverged(result)` and the `TERMINATION_*` masks | ✘ |
+| `CostTrajectory().trajectory` | `.steps` | ✘ |
+| `ContaminatedGaussian(s1, s2, w)` | `ContaminatedGaussian(s1, s2, w, static(d))`, `d` the residual length | ✘ |
+| `NLLSsolver.optimize(kernel, squarederrors)` | `optimizerobustifier(kernel, squarederrors)` | ✔ |
+| `updatevarcostmap!` | not needed | ✘ |
+| *(new in 6)* | `reduction`, `storage`, `formulation = :jacobian`, `precision = Float32`, `linsolver`, `recommendoptimizer`, `collectstats`, user-defined iterators | ✔ |
 
-### Problem definition
-Each NLLS problem is defined using two types of data structure:
-- **Variable blocks**, which contain the parameters to be optimized.
-- **Cost blocks**, which contain the data that defines the NLLS cost function to be minimized w.r.t. the variables. A single cost block generates a scalar cost as a function of a fixed (at compile-time) number of variable blocks, currently up to 10.
+### A worked example
 
-Each instance of these two types must implement a standard API, as follows.
+The same Rosenbrock problem, solved through NLLSsolver 6 (the NLLSsolver 5 API):
 
-#### Variable blocks
-- **`N::Union{Int, StaticInt} = nvars(::MyVar)`** returns the intrinsic dimensionality, N, of the variable block. This must be fixed for the duration of the optimization. Returning a `::StaticInt{N}` will improve performance, so do so where possible.
-- **`newvar::MyVar = update(oldvar::MyVar, updatevec::AbstractVector, start::Int=1)`** updates a variable, using the values in update vector `updatevec`, starting at index `start`. 
+```julia
+using NLLSsolver, StaticArrays, Static
 
-#### Cost blocks
-- **`::StaticInt{N} = ndeps(::MyCost)`** returns the number of variable blocks the cost block depends on. This must be a compile-time constant of type `StaticInt`.
-- **`varind::SVector{N, Int} = varindices(costblock::MyCost)`** returns the indices of the variable blocks (stored in problem) that this cost block depends on. These values are assumed to remain fixed for the duration of an optimization.
-- **`blockvars::Tuple = getvars(costblock::MyCost, allvars::Vector)`** returns a tuple containing the variables the cost block depends on.
+struct Rosenbrock <: AbstractResidual
+    a::Float64
+    b::Float64
+end
+NLLSsolver.ndeps(::Rosenbrock) = static(1)
+NLLSsolver.nres(::Rosenbrock) = static(2)
+NLLSsolver.varindices(::Rosenbrock) = SVector(1)
+NLLSsolver.getvars(::Rosenbrock, vars::Vector) = (vars[1]::EuclideanVector{2, Float64},)
+NLLSsolver.computeresidual(r::Rosenbrock, x) = SVector(r.a * (1 - x[1]), r.b * (x[1]^2 - x[2]))
+Base.eltype(::Rosenbrock) = Float64
 
-Cost blocks can either be robustified least-squares blocks (an instance of an `AbstractResidual`), or a standard scalar cost block (an instance of an `AbstractCost`).
-
-`AbstractResidual` blocks should implement the following functions:
-- **`M::Union{Int, StaticInt} = nres(::MyCost)`** (required for least squares costs only) returns the number of scalar residuals in the block. This must be fixed for the duration of the optimization. Returning a `::StaticInt{M}` will improve performance, so do so where possible.
-- **`res::SVector{M, Float} = computeresidual(costblock::MyCost, blockvars...)`** returns the computed residual block.
-- **`res::SVector{M, Float}, jac::SMatrix{M, P, Float} = computeresjac(::StaticInt{varflags}, res::MyCost, blockvars...)`** (*optional*) returns the computed residual block and its Jacobian, for all the variables whose corresponding bit in `varflags` is set. If this function isn't provided, the Jacobian is computed using ForwardDiff auto-differentiation. `P` is the total dimensionality of the unfixed variable blocks.
-- **`robker::AbstractRobustifier = robustkernel(res::MyCost)`** (*optional*) returns the robust kernel data structure for the residual block. If this function isn't provided, the cost is the squared norm of the residual block.
-
-A subtype of `AbstractResidual`, `AdaptiveAbstractResidual`, also exists. Instances of this abstract type should return a `robker::AbstractAdaptiveRobustifier` as the first value returned by the `getvars()` method, rather implementing the `robustkernel()` method. Otherwise, the API is similar to above. See examples/adaptivekernel.jl for an example.
-
-`AbstractCost` blocks should implement the following functions:
-- **`cost::Float = computecost(costblock::MyCost, blockvars...)`** returns the computed residual block.
-- **`cost::Float, grad::SVector{P, Float}, hess::SMatrix{P, P, Float} = computecostgradhess(::StaticInt{varflags}, costblock::MyCost, blockvars...)`** (*optional*) returns the computed cost and its gradient and Hessian, for all the variables whose corresponding bit in `varflags` is set. If this function isn't provided, the derivatives are computed using ForwardDiff auto-differentiation. `P` is the total dimensionality of the unfixed variable blocks.
-
-A problem is then defined by creating an `NLLSProblem` object, and adding variable blocks and cost blocks to it using the `addvariable!` and `addcost!` methods respectively.
-
-### Optimization
-Optimization is done as follows:
+problem = NLLSProblem(EuclideanVector{2, Float64}, Rosenbrock)
+addvariable!(problem, EuclideanVector(-1.2, 1.0))
+addcost!(problem, Rosenbrock(1.0, 10.0))
+result = optimize!(problem, NLLSOptions(), nothing, nullcallback)
+cost(problem)   # ≈ 0 at the minimum (1, 1)
 ```
-    result::NLLSResult = optimize!(problem::NLLSProblem, options::NLLSOptions)
+
+and directly on the new packages:
+
+```julia
+using NLLSModel, SecondOrderOptimization, StaticArrays, Static
+
+struct Rosenbrock2 <: AbstractResidual
+    a::Float64
+    b::Float64
+end
+NLLSModel.ndeps(::Rosenbrock2) = static(1)
+NLLSModel.nres(::Rosenbrock2) = static(2)
+NLLSModel.varindices(::Rosenbrock2) = SVector(1)
+NLLSModel.getvars(::Rosenbrock2, vars::Vector) = (vars[1]::SVector{2, Float64},)
+NLLSModel.computeresidual(r::Rosenbrock2, x) = SVector(r.a * (1 - x[1]), r.b * (x[1]^2 - x[2]))
+Base.eltype(::Rosenbrock2) = Float64
+
+model = Model(SVector{2, Float64}, Rosenbrock2)
+addvariable!(model, SVector(-1.2, 1.0))
+addcost!(model, Rosenbrock2(1.0, 10.0))
+result = optimize!(model, OptimizationOptions(); callback = nullcallback)
+cost(model)   # ≈ 0, the same minimum
 ```
-Various optimizer `options` can be defined. During optimization, the optimizer updates variable blocks (stored in `problem`) in-place; the final values are for the best optimum found. Information about the optimization, such as initial and final cost, and optimization time, is returned in `result`.
+
+### Behaviour that changed
+
+- **Convergence defaults.** `reldcost` defaults to `1e-12` (was `1e-15`), so a run may stop an iteration or two sooner. The other tolerances are unchanged.
+- **Stalling, not failures.** `maxfails` is gone. A run that stops making progress stops on `maxstall` consecutive non-improving iterations within a `stalltol` band (`TERMINATION_STALLED`); test it with `isconverged(result)`. Cost-change termination now applies to increases as well as decreases.
+- **`result.iterator`** is a `Symbol`, and `result.termination` is read with `isconverged` and the exported `TERMINATION_*` masks; a callback's termination flags occupy bits 16 and up.
+- **`linearsolves`** counts every linear solve, including those of rejected steps.
+- **The callback signature changed (breaking).** SecondOrderOptimization calls `callback(cost, x_trial, data, iteratedata)`: the second argument is the **trial point** `x_trial`, not the `NLLSProblem`, and `data` is `OptimizationInternal`, not `NLLSInternal`. The *positional* `optimize!(problem, options, unfixed, callback)` form adapts a NLLSsolver 5 `(cost, problem, data, iteratedata)` callback by passing the model as the second argument, so callbacks that use only the `cost` argument — including `printoutcallback` and `storecostscallback` — keep working unchanged. A callback that reads the second argument or `data` must be updated: there is no `problem.varnext`/`varbest` (the trial is `x_trial`), and because the model holds the *last accepted* point (not the trial) at the callback when **every** variable is unfixed, a callback that recomputes `cost(problem)` is reliable only when a subset of variables is unfixed. A callback passed by keyword (`callback = …`) is the new signature and is not adapted.
+- **Adaptive-kernel cost** is now exactly `-2 log p`, so an adaptive kernel's costs shift and can be negative.
+
+### Removed
+
+`NLLSProblem` with untyped costs; `problem.varnext`/`problem.varbest`; the `NLLSOptions` keywords `maxfails` and `numthreads`; `iterator = :gradientdescent` and the `NLLSsolver.gradientdescent` enum member; `updatevarcostmap!`; and every other unexported NLLSsolver 5 name (`SR`, `sqnorm`, `@elapsed_ns`, `block_sizes_indices`, `reordercostsforschur!`, …) — these were never part of the public API.
 
 ## Examples
-The following examples of problem definition, creation and optimization are included:
-- **Rosenbrock function** (examples/rosenbrock.jl): Visualizes optimization of the Rosenbrock function using some of the  available optimizers. Click on the parameter space to interactively select a new start point.
 
-## Future work & collaboration
-- **Allow residuals to dynamically change the variables they depend on** to broaden the types of problems that can be optimized.
-- **Allow residual blocks to depend on a dynamic number of variables** to further broaden the types of problems that can be optimized.
-- **Add additional solvers**
-- **Add constraints**, such as equality and inequality constraints on variables.
-- **Improve code coverage of tests**
-- **Add separate docs pages** with much more detail
-
-Help is needed to improve both the functionality of the package, and also the documentation and test framework. If you wish to collaborate on this project, please raise an issue, indicating what you would like to help with.
+- [`examples/rosenbrock.jl`](examples/rosenbrock.jl) — optimizes the 2D Rosenbrock function with each iterator and visualises the trajectories; also shows gradient descent as a user-defined iterator.
+- [`examples/robustifiers.jl`](examples/robustifiers.jl) — plots the robust kernels and their derivatives.
+- [`examples/adaptivekernel.jl`](examples/adaptivekernel.jl) — fits a `ContaminatedGaussian` adaptive kernel to data.
