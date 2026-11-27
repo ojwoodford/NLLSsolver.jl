@@ -30,7 +30,7 @@ Every call forwards to `NLLSModel.jl` and `SecondOrderOptimization.jl`; NLLSsolv
 | `iterator = NLLSsolver.dogleg` | `iterator = :dogleg` | ✔ |
 | `iterator = :gradientdescent` | define it: see `examples/gradientdescent.jl` and SecondOrderOptimization's tutorial | ✘ |
 | `optimize!(problem, options, unfixed, callback)` | `optimize!(model, options; unfixed, callback)` | ✔ |
-| callback `(cost, problem, data, iteratedata)` | `(cost, x_trial, data, iteratedata)`; capture the model in a closure | ✔ (positional) |
+| callback signature `(cost, problem, data, iteratedata)` | `(cost, x_trial, data, iteratedata)`: the 2nd argument is the trial point, not the model, and `data` is `OptimizationInternal`, not `NLLSInternal` | ✘ |
 | `problem.varnext`, `problem.varbest` | gone; the trial point is `x_trial` | ✘ |
 | `cache = OptimizeCache()`; `optimize!(problem, options, unfixed, callback, cache)` | `workspace = OptimizationWorkspace()`; `optimize!(model, options; workspace)` | ✔ |
 | `NLLSsolver.optimizesingles!(problem, options, T)` | a loop: `subproblem` and `optimize!(sub, options; unfixed = i)` | ✔ |
@@ -97,7 +97,7 @@ cost(model)   # ≈ 0, the same minimum
 - **Stalling, not failures.** `maxfails` is gone. A run that stops making progress stops on `maxstall` consecutive non-improving iterations within a `stalltol` band (`TERMINATION_STALLED`); test it with `isconverged(result)`. Cost-change termination now applies to increases as well as decreases.
 - **`result.iterator`** is a `Symbol`, and `result.termination` is read with `isconverged` and the exported `TERMINATION_*` masks; a callback's termination flags occupy bits 16 and up.
 - **`linearsolves`** counts every linear solve, including those of rejected steps.
-- **The callback's `data`** is `SecondOrderOptimization`'s internal optimizer state, not `NLLSInternal`. A positional callback still receives the model as its second argument; note that when *every* variable is unfixed the model holds the last accepted point (not the trial point) at the callback, so a callback that recomputes `cost(problem)` sees the accepted cost in that case.
+- **The callback signature changed (breaking).** SecondOrderOptimization calls `callback(cost, x_trial, data, iteratedata)`: the second argument is the **trial point** `x_trial`, not the `NLLSProblem`, and `data` is `OptimizationInternal`, not `NLLSInternal`. The *positional* `optimize!(problem, options, unfixed, callback)` form adapts a NLLSsolver 5 `(cost, problem, data, iteratedata)` callback by passing the model as the second argument, so callbacks that use only the `cost` argument — including `printoutcallback` and `storecostscallback` — keep working unchanged. A callback that reads the second argument or `data` must be updated: there is no `problem.varnext`/`varbest` (the trial is `x_trial`), and because the model holds the *last accepted* point (not the trial) at the callback when **every** variable is unfixed, a callback that recomputes `cost(problem)` is reliable only when a subset of variables is unfixed. A callback passed by keyword (`callback = …`) is the new signature and is not adapted.
 - **Adaptive-kernel cost** is now exactly `-2 log p`, so an adaptive kernel's costs shift and can be negative.
 - **A cached call is no longer allocation-free:** `OptimizeCache` reuses only the optimizer's workspace, and the model's linearization is rebuilt each call.
 
