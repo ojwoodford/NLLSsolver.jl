@@ -10,8 +10,8 @@ OptimizationVariableInterface.update(v::BALandmark, step, offset) = BALandmark(v
 OptimizationVariableInterface.iseliminable(::Type{<:BALandmark}) = static(true)
 
 # Simple affine projection transform
-NLLSsolver.generatemeasurement(pose::EuclideanVector{6, T}, X::EuclideanVector{3, U}) where {T, U} = SVector(dot(@inbounds(view(pose, NLLSsolver.SR(1, 3))), X), dot(@inbounds(view(pose, NLLSsolver.SR(4, 6))), X))
-NLLSsolver.generatemeasurement(pose::EuclideanVector{6, T}, X::BALandmark{U}) where {T, U} = SVector(dot(@inbounds(view(pose, NLLSsolver.SR(1, 3))), X.p), dot(@inbounds(view(pose, NLLSsolver.SR(4, 6))), X.p))
+NLLSsolver.generatemeasurement(pose::EuclideanVector{6, T}, X::EuclideanVector{3, U}) where {T, U} = SVector(dot(@inbounds(view(pose, SVector(1,2,3))), X), dot(@inbounds(view(pose, SVector(4,5,6))), X))
+NLLSsolver.generatemeasurement(pose::EuclideanVector{6, T}, X::BALandmark{U}) where {T, U} = SVector(dot(@inbounds(view(pose, SVector(1,2,3))), X.p), dot(@inbounds(view(pose, SVector(4,5,6))), X.p))
 
 function create_schur_ba_problem(ncameras, nlandmarks, propvisible)
     problem = NLLSProblem(Union{EuclideanVector{6, Float64}, BALandmark{Float64}}, SimpleError2{2, Float64, EuclideanVector{6, Float64}, BALandmark{Float64}})
@@ -103,12 +103,10 @@ end
     problem = create_ba_problem(3, 5, 1.0)
     options = NLLSOptions()
 
-    # Test reordering the costs
+    # Perturb the landmarks for the single-variable optimization below
     problem = perturb_ba_problem(problem, 0.003, 0.0)
     costbefore = cost(problem)
     landmarks = isa.(problem.variables, EuclideanVector{3, Float64})
-    NLLSsolver.reordercostsforschur!(problem, landmarks)
-    @test cost(problem) ≈ costbefore
 
     # Optimze just the landmarks
     result = NLLSsolver.optimizesingles!(problem, options, findall(landmarks))
@@ -162,39 +160,37 @@ end
     @test result.bestcost < 1.e-15
     @test result.optimizeallocated == 0
 
-    # Schur-Complement Solvers (Dense & Sparse)
+    # Schur-complement elimination (dense & sparse). In NLLSsolver 5 this was the (reorg-only)
+    # linsolver = :dense_schur / :sparse_schur; now it is the keywords reduction = :eliminate and
+    # storage = :dense / :sparse, forwarded to the optimizer.
     @testset "Schur solvers" begin
-        # 1. Dense Schur
-        schur_dense_opts = NLLSOptions(linsolver=:dense_schur)
+        # 1. Dense elimination
         prob_dense = perturb_schur_ba_problem(create_schur_ba_problem(3, 8, 1.0), 0.001, 0.001)
-        res_dense = optimize!(prob_dense, schur_dense_opts)
+        res_dense = optimize!(prob_dense, NLLSOptions(); reduction=:eliminate, storage=:dense)
         @test isapprox(NLLSsolver.cost(prob_dense), res_dense.bestcost; rtol=1e-8, atol=1e-15)
         @test res_dense.bestcost < 1e-9
 
-        # 2. Sparse Schur
-        schur_sparse_opts = NLLSOptions(linsolver=:sparse_schur)
+        # 2. Sparse elimination
         prob_sparse = perturb_schur_ba_problem(create_schur_ba_problem(8, 20, 0.4), 0.001, 0.001)
-        res_sparse = optimize!(prob_sparse, schur_sparse_opts)
+        res_sparse = optimize!(prob_sparse, NLLSOptions(); reduction=:eliminate, storage=:sparse)
         @test isapprox(NLLSsolver.cost(prob_sparse), res_sparse.bestcost; rtol=1e-8, atol=1e-15)
         @test res_sparse.bestcost < 1e-9
 
-        # 3. Auto Schur selection via eliminable trait
+        # 3. Auto elimination via the eliminable trait
         prob_auto = perturb_schur_ba_problem(create_schur_ba_problem(4, 10, 0.8), 0.001, 0.001)
         res_auto = optimize!(prob_auto, NLLSOptions())
         @test isapprox(NLLSsolver.cost(prob_auto), res_auto.bestcost; rtol=1e-8, atol=1e-15)
         @test res_auto.bestcost < 1e-9
 
-        # 4. Dense Schur with D'D damping
-        schur_dtd_opts = NLLSOptions(iterator=:levenbergmarquardt_dtd, linsolver=:dense_schur)
+        # 4. Dense elimination with D'D damping
         prob_dtd = perturb_schur_ba_problem(create_schur_ba_problem(3, 8, 1.0), 0.001, 0.001)
-        res_dtd = optimize!(prob_dtd, schur_dtd_opts)
+        res_dtd = optimize!(prob_dtd, NLLSOptions(iterator=:levenbergmarquardt_dtd); reduction=:eliminate, storage=:dense)
         @test isapprox(NLLSsolver.cost(prob_dtd), res_dtd.bestcost; rtol=1e-8, atol=1e-15)
         @test res_dtd.bestcost < 1e-6
 
-        # 5. Sparse Schur with D'D damping
-        sparse_dtd_opts = NLLSOptions(iterator=:levenbergmarquardt_dtd, linsolver=:sparse_schur)
+        # 5. Sparse elimination with D'D damping
         prob_sdtd = perturb_schur_ba_problem(create_schur_ba_problem(6, 15, 0.5), 0.001, 0.001)
-        res_sdtd = optimize!(prob_sdtd, sparse_dtd_opts)
+        res_sdtd = optimize!(prob_sdtd, NLLSOptions(iterator=:levenbergmarquardt_dtd); reduction=:eliminate, storage=:sparse)
         @test isapprox(NLLSsolver.cost(prob_sdtd), res_sdtd.bestcost; rtol=1e-8, atol=1e-15)
         @test res_sdtd.bestcost < 1e-6
     end

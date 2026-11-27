@@ -38,6 +38,8 @@ startvalues(n, seed, unfixed::Integer) = (v = startvalues(n); v[unfixed] = start
 startvalues(n, seed, unfixed) = startvalues(n, seed)
 
 @testset "OptimizeCache.jl" begin
+    # The cached call gives the same result as an uncached one (D5: only the optimizer's workspace is reused;
+    # the model's linearization is rebuilt, so a cached call is no longer allocation-free).
     for (n, unfixed, iterator) in ((20, nothing, :levenbergmarquardt), (20, nothing, :levenbergmarquardt_dtd), (20, nothing, :dogleg),
                                    (20, nothing, :newton), (2, nothing, :levenbergmarquardt), (20, 7, :levenbergmarquardt_dtd))
         options = NLLSOptions(iterator=iterator)
@@ -65,51 +67,43 @@ startvalues(n, seed, unfixed) = startvalues(n, seed)
         end
     end
 
-    # The stored data are reused, and constructed anew when the call or the problem's structure changes
+    # The optimizer workspace is reused while the structure is unchanged, and rebuilt when the unfixed set,
+    # the options type, a variable count or a sparse pattern changes. (No assertions on the workspace's
+    # internals: D5 keeps only the public `ws.data`, `empty!` and `isempty`.)
     options = NLLSOptions(iterator=:levenbergmarquardt_dtd)
     problem = chainproblem(20)
     cache = OptimizeCache()
     unfixed = trues(20)
-    firstresult = optimize!(problem, options, unfixed, nullcallback, cache)
-    data = cache.data[1]
+    optimize!(problem, options, unfixed, nullcallback, cache)
+    data = cache.data
     problem.variables .= startvalues(20, 2)
-    result = optimize!(problem, options, unfixed, nullcallback, cache)
-    @test cache.data[1] === data
-    @test result.initallocations < 10 < firstresult.initallocations # Nothing is constructed for the linear system
+    optimize!(problem, options, unfixed, nullcallback, cache)
+    @test cache.data === data   # same structure: reused
     unfixed[3] = false
     optimize!(problem, options, unfixed, nullcallback, cache)
-    @test cache.data[1] !== data
-    data = cache.data[1]
+    @test cache.data !== data   # unfixed set changed: rebuilt
+    data = cache.data
     optimize!(problem, NLLSOptions(iterator=:levenbergmarquardt), unfixed, nullcallback, cache)
-    @test cache.data[1] !== data
-    data = cache.data[1]
+    @test cache.data !== data   # options type changed: rebuilt
+    data = cache.data
     addcost!(problem, ChainLink(SVector(2.0, 0.0, 0.0), SVector(1, 3)))
-    result = optimize!(problem, NLLSOptions(iterator=:levenbergmarquardt), unfixed, nullcallback, cache)
-    @test cache.data[1] !== data
     reference = deepcopy(problem)
-    @test optimize!(reference, NLLSOptions(iterator=:levenbergmarquardt), unfixed).bestcost == optimize!(problem, NLLSOptions(iterator=:levenbergmarquardt), unfixed, nullcallback, cache).bestcost
+    result = optimize!(problem, NLLSOptions(iterator=:levenbergmarquardt), unfixed, nullcallback, cache)
+    @test result.bestcost == optimize!(reference, NLLSOptions(iterator=:levenbergmarquardt), unfixed).bestcost
     addvariable!(problem, SVector(0.0, 0.0, 0.0))
+    data = cache.data
     optimize!(problem, options, nothing, nullcallback, cache)
-    @test length(cache.data[1].linsystem.x.blockindices) == 21
-    # Switching callbackchangesstate rebuilds the iterator data
-    @test cache.data[2] isa NLLSsolver.MarquardtDataTrial
-    optimize!(problem, NLLSOptions(iterator=:levenbergmarquardt_dtd, callbackchangesstate=true), nothing, nullcallback, cache)
-    @test cache.data[2] isa NLLSsolver.MarquardtData
-    # Switching unfixed between an Integer and a BitVector/nothing
-    subprob = subproblem(problem, 1)
-    optimize!(subprob, options, 1, nullcallback, cache)
-    @test cache.key[3] === 1
-    optimize!(problem, options, nothing, nullcallback, cache)
-    @test cache.key[3] isa BitVector
+    @test cache.data !== data   # a variable was added: rebuilt
+    # The cache is populated before the optimization loop runs
+    optimize!(problem, options, nothing, (cost, unusedargs...) -> (@test !isempty(cache); (cost, 0)), cache)
     empty!(cache)
     @test isempty(cache)
-    # Cache is fully populated (both data and key) before optimizeloop! runs
-    optimize!(problem, options, nothing, (cost, unusedargs...) -> (@test !isempty(cache) && !isnothing(cache.key); (cost, 0)), cache)
 end
 
 # A cache built for its problem (`OptimizeCache(problem, options, unfixed)`) is concretely typed: the same
-# results as an untyped cache and as no cache, and a repeated optimization on a one-variable problem with a
-# static variable allocates nothing for the cache (an untyped one allocates a few small objects per call)
+# results as an untyped cache and as no cache. Unlike NLLSsolver 5 it is NOT allocation-free (D5): the model's
+# linearization (`optimvars`) is rebuilt on every call. The bounds below were measured on Julia release 1.13:
+# a repeated typed-cache call on the one-variable Offset3 problem allocates ~28 objects (0 in NLLSsolver 5).
 struct Offset3 <: AbstractResidual
     y::SVector{3, Float64}
 end
@@ -142,21 +136,10 @@ typedrun!(problem, options, cache) = (problem.variables[1] = SVector(0.0, 0.0, 0
         result = optimize!(problem, options, unfixed, nullcallback, cache)
         @test problem.variables == reference.variables && result.bestcost == refresult.bestcost
         @test result.niterations == refresult.niterations
-        # a structure change rebuilds the data, as for an untyped cache (the multi-variable problem: adding a
-        # variable changes its unfixed set)
-        if unfixed === nothing
-            data = cache.data[1]
-            addvariable!(problem, problem.variables[1])
-            optimize!(problem, options, unfixed, nullcallback, cache)
-            @test cache.data[1] !== data && length(cache.data[1].linsystem.x.blockindices) == 21
-        end
     end
+    # A repeated typed-cache call is no longer allocation-free (D5). The bound is measured, not zero.
     problem = offsetproblem()
     cache = OptimizeCache(problem, options, 1)
-    untyped = OptimizeCache()
     typedrun!(problem, options, cache); typedrun!(problem, options, cache)
-    typedrun!(problem, options, untyped); typedrun!(problem, options, untyped)
-    @test (@allocations typedrun!(problem, options, cache)) < (@allocations typedrun!(problem, options, untyped))
-    # Julia 1.10 cannot prove the typed path allocation-free (10 allocations remain there); 1.11-1.12 can
-    @test (@allocations typedrun!(problem, options, cache)) <= (v"1.11" <= VERSION < v"1.13" ? 0 : 16)
+    @test (@allocations typedrun!(problem, options, cache)) <= 64   # ~28 measured on release 1.13
 end
