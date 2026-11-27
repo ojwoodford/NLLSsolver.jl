@@ -91,8 +91,9 @@ for mod in (NLLSModel, SecondOrderOptimization, OptimizationVariableInterface)
 end
 
 # --- Owned entry points and compatibility shims -------------------------------------------------------
+# `optimizesingles!` is owned by NLLSModel now (D6) and re-exported by the loop above, so there is no file
+# for it here; `OptimizeCache` is the one 5.3.4 name the new packages have no equivalent of.
 include("optimize.jl")
 include("OptimizeCache.jl")
-include("optimizesingles.jl")
 
 end # module NLLSsolver
