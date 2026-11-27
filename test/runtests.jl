@@ -7,4 +7,5 @@ using Test
     include("optimizeba.jl")
     include("OptimizeCache.jl")
     include("aqua.jl")
+    include("readme.jl")
 end
